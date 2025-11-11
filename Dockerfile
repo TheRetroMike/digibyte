@@ -13,7 +13,7 @@
 
 FROM ubuntu:22.04
 RUN apt-get update -y
-RUN apt-get install build-essential libtool autotools-dev automake pkg-config bsdmainutils python3 make automake cmake curl g++-multilib libtool binutils-gold bsdmainutils pkg-config python3 patch bison -y
+RUN apt-get install build-essential libtool autotools-dev automake pkg-config bsdmainutils python3 make automake cmake curl libtool binutils-gold bsdmainutils pkg-config python3 patch bison -y
 WORKDIR /app
 COPY . .
 WORKDIR /app/depends
