@@ -1,7 +1,6 @@
-// Copyright (c) 2019-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <chainparams.h>
 #include <coins.h>
 #include <consensus/tx_check.h>
@@ -15,6 +14,7 @@
 #include <streams.h>
 #include <test/fuzz/fuzz.h>
 #include <univalue.h>
+#include <util/chaintype.h>
 #include <util/rbf.h>
 #include <validation.h>
 #include <version.h>
@@ -23,10 +23,10 @@
 
 void initialize_transaction()
 {
-    SelectParams(CBaseChainParams::REGTEST);
+    SelectParams(ChainType::REGTEST);
 }
 
-FUZZ_TARGET_INIT(transaction, initialize_transaction)
+FUZZ_TARGET(transaction, .init = initialize_transaction)
 {
     CDataStream ds(buffer, SER_NETWORK, INIT_PROTO_VERSION);
     try {
@@ -69,8 +69,8 @@ FUZZ_TARGET_INIT(transaction, initialize_transaction)
 
     const CFeeRate dust_relay_fee{DUST_RELAY_TX_FEE};
     std::string reason;
-    const bool is_standard_with_permit_bare_multisig = IsStandardTx(tx, /* permit_bare_multisig= */ true, dust_relay_fee, reason);
-    const bool is_standard_without_permit_bare_multisig = IsStandardTx(tx, /* permit_bare_multisig= */ false, dust_relay_fee, reason);
+    const bool is_standard_with_permit_bare_multisig = IsStandardTx(tx, std::nullopt, /* permit_bare_multisig= */ true, dust_relay_fee, reason);
+    const bool is_standard_without_permit_bare_multisig = IsStandardTx(tx, std::nullopt, /* permit_bare_multisig= */ false, dust_relay_fee, reason);
     if (is_standard_without_permit_bare_multisig) {
         assert(is_standard_with_permit_bare_multisig);
     }
@@ -92,17 +92,22 @@ FUZZ_TARGET_INIT(transaction, initialize_transaction)
     (void)GetTransactionWeight(tx);
     (void)GetVirtualTransactionSize(tx);
     (void)IsFinalTx(tx, /* nBlockHeight= */ 1024, /* nBlockTime= */ 1024);
-    (void)IsStandardTx(tx, reason);
     (void)RecursiveDynamicUsage(tx);
     (void)SignalsOptInRBF(tx);
 
     CCoinsView coins_view;
     const CCoinsViewCache coins_view_cache(&coins_view);
-    (void)AreInputsStandard(tx, coins_view_cache, false);
-    (void)AreInputsStandard(tx, coins_view_cache, true);
+    (void)AreInputsStandard(tx, coins_view_cache);
     (void)IsWitnessStandard(tx, coins_view_cache);
 
-    UniValue u(UniValue::VOBJ);
-    TxToUniv(tx, /* hashBlock */ uint256::ZERO, /* include_addresses */ true, u);
-    TxToUniv(tx, /* hashBlock */ uint256::ONE, /* include_addresses */ false, u);
+    if (tx.GetTotalSize() < 250'000) { // Avoid high memory usage (with msan) due to json encoding
+        {
+            UniValue u{UniValue::VOBJ};
+            TxToUniv(tx, /*block_hash=*/uint256::ZERO, /*entry=*/u);
+        }
+        {
+            UniValue u{UniValue::VOBJ};
+            TxToUniv(tx, /*block_hash=*/uint256::ONE, /*entry=*/u);
+        }
+    }
 }

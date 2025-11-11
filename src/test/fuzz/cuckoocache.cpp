@@ -1,7 +1,6 @@
-// Copyright (c) 2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <cuckoocache.h>
 #include <script/sigcache.h>
 #include <test/fuzz/FuzzedDataProvider.h>
@@ -37,7 +36,7 @@ FUZZ_TARGET(cuckoocache)
     } else {
         cuckoo_cache.setup(fuzzed_data_provider.ConsumeIntegralInRange<uint32_t>(0, 4096));
     }
-    while (fuzzed_data_provider.ConsumeBool()) {
+    LIMITED_WHILE(fuzzed_data_provider.ConsumeBool(), 10000) {
         if (fuzzed_data_provider.ConsumeBool()) {
             cuckoo_cache.insert(fuzzed_data_provider.ConsumeBool());
         } else {

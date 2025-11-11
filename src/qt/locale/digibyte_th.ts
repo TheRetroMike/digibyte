@@ -1,182 +1,90 @@
-<TS language="th" version="2.1">
+<TS version="2.1" language="th">
 <context>
     <name>AddressBookPage</name>
     <message>
-        <source>Right-click to edit address or label</source>
-        <translation>คลิกขวาเพื่อแก้ไขที่อยู่หรือชื่อ</translation>
-    </message>
-    <message>
         <source>Create a new address</source>
-        <translation>สร้างที่อยู่ใหม่</translation>
-    </message>
-    <message>
-        <source>&amp;New</source>
-        <translation>ใหม่</translation>
-    </message>
-    <message>
-        <source>Copy the currently selected address to the system clipboard</source>
-        <translation>คัดลอกที่อยู่ที่เลือกอยู่ไปยังคลิบบอร์ดของระบบ</translation>
-    </message>
-    <message>
-        <source>&amp;Copy</source>
-        <translation>คัดลอก</translation>
-    </message>
-    <message>
-        <source>C&amp;lose</source>
-        <translation>ปิด</translation>
-    </message>
-    <message>
-        <source>Delete the currently selected address from the list</source>
-        <translation>ลบที่อยู่ที่เลือกไว้ออกจากรายการ</translation>
-    </message>
-    <message>
-        <source>Enter address or label to search</source>
-        <translation>ป้อนที่อยู่หรือฉลากเพื่อค้นหา</translation>
-    </message>
-    <message>
-        <source>Export the data in the current tab to a file</source>
-        <translation>ส่งออกข้อมูลที่อยู่ในแถบนี้ไปในไฟล์</translation>
-    </message>
-    <message>
-        <source>&amp;Export</source>
-        <translation>ส่งออก</translation>
-    </message>
-    <message>
-        <source>&amp;Delete</source>
-        <translation>ลบ</translation>
-    </message>
-    <message>
-        <source>Choose the address to send coins to</source>
-        <translation>เลือกที่อยู่ที่จะส่งเหรียญ</translation>
-    </message>
-    <message>
-        <source>Choose the address to receive coins with</source>
-        <translation>เลือกที่อยู่ที่จะรับเหรียญ</translation>
-    </message>
-    <message>
-        <source>C&amp;hoose</source>
-        <translation>เลือก</translation>
-    </message>
-    <message>
-        <source>Sending addresses</source>
-        <translation>ที่อยู่ในการส่ง</translation>
-    </message>
-    <message>
-        <source>Receiving addresses</source>
-        <translation>ที่อยู่ในการรับ</translation>
-    </message>
-    <message>
-        <source>These are your DigiByte addresses for sending payments. Always check the amount and the receiving address before sending coins.</source>
-        <translation>ที่อยู่ DigiByte ของคุณสำหรับการส่งการชำระเงิน โปรดตรวจสอบจำนวนเงินและที่อยู่รับก่อนที่จะส่งเหรียญ</translation>
-    </message>
-    <message>
-        <source>&amp;Copy Address</source>
-        <translation>คัดลอกที่อยู่</translation>
-    </message>
-    <message>
-        <source>Copy &amp;Label</source>
-        <translation>คัดลอกชื่อ</translation>
-    </message>
-    <message>
-        <source>&amp;Edit</source>
-        <translation>แก้ไข</translation>
-    </message>
-    <message>
-        <source>Export Address List</source>
-        <translation>ส่งออกรายการที่อยู่</translation>
-    </message>
-    <message>
-        <source>Comma separated file (*.csv)</source>
-        <translation>ไฟล์ที่คั่นด้วยจุลภาค (* .csv)</translation>
-    </message>
-    <message>
-        <source>Exporting Failed</source>
-        <translation>การส่งออกล้มเหลว</translation>
-    </message>
-    <message>
-        <source>There was an error trying to save the address list to %1. Please try again.</source>
-        <translation>เกิดข้อผิดพลาดขณะพยายามบันทึกรายการที่อยู่ไปยัง %1 กรุณาลองอีกครั้ง.</translation>
-    </message>
-</context>
-<context>
-    <name>AddressTableModel</name>
-    <message>
-        <source>Label</source>
-        <translation>ฉลาก, ป้าย,</translation>
-    </message>
-    <message>
-        <source>Address</source>
-        <translation>ที่อยู่</translation>
-    </message>
-    <message>
-        <source>(no label)</source>
-        <translation>(ไม่มีฉลาก)</translation>
-    </message>
-</context>
-<context>
-    <name>AskPassphraseDialog</name>
-    <message>
-        <source>Passphrase Dialog</source>
-        <translation>กล่องโต้ตอบวลีรหัสผ่าน</translation>
-    </message>
-    <message>
-        <source>Enter passphrase</source>
-        <translation>ป้อนวลีรหัสผ่าน</translation>
-    </message>
-    <message>
-        <source>New passphrase</source>
-        <translation>วลีรหัสผ่านใหม่</translation>
-    </message>
-    <message>
-        <source>Repeat new passphrase</source>
-        <translation>ทำซ้ำข้อความรหัสใหม่</translation>
-    </message>
-    <message>
-        <source>Show passphrase</source>
-        <translation>ดูวลี</translation>
-    </message>
-    <message>
-        <source>Encrypt wallet</source>
-        <translation>กระเป๋าสตางค์ เข้ารหัส</translation>
-    </message>
-    <message>
-        <source>This operation needs your wallet passphrase to unlock the wallet.</source>
-        <translation>การดำเนินการนี้ต้องการกระเป๋าสตางค์กระเป๋าสตางค์ของคุณเพื่อปลดล็อกกระเป๋าสตางค์</translation>
-    </message>
-    <message>
-        <source>Unlock wallet</source>
-        <translation>ปลดล็อค กระเป๋าสตางค์ </translation>
-    </message>
-    <message>
-        <source>This operation needs your wallet passphrase to decrypt the wallet.</source>
-        <translation>การดำเนินการนี้ ต้องการ รหัสผ่าน กระเป๋าสตางค์ ของคุณ เพื่อ ถอดรหัส กระเป๋าสตางค์</translation>
-    </message>
-    <message>
-        <source>Decrypt wallet</source>
-        <translation>ถอดรหัส กระเป๋าสตางค์</translation>
-    </message>
-    <message>
-        <source>Change passphrase</source>
-        <translation>เปลี่ยน ข้อความรหัสผ่าน</translation>
-    </message>
-    <message>
-        <source>Confirm wallet encryption</source>
-        <translation>ยืนยันการเข้ารหัสกระเป๋าเงิน</translation>
-    </message>
-    <message>
-        <source>Are you sure you wish to encrypt your wallet?</source>
-        <translation>คุณแน่ใจหรือว่าต้องการเข้ารหัสกระเป๋าเงินของคุณ?</translation>
+        <translation type="unfinished">สร้างแอดเดรสใหม่</translation>
     </message>
     </context>
 <context>
-    <name>BanTableModel</name>
+    <name>DigiByteApplication</name>
     <message>
-        <source>IP/Netmask</source>
-        <translation>IP/Netmask (ตัวกรอง IP)</translation>
+        <source>Settings file %1 might be corrupt or invalid.</source>
+        <translation type="unfinished">ไฟล์ตั้งค่า%1 อาจเสียหายหรือไม่ถูกต้อง</translation>
+    </message>
+    </context>
+<context>
+    <name>QObject</name>
+    <message>
+        <source>%1 didn't yet exit safely…</source>
+        <translation type="unfinished">%1 ยังไม่ออกอย่างปลอดภัย...</translation>
     </message>
     <message>
-        <source>Banned Until</source>
-        <translation>ห้าม จนถึง</translation>
+        <source>Inbound</source>
+        <extracomment>An inbound connection from a peer. An inbound connection is a connection initiated by a peer.</extracomment>
+        <translation type="unfinished">ขาเข้า</translation>
+    </message>
+    <message>
+        <source>Outbound</source>
+        <extracomment>An outbound connection to a peer. An outbound connection is a connection initiated by us.</extracomment>
+        <translation type="unfinished">ขาออก</translation>
+    </message>
+    <message>
+        <source>Manual</source>
+        <extracomment>Peer connection type established manually through one of several methods.</extracomment>
+        <translation type="unfinished">คู่มือ</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n second(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n second(s)</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n minute(s)</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n hour(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n hour(s)</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n day(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n day(s)</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n week(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n week(s)</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n year(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n year(s)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>%1 B</source>
+        <translation type="unfinished">%1 ไบต์</translation>
+    </message>
+    <message>
+        <source>%1 kB</source>
+        <translation type="unfinished">%1 กิโลไบต์</translation>
+    </message>
+    <message>
+        <source>%1 MB</source>
+        <translation type="unfinished">%1 เมกะไบต์</translation>
+    </message>
+    <message>
+        <source>%1 GB</source>
+        <translation type="unfinished">%1 จิกะไบต์</translation>
     </message>
 </context>
 <context>
@@ -1047,5 +955,21 @@
     </context>
 <context>
     <name>digibyte-core</name>
+    <message>
+        <source>%s is set very high!</source>
+        <translation type="unfinished">%s ตั้งไว้สูงมาก</translation>
+    </message>
+    <message>
+        <source>Error: This wallet already uses SQLite</source>
+        <translation type="unfinished">ข้อผิดพลาด: วอลเล็ตนี้ใช้ SQLite อยู่แล้ว</translation>
+    </message>
+    <message>
+        <source>Error: Unable to make a backup of your wallet</source>
+        <translation type="unfinished">ข้อผิดพลาด: ไม่สามารถสำรองข้อมูลของวอลเล็ตได้</translation>
+    </message>
+    <message>
+        <source>Error: Unable to read all records in the database</source>
+        <translation type="unfinished">ข้อผิดพลาด: ไม่สามารถอ่านข้อมูลทั้งหมดในฐานข้อมูลได้</translation>
+    </message>
     </context>
 </TS>

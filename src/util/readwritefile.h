@@ -1,11 +1,10 @@
-// Copyright (c) 2015-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_UTIL_READWRITEFILE_H
 #define DIGIBYTE_UTIL_READWRITEFILE_H
 
-#include <fs.h>
+#include <util/fs.h>
 
 #include <limits>
 #include <string>
@@ -25,4 +24,4 @@ std::pair<bool,std::string> ReadBinaryFile(const fs::path &filename, size_t maxs
  */
 bool WriteBinaryFile(const fs::path &filename, const std::string &data);
 
-#endif /* DIGIBYTE_UTIL_READWRITEFILE_H */
+#endif // DIGIBYTE_UTIL_READWRITEFILE_H

@@ -1,11 +1,10 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2009-2022 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
+#include <consensus/amount.h>
 #include <policy/feerate.h>
-
 #include <tinyformat.h>
 #include <cmath>
 
@@ -24,6 +23,8 @@ CAmount CFeeRate::GetFee(uint32_t num_bytes) const
 {
     const int64_t nSize{num_bytes};
 
+    // Be explicit that we're converting from a double to int64_t (CAmount) here.
+    // We've previously had issues with the silent double->int64_t conversion.
     CAmount nFee{static_cast<CAmount>(std::ceil(nSatoshisPerK * nSize / 1000.0))};
 
     if (nFee == 0 && nSize != 0) {

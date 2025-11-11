@@ -1,4 +1,4 @@
-<TS language="es" version="2.1">
+<TS version="2.1" language="es">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -3390,8 +3390,8 @@ Nota: Dado que la comisión se calcula por byte, una comisión de "100 satoshis 
         <source>No wallet has been loaded.
 Go to File &gt; Open Wallet to load a wallet.
 - OR -</source>
-        <translation>No se ha cargado ningún monedero.
-Vaya a Archivo&gt; Abrir monedero para cargar un monedero.
+        <translation type="unfinished">No se ha cargado ningún monedero.
+Ve a "Archivo &gt; Abrir monedero" para cargar uno.
 - O -</translation>
     </message>
     <message>

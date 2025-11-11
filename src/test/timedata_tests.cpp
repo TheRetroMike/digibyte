@@ -1,5 +1,4 @@
-// Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 //
@@ -97,9 +96,10 @@ BOOST_AUTO_TEST_CASE(addtimedata)
     // not to fix this because it prevents possible attacks. See the comment in AddTimeData() or issue #4521
     // for a more detailed explanation.
     MultiAddTimeData(2, 100); // filter median is 100 now, but nTimeOffset will not change
+    // We want this test to end with nTimeOffset==0, otherwise subsequent tests of the suite will fail.
     BOOST_CHECK_EQUAL(GetTimeOffset(), 0);
 
-    // We want this test to end with nTimeOffset==0, otherwise subsequent tests of the suite will fail.
+    TestOnlyResetTimeData();
 }
 
 BOOST_AUTO_TEST_SUITE_END()

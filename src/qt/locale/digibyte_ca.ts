@@ -1,4 +1,4 @@
-<TS language="ca" version="2.1">
+<TS version="2.1" language="ca">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -72,7 +72,7 @@
     <message>
         <source>These are your DigiByte addresses for receiving payments. Use the 'Create new receiving address' button in the receive tab to create new addresses.
 Signing is only possible with addresses of the type 'legacy'.</source>
-        <translation>Aquestes son les teves adreces de DigiByte per rebre pagaments. Utilitza el botó "Crear nova adreça de recepció" de la pestanya de recepció per crear una nova adreça.
+        <translation type="unfinished">Aquestes son les teves adreces de DigiByte per a rebre pagaments. Utilitza el botó "Crear nova adreça de recepció" de la pestanya de recepció per a crear una nova adreça.
 Només és possible firmar amb adreces del tipus "legacy".</translation>
     </message>
     <message>
@@ -602,37 +602,37 @@ Només és possible firmar amb adreces del tipus "legacy".</translation>
     <message>
         <source>Date: %1
 </source>
-        <translation>Data: %1
+        <translation type="unfinished">Data: %1
 </translation>
     </message>
     <message>
         <source>Amount: %1
 </source>
-        <translation>Import: %1
+        <translation type="unfinished">Import: %1
 </translation>
     </message>
     <message>
         <source>Wallet: %1
 </source>
-        <translation>Cartera: %1
+        <translation type="unfinished">Cartera: %1
 </translation>
     </message>
     <message>
         <source>Type: %1
 </source>
-        <translation>Tipus: %1
+        <translation type="unfinished">Tipus: %1
 </translation>
     </message>
     <message>
         <source>Label: %1
 </source>
-        <translation>Etiqueta: %1
+        <translation type="unfinished">Etiqueta: %1
 </translation>
     </message>
     <message>
         <source>Address: %1
 </source>
-        <translation>Adreça: %1
+        <translation type="unfinished">Adreça: %1
 </translation>
     </message>
     <message>

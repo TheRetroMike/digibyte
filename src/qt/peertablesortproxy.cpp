@@ -1,7 +1,6 @@
-// Copyright (c) 2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <qt/peertablesortproxy.h>
 
 #include <qt/peertablemodel.h>
@@ -24,8 +23,12 @@ bool PeerTableSortProxy::lessThan(const QModelIndex& left_index, const QModelInd
     switch (static_cast<PeerTableModel::ColumnIndex>(left_index.column())) {
     case PeerTableModel::NetNodeId:
         return left_stats.nodeid < right_stats.nodeid;
+    case PeerTableModel::Age:
+        return left_stats.m_connected > right_stats.m_connected;
     case PeerTableModel::Address:
-        return left_stats.addrName.compare(right_stats.addrName) < 0;
+        return left_stats.m_addr_name.compare(right_stats.m_addr_name) < 0;
+    case PeerTableModel::Direction:
+        return left_stats.fInbound > right_stats.fInbound; // default sort Inbound, then Outbound
     case PeerTableModel::ConnectionType:
         return left_stats.m_conn_type < right_stats.m_conn_type;
     case PeerTableModel::Network:

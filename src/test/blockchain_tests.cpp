@@ -1,7 +1,6 @@
-// Copyright (c) 2017-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <boost/test/unit_test.hpp>
 
 #include <stdlib.h>
@@ -41,6 +40,7 @@ static void RejectDifficultyMismatch(double difficulty, double expected_difficul
 static void TestDifficulty(uint32_t nbits, double expected_difficulty)
 {
     CBlockIndex* block_index = CreateBlockIndexWithNbits(nbits);
+    // Using algorithm 2 (Groestl) for testing DigiByte multi-algo difficulty calculation
     double difficulty = GetDifficulty(NULL, block_index, 2);
     delete block_index;
 

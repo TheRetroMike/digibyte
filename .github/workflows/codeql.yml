@@ -33,7 +33,7 @@ jobs:
     #   - https://gh.io/supported-runners-and-hardware-resources
     #   - https://gh.io/using-larger-runners (GitHub.com only)
     # Consider using larger runners or machines with greater resources for possible analysis time improvements.
-    runs-on: macos-latest #${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    runs-on: ${{ matrix.language == 'c-cpp' && 'ubuntu-latest' || 'ubuntu-latest' }}
     permissions:
       # required for all workflows
       security-events: write
@@ -82,19 +82,10 @@ jobs:
           config-file: ./.github/codeql/codeql-config.yml
 
       - if: matrix.build-mode == 'manual'
-        name: Set up Python 3.10.9
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.10.9
-
-      - if: matrix.build-mode == 'manual'
-        name: Install brew dependencies
-        run:     arch -arm64 brew install autoconf automake libtool pkg-config pandoc
-  
-      - if: matrix.build-mode == 'manual'
-        name: Install Python Packages
+        name: Install build dependencies
         run: |
-          pip3 install pypandoc digibyte_scrypt pyzmq
+          sudo apt-get update
+          sudo apt-get install -y build-essential libtool autotools-dev automake pkg-config bsdmainutils python3-zmq python3 libevent-dev libboost-dev libsqlite3-dev libdb++-dev systemtap-sdt-dev libminiupnpc-dev libnatpmp-dev qtbase5-dev qttools5-dev qttools5-dev-tools qtwayland5 libqrencode-dev ccache curl ca-certificates
 
       # If the analyze step fails for one of the languages you are analyzing with
       # "We were unable to automatically build your code", modify the matrix above
@@ -103,17 +94,16 @@ jobs:
       # ℹ️ Command-line programs to run using the OS shell.
       # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
       - if: matrix.build-mode == 'manual'
+        name: Quick build for CodeQL analysis
         shell: bash
         run: |
-          # Build Dependencies
-          cd depends
-          make -j2 HOST=aarch64-apple-darwin24.2.0
-          cd ..
-
-          # Configure and Build
+          # Quick minimal build just for CodeQL analysis
+          # Match the simple Ubuntu 22.04 CI configuration
           ./autogen.sh
-          CONFIG_SITE=$PWD/depends/aarch64-apple-darwin24.2.0/share/config.site ./configure --with-bdb --with-sqlite --with-gui=no --with-zmq
-          make -j2
+          ./configure --disable-wallet --disable-tests --disable-bench --disable-fuzz --disable-fuzz-binary \
+                      --with-gui=no --disable-man --disable-zmq --without-utils --without-daemon
+          # Build all available libraries for analysis
+          make -j$(nproc) -C src
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3

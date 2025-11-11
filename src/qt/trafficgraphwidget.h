@@ -1,13 +1,14 @@
-// Copyright (c) 2011-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2011-2022 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_QT_TRAFFICGRAPHWIDGET_H
 #define DIGIBYTE_QT_TRAFFICGRAPHWIDGET_H
 
 #include <QWidget>
 #include <QQueue>
+
+#include <chrono>
 
 class ClientModel;
 
@@ -23,27 +24,27 @@ class TrafficGraphWidget : public QWidget
 public:
     explicit TrafficGraphWidget(QWidget *parent = nullptr);
     void setClientModel(ClientModel *model);
-    int getGraphRangeMins() const;
+    std::chrono::minutes getGraphRange() const;
 
 protected:
     void paintEvent(QPaintEvent *) override;
 
 public Q_SLOTS:
     void updateRates();
-    void setGraphRangeMins(int mins);
+    void setGraphRange(std::chrono::minutes new_range);
     void clear();
 
 private:
     void paintPath(QPainterPath &path, QQueue<float> &samples);
 
-    QTimer *timer;
-    float fMax;
-    int nMins;
+    QTimer* timer{nullptr};
+    float fMax{0.0f};
+    std::chrono::minutes m_range{0};
     QQueue<float> vSamplesIn;
     QQueue<float> vSamplesOut;
-    quint64 nLastBytesIn;
-    quint64 nLastBytesOut;
-    ClientModel *clientModel;
+    quint64 nLastBytesIn{0};
+    quint64 nLastBytesOut{0};
+    ClientModel* clientModel{nullptr};
 };
 
 #endif // DIGIBYTE_QT_TRAFFICGRAPHWIDGET_H

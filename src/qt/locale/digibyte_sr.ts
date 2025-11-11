@@ -1,4 +1,4 @@
-<TS language="sr" version="2.1">
+<TS version="2.1" language="sr">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -512,37 +512,37 @@
     <message>
         <source>Date: %1
 </source>
-        <translation>Датум: %1
+        <translation type="unfinished">Датум: %1
 </translation>
     </message>
     <message>
         <source>Amount: %1
 </source>
-        <translation>Износ: %1
+        <translation type="unfinished">Износ: %1
 </translation>
     </message>
     <message>
         <source>Wallet: %1
 </source>
-        <translation>Новчаник: %1
+        <translation type="unfinished">Новчаник: %1
 </translation>
     </message>
     <message>
         <source>Type: %1
 </source>
-        <translation>Тип: %1
+        <translation type="unfinished">Тип: %1
 </translation>
     </message>
     <message>
         <source>Label: %1
 </source>
-        <translation>Етикета: %1
+        <translation type="unfinished">Ознака: %1
 </translation>
     </message>
     <message>
         <source>Address: %1
 </source>
-        <translation>Адреса: %1
+        <translation type="unfinished">Адреса: %1
 </translation>
     </message>
     <message>

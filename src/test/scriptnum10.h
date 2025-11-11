@@ -1,9 +1,7 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_TEST_SCRIPTNUM10_H
 #define DIGIBYTE_TEST_SCRIPTNUM10_H
 
@@ -180,4 +178,4 @@ private:
 };
 
 
-#endif // DIGIBYTE_TEST_BIGNUM_H
+#endif // DIGIBYTE_TEST_SCRIPTNUM10_H

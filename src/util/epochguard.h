@@ -1,12 +1,12 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_UTIL_EPOCHGUARD_H
 #define DIGIBYTE_UTIL_EPOCHGUARD_H
 
 #include <threadsafety.h>
+#include <util/macros.h>
 
 #include <cassert>
 
@@ -40,6 +40,9 @@ public:
     Epoch() = default;
     Epoch(const Epoch&) = delete;
     Epoch& operator=(const Epoch&) = delete;
+    Epoch(Epoch&&) = delete;
+    Epoch& operator=(Epoch&&) = delete;
+    ~Epoch() = default;
 
     bool guarded() const { return m_guarded; }
 
@@ -51,6 +54,13 @@ public:
         // only allow modification via Epoch member functions
         friend class Epoch;
         Marker& operator=(const Marker&) = delete;
+
+    public:
+        Marker() = default;
+        Marker(const Marker&) = default;
+        Marker(Marker&&) = delete;
+        Marker& operator=(Marker&&) = delete;
+        ~Marker() = default;
     };
 
     class SCOPED_LOCKABLE Guard
@@ -86,6 +96,6 @@ public:
     }
 };
 
-#define WITH_FRESH_EPOCH(epoch) const Epoch::Guard PASTE2(epoch_guard_, __COUNTER__)(epoch)
+#define WITH_FRESH_EPOCH(epoch) const Epoch::Guard UNIQUE_NAME(epoch_guard_)(epoch)
 
 #endif // DIGIBYTE_UTIL_EPOCHGUARD_H

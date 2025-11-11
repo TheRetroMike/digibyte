@@ -1,9 +1,9 @@
-// Copyright (c) 2021 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <wallet/transaction.h>
 
+namespace wallet {
 bool CWalletTx::IsEquivalentTo(const CWalletTx& _tx) const
 {
         CMutableTransaction tx1 {*this->tx};
@@ -15,7 +15,7 @@ bool CWalletTx::IsEquivalentTo(const CWalletTx& _tx) const
 
 bool CWalletTx::InMempool() const
 {
-    return fInMempool;
+    return state<TxStateInMempool>();
 }
 
 int64_t CWalletTx::GetTxTime() const
@@ -23,3 +23,9 @@ int64_t CWalletTx::GetTxTime() const
     int64_t n = nTimeSmart;
     return n ? n : nTimeReceived;
 }
+
+void CWalletTx::CopyFrom(const CWalletTx& _tx)
+{
+    *this = _tx;
+}
+} // namespace wallet

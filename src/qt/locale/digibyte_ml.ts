@@ -1,4 +1,4 @@
-<TS language="ml" version="2.1">
+<TS version="2.1" language="ml">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -245,31 +245,37 @@
     <message>
         <source>Date: %1
 </source>
-        <translation>തീയതി: %1 
+        <translation type="unfinished">തീയതി: %1
 </translation>
     </message>
     <message>
         <source>Amount: %1
 </source>
-        <translation>തുക : %1 
+        <translation type="unfinished">തുക : %1
 </translation>
     </message>
     <message>
         <source>Wallet: %1
 </source>
-        <translation>വാലറ്റ്: %1 
+        <translation type="unfinished">വാലറ്റ്: %1
+</translation>
+    </message>
+    <message>
+        <source>Type: %1
+</source>
+        <translation type="unfinished">തരങ്ങൾ: %1
 </translation>
     </message>
     <message>
         <source>Label: %1
 </source>
-        <translation>കുറിപ്പ് : %1 
+        <translation type="unfinished">കുറിപ്പ് : %1
 </translation>
     </message>
     <message>
         <source>Address: %1
 </source>
-        <translation>മേൽവിലാസം : %1 
+        <translation type="unfinished">മേൽവിലാസം : %1
 </translation>
     </message>
     <message>
@@ -571,6 +577,14 @@
     </context>
 <context>
     <name>WalletFrame</name>
+    <message>
+        <source>Create a new wallet</source>
+        <translation type="unfinished">ഒരു പുതിയ വാലറ്റ് സൃഷ്ടിക്കുക</translation>
+    </message>
+    <message>
+        <source>Error</source>
+        <translation type="unfinished">പിശക് </translation>
+    </message>
     </context>
 <context>
     <name>WalletModel</name>

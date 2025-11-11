@@ -1,7 +1,6 @@
-// Copyright (c) 2012-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <sync.h>
 #include <test/util/setup_common.h>
 
@@ -107,12 +106,12 @@ BOOST_AUTO_TEST_CASE(potential_deadlock_detected)
 #ifdef DEBUG_LOCKORDER
 BOOST_AUTO_TEST_CASE(double_lock_mutex)
 {
-    TestDoubleLock<Mutex>(true /* should throw */);
+    TestDoubleLock<Mutex>(/*should_throw=*/true);
 }
 
 BOOST_AUTO_TEST_CASE(double_lock_recursive_mutex)
 {
-    TestDoubleLock<RecursiveMutex>(false /* should not throw */);
+    TestDoubleLock<RecursiveMutex>(/*should_throw=*/false);
 }
 #endif /* DEBUG_LOCKORDER */
 

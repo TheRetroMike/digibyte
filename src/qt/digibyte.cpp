@@ -1,8 +1,7 @@
-// Copyright (c) 2011-2020 The Bitcoin Core developers
-// Copyright (c) 2013-2021 The DigiByte Core developers
+// Copyright (c) 2011-2022 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #if defined(HAVE_CONFIG_H)
 #include <config/digibyte-config.h>
 #endif
@@ -10,11 +9,16 @@
 #include <qt/digibyte.h>
 
 #include <chainparams.h>
+#include <common/args.h>
+#include <common/init.h>
+#include <common/system.h>
 #include <init.h>
 #include <interfaces/handler.h>
+#include <interfaces/init.h>
 #include <interfaces/node.h>
+#include <logging.h>
 #include <node/context.h>
-#include <node/ui_interface.h>
+#include <node/interface_ui.h>
 #include <noui.h>
 #include <qt/digibytegui.h>
 #include <qt/clientmodel.h>
@@ -29,7 +33,12 @@
 #include <qt/utilitydialog.h>
 #include <qt/winshutdownmonitor.h>
 #include <uint256.h>
-#include <util/system.h>
+
+#include <QDir>
+#include <QFileInfo>
+#include <QFileSystemWatcher>
+#include <util/exception.h>
+#include <util/string.h>
 #include <util/threadnames.h>
 #include <util/translation.h>
 #include <validation.h>
@@ -38,22 +47,26 @@
 #include <qt/paymentserver.h>
 #include <qt/walletcontroller.h>
 #include <qt/walletmodel.h>
+#include <wallet/types.h>
 #endif // ENABLE_WALLET
 
 #include <boost/signals2/connection.hpp>
+#include <chrono>
 #include <memory>
 
 #include <QApplication>
 #include <QDebug>
-#include <QFontDatabase>
+#include <QFile>
 #include <QLatin1String>
 #include <QLibraryInfo>
 #include <QLocale>
 #include <QMessageBox>
 #include <QSettings>
+#include <QStyleFactory>
 #include <QThread>
 #include <QTimer>
 #include <QTranslator>
+#include <QWindow>
 
 #if defined(QT_STATICPLUGIN)
 #include <QtPlugin>
@@ -65,6 +78,8 @@ Q_IMPORT_PLUGIN(QWindowsVistaStylePlugin);
 #elif defined(QT_QPA_PLATFORM_COCOA)
 Q_IMPORT_PLUGIN(QCocoaIntegrationPlugin);
 Q_IMPORT_PLUGIN(QMacStylePlugin);
+#elif defined(QT_QPA_PLATFORM_ANDROID)
+Q_IMPORT_PLUGIN(QAndroidPlatformIntegrationPlugin)
 #endif
 #endif
 
@@ -72,16 +87,22 @@ Q_IMPORT_PLUGIN(QMacStylePlugin);
 Q_DECLARE_METATYPE(bool*)
 Q_DECLARE_METATYPE(CAmount)
 Q_DECLARE_METATYPE(SynchronizationState)
+Q_DECLARE_METATYPE(SyncType)
 Q_DECLARE_METATYPE(uint256)
+#ifdef ENABLE_WALLET
+Q_DECLARE_METATYPE(wallet::AddressPurpose)
+#endif // ENABLE_WALLET
 
 static void RegisterMetaTypes()
 {
     // Register meta types used for QMetaObject::invokeMethod and Qt::QueuedConnection
     qRegisterMetaType<bool*>();
     qRegisterMetaType<SynchronizationState>();
+    qRegisterMetaType<SyncType>();
   #ifdef ENABLE_WALLET
     qRegisterMetaType<WalletModel*>();
-  #endif
+    qRegisterMetaType<wallet::AddressPurpose>();
+  #endif // ENABLE_WALLET
     // Register typedefs (see https://doc.qt.io/qt-5/qmetatype.html#qRegisterMetaType)
     // IMPORTANT: if CAmount is no longer a typedef use the normal variant above (see https://doc.qt.io/qt-5/qmetatype.html#qRegisterMetaType-1)
     qRegisterMetaType<CAmount>("CAmount");
@@ -90,6 +111,12 @@ static void RegisterMetaTypes()
     qRegisterMetaType<std::function<void()>>("std::function<void()>");
     qRegisterMetaType<QMessageBox::Icon>("QMessageBox::Icon");
     qRegisterMetaType<interfaces::BlockAndHeaderTipInfo>("interfaces::BlockAndHeaderTipInfo");
+
+#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+    qRegisterMetaTypeStreamOperators<DigiByteUnit>("DigiByteUnit");
+#else
+    qRegisterMetaType<DigiByteUnit>("DigiByteUnit");
+#endif
 }
 
 static QString GetLangTerritory()
@@ -128,21 +155,62 @@ static void initTranslations(QTranslator &qtTranslatorBase, QTranslator &qtTrans
     // - First load the translator for the base language, without territory
     // - Then load the more specific locale translator
 
+#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+    const QString translation_path{QLibraryInfo::location(QLibraryInfo::TranslationsPath)};
+#else
+    const QString translation_path{QLibraryInfo::path(QLibraryInfo::TranslationsPath)};
+#endif
     // Load e.g. qt_de.qm
-    if (qtTranslatorBase.load("qt_" + lang, QLibraryInfo::location(QLibraryInfo::TranslationsPath)))
+    if (qtTranslatorBase.load("qt_" + lang, translation_path)) {
         QApplication::installTranslator(&qtTranslatorBase);
+    }
 
     // Load e.g. qt_de_DE.qm
-    if (qtTranslator.load("qt_" + lang_territory, QLibraryInfo::location(QLibraryInfo::TranslationsPath)))
+    if (qtTranslator.load("qt_" + lang_territory, translation_path)) {
         QApplication::installTranslator(&qtTranslator);
+    }
 
     // Load e.g. digibyte_de.qm (shortcut "de" needs to be defined in digibyte.qrc)
-    if (translatorBase.load(lang, ":/translations/"))
+    if (translatorBase.load(lang, ":/translations/")) {
         QApplication::installTranslator(&translatorBase);
+    }
 
     // Load e.g. digibyte_de_DE.qm (shortcut "de_DE" needs to be defined in digibyte.qrc)
-    if (translator.load(lang_territory, ":/translations/"))
+    if (translator.load(lang_territory, ":/translations/")) {
         QApplication::installTranslator(&translator);
+    }
+}
+
+static bool ErrorSettingsRead(const bilingual_str& error, const std::vector<std::string>& details)
+{
+    QMessageBox messagebox(QMessageBox::Critical, PACKAGE_NAME, QString::fromStdString(strprintf("%s.", error.translated)), QMessageBox::Reset | QMessageBox::Abort);
+    /*: Explanatory text shown on startup when the settings file cannot be read.
+      Prompts user to make a choice between resetting or aborting. */
+    messagebox.setInformativeText(QObject::tr("Do you want to reset settings to default values, or to abort without making changes?"));
+    messagebox.setDetailedText(QString::fromStdString(MakeUnorderedList(details)));
+    messagebox.setTextFormat(Qt::PlainText);
+    messagebox.setDefaultButton(QMessageBox::Reset);
+    switch (messagebox.exec()) {
+    case QMessageBox::Reset:
+        return false;
+    case QMessageBox::Abort:
+        return true;
+    default:
+        assert(false);
+    }
+}
+
+static void ErrorSettingsWrite(const bilingual_str& error, const std::vector<std::string>& details)
+{
+    QMessageBox messagebox(QMessageBox::Critical, PACKAGE_NAME, QString::fromStdString(strprintf("%s.", error.translated)), QMessageBox::Ok);
+    /*: Explanatory text shown on startup when the settings file could not be written.
+        Prompts user to check that we have the ability to write to the file.
+        Explains that the user has the option of running without a settings file.*/
+    messagebox.setInformativeText(QObject::tr("A fatal error occurred. Check that settings file is writable, or try running with -nosettings."));
+    messagebox.setDetailedText(QString::fromStdString(MakeUnorderedList(details)));
+    messagebox.setTextFormat(Qt::PlainText);
+    messagebox.setDefaultButton(QMessageBox::Ok);
+    messagebox.exec();
 }
 
 /* qDebug() message handler --> debug.log */
@@ -159,14 +227,8 @@ void DebugMessageHandler(QtMsgType type, const QMessageLogContext& context, cons
 static int qt_argc = 1;
 static const char* qt_argv = "digibyte-qt";
 
-DigiByteApplication::DigiByteApplication():
-    QApplication(qt_argc, const_cast<char **>(&qt_argv)),
-    optionsModel(nullptr),
-    clientModel(nullptr),
-    window(nullptr),
-    pollShutdownTimer(nullptr),
-    returnValue(0),
-    platformStyle(nullptr)
+DigiByteApplication::DigiByteApplication()
+    : QApplication(qt_argc, const_cast<char**>(&qt_argv))
 {
     // Qt runs setlocale(LC_ALL, "") on initialization.
     RegisterMetaTypes();
@@ -203,36 +265,153 @@ void DigiByteApplication::createPaymentServer()
 }
 #endif
 
-void DigiByteApplication::createOptionsModel(bool resetSettings)
+bool DigiByteApplication::createOptionsModel(bool resetSettings)
 {
-    optionsModel = new OptionsModel(this, resetSettings);
+    optionsModel = new OptionsModel(node(), this);
+    if (resetSettings) {
+        optionsModel->Reset();
+    }
+    bilingual_str error;
+    if (!optionsModel->Init(error)) {
+        fs::path settings_path;
+        if (gArgs.GetSettingsPath(&settings_path)) {
+            error += Untranslated("\n");
+            std::string quoted_path = strprintf("%s", fs::quoted(fs::PathToString(settings_path)));
+            error.original += strprintf("Settings file %s might be corrupt or invalid.", quoted_path);
+            error.translated += tr("Settings file %1 might be corrupt or invalid.").arg(QString::fromStdString(quoted_path)).toStdString();
+        }
+        InitError(error);
+        QMessageBox::critical(nullptr, PACKAGE_NAME, QString::fromStdString(error.translated));
+        return false;
+    }
+    
+    // Apply theme if one is selected
+    applyTheme();
+    
+    return true;
+}
+
+void DigiByteApplication::applyTheme()
+{
+    if (!optionsModel) return;
+    
+    QString theme = optionsModel->getOption(OptionsModel::Theme).toString();
+    if (theme.isEmpty()) {
+        // Default to DGB Dark theme if no theme is selected
+        theme = "dark";
+    }
+    
+    // NOTE: CSS hot-loading functionality DISABLED for production
+    // To enable for development, uncomment the block below
+    // This allows live CSS reloading from ~/.digibyte-dev/css/ for rapid theming development
+
+    /*
+    // Check if we should use external CSS for live reloading (development mode)
+    QString externalCssDir = QDir::homePath() + "/.digibyte-dev/css/";
+    QString externalCssPath = externalCssDir + theme + ".css";
+
+    QFileInfo externalFile(externalCssPath);
+    if (externalFile.exists() && externalFile.isReadable()) {
+        // Use external CSS file for live reloading
+        m_externalCssPath = externalCssPath;
+        qDebug() << "Using external CSS for live reloading:" << m_externalCssPath;
+        qDebug() << "Press F5 to reload CSS manually";
+        loadExternalStyleSheet();
+
+        // Set up file watcher
+        if (!m_cssWatcher) {
+            m_cssWatcher = new QFileSystemWatcher(this);
+            connect(m_cssWatcher, &QFileSystemWatcher::fileChanged, this, &DigiByteApplication::reloadStyleSheet);
+        }
+        // Remove old paths and add new one
+        if (!m_cssWatcher->files().isEmpty()) {
+            m_cssWatcher->removePaths(m_cssWatcher->files());
+        }
+        m_cssWatcher->addPath(m_externalCssPath);
+
+        return;
+    }
+    */
+    
+    // Fall back to internal resource CSS
+    QString cssPath = QString(":/css/%1").arg(theme);
+    QFile file(cssPath);
+    if (file.open(QFile::ReadOnly)) {
+        QString styleSheet = QLatin1String(file.readAll());
+        
+        // On macOS, we need to ensure the stylesheet is applied after the native style
+        #ifdef Q_OS_MACOS
+        // Force style refresh on macOS
+        setStyle(QStyleFactory::create("Fusion"));
+        #endif
+        
+        setStyleSheet(styleSheet);
+        file.close();
+        
+        qDebug() << "Applied theme:" << theme << "from" << cssPath;
+    } else {
+        qWarning() << "Failed to load theme:" << theme << "from" << cssPath;
+    }
+}
+
+void DigiByteApplication::loadExternalStyleSheet()
+{
+    if (m_externalCssPath.isEmpty()) return;
+    
+    QFile file(m_externalCssPath);
+    if (file.open(QFile::ReadOnly)) {
+        QString styleSheet = QLatin1String(file.readAll());
+        
+        // On macOS, we need to ensure the stylesheet is applied after the native style
+        #ifdef Q_OS_MACOS
+        // Force style refresh on macOS
+        setStyle(QStyleFactory::create("Fusion"));
+        #endif
+        
+        setStyleSheet(styleSheet);
+        file.close();
+        
+        qDebug() << "Loaded external CSS from:" << m_externalCssPath;
+    } else {
+        qWarning() << "Failed to load external CSS from:" << m_externalCssPath;
+    }
+}
+
+void DigiByteApplication::reloadStyleSheet()
+{
+    qDebug() << "CSS file changed, reloading stylesheet...";
+    loadExternalStyleSheet();
+    
+    // Re-add the file to the watcher (sometimes needed after file changes)
+    if (m_cssWatcher && !m_cssWatcher->files().contains(m_externalCssPath)) {
+        m_cssWatcher->addPath(m_externalCssPath);
+    }
 }
 
 void DigiByteApplication::createWindow(const NetworkStyle *networkStyle)
 {
     window = new DigiByteGUI(node(), platformStyle, networkStyle, nullptr);
+    connect(window, &DigiByteGUI::quitRequested, this, &DigiByteApplication::requestShutdown);
 
     pollShutdownTimer = new QTimer(window);
-    connect(pollShutdownTimer, &QTimer::timeout, window, &DigiByteGUI::detectShutdown);
+    connect(pollShutdownTimer, &QTimer::timeout, [this]{
+        if (!QApplication::activeModalWidget()) {
+            window->detectShutdown();
+        }
+    });
 }
 
 void DigiByteApplication::createSplashScreen(const NetworkStyle *networkStyle)
 {
     assert(!m_splash);
     m_splash = new SplashScreen(networkStyle);
-    // We don't hold a direct pointer to the splash screen after creation, but the splash
-    // screen will take care of deleting itself when finish() happens.
     m_splash->show();
-    connect(this, &DigiByteApplication::requestedInitialize, m_splash, &SplashScreen::handleLoadWallet);
-    connect(this, &DigiByteApplication::splashFinished, m_splash, &SplashScreen::finish);
-    connect(this, &DigiByteApplication::requestedShutdown, m_splash, &QWidget::close);
 }
 
-void DigiByteApplication::setNode(interfaces::Node& node)
+void DigiByteApplication::createNode(interfaces::Init& init)
 {
     assert(!m_node);
-    m_node = &node;
-    if (optionsModel) optionsModel->setNode(*m_node);
+    m_node = init.makeNode();
     if (m_splash) m_splash->setNode(*m_node);
 }
 
@@ -248,7 +427,9 @@ void DigiByteApplication::startThread()
 
     /*  communication to and from thread */
     connect(&m_executor.value(), &InitExecutor::initializeResult, this, &DigiByteApplication::initializeResult);
-    connect(&m_executor.value(), &InitExecutor::shutdownResult, this, &DigiByteApplication::shutdownResult);
+    connect(&m_executor.value(), &InitExecutor::shutdownResult, this, [] {
+        QCoreApplication::exit(0);
+    });
     connect(&m_executor.value(), &InitExecutor::runawayException, this, &DigiByteApplication::handleRunawayException);
     connect(this, &DigiByteApplication::requestedInitialize, &m_executor.value(), &InitExecutor::initialize);
     connect(this, &DigiByteApplication::requestedShutdown, &m_executor.value(), &InitExecutor::shutdown);
@@ -266,7 +447,7 @@ void DigiByteApplication::parameterSetup()
 
 void DigiByteApplication::InitPruneSetting(int64_t prune_MiB)
 {
-    optionsModel->SetPruneTargetGB(PruneMiBtoGB(prune_MiB), true);
+    optionsModel->SetPruneTargetGB(PruneMiBtoGB(prune_MiB));
 }
 
 void DigiByteApplication::requestInitialize()
@@ -278,13 +459,19 @@ void DigiByteApplication::requestInitialize()
 
 void DigiByteApplication::requestShutdown()
 {
+    for (const auto w : QGuiApplication::topLevelWindows()) {
+        w->hide();
+    }
+
+    delete m_splash;
+    m_splash = nullptr;
+
     // Show a simple window indicating shutdown status
     // Do this first as some of the steps may take some time below,
     // for example the RPC console may still be executing a command.
     shutdownWindow.reset(ShutdownWindow::showShutdownWindow(window));
 
     qDebug() << __func__ << ": Requesting shutdown";
-    window->hide();
     // Must disconnect node signals otherwise current thread can deadlock since
     // no event loop is running.
     window->unsubscribeFromCoreSignals();
@@ -296,6 +483,17 @@ void DigiByteApplication::requestShutdown()
     window->setClientModel(nullptr);
     pollShutdownTimer->stop();
 
+#ifdef ENABLE_WALLET
+    // Delete wallet controller here manually, instead of relying on Qt object
+    // tracking (https://doc.qt.io/qt-5/objecttrees.html). This makes sure
+    // walletmodel m_handle_* notification handlers are deleted before wallets
+    // are unloaded, which can simplify wallet implementations. It also avoids
+    // these notifications having to be handled while GUI objects are being
+    // destroyed, making GUI code less fragile as well.
+    delete m_wallet_controller;
+    m_wallet_controller = nullptr;
+#endif // ENABLE_WALLET
+
     delete clientModel;
     clientModel = nullptr;
 
@@ -306,33 +504,36 @@ void DigiByteApplication::requestShutdown()
 void DigiByteApplication::initializeResult(bool success, interfaces::BlockAndHeaderTipInfo tip_info)
 {
     qDebug() << __func__ << ": Initialization result: " << success;
-    // Set exit result.
-    returnValue = success ? EXIT_SUCCESS : EXIT_FAILURE;
-    if(success)
-    {
+
+    if (success) {
+        delete m_splash;
+        m_splash = nullptr;
+
         // Log this only after AppInitMain finishes, as then logging setup is guaranteed complete
         qInfo() << "Platform customization:" << platformStyle->getName();
         clientModel = new ClientModel(node(), optionsModel);
         window->setClientModel(clientModel, &tip_info);
+
+        // If '-min' option passed, start window minimized (iconified) or minimized to tray
+        bool start_minimized = gArgs.GetBoolArg("-min", false);
 #ifdef ENABLE_WALLET
         if (WalletModel::isWalletEnabled()) {
             m_wallet_controller = new WalletController(*clientModel, platformStyle, this);
-            window->setWalletController(m_wallet_controller);
+            window->setWalletController(m_wallet_controller, /*show_loading_minimized=*/start_minimized);
             if (paymentServer) {
                 paymentServer->setOptionsModel(optionsModel);
             }
         }
 #endif // ENABLE_WALLET
 
-        // If -min option passed, start window minimized (iconified) or minimized to tray
-        if (!gArgs.GetBoolArg("-min", false)) {
+        // Show or minimize window
+        if (!start_minimized) {
             window->show();
         } else if (clientModel->getOptionsModel()->getMinimizeToTray() && window->hasTrayIcon()) {
             // do nothing as the window is managed by the tray icon
         } else {
             window->showMinimized();
         }
-        Q_EMIT splashFinished();
         Q_EMIT windowShown(window);
 
 #ifdef ENABLE_WALLET
@@ -344,19 +545,13 @@ void DigiByteApplication::initializeResult(bool success, interfaces::BlockAndHea
             connect(paymentServer, &PaymentServer::message, [this](const QString& title, const QString& message, unsigned int style) {
                 window->message(title, message, style);
             });
-            QTimer::singleShot(100, paymentServer, &PaymentServer::uiReady);
+            QTimer::singleShot(100ms, paymentServer, &PaymentServer::uiReady);
         }
 #endif
-        pollShutdownTimer->start(200);
+        pollShutdownTimer->start(SHUTDOWN_POLLING_DELAY);
     } else {
-        Q_EMIT splashFinished(); // Make sure splash screen doesn't stick around during shutdown
-        quit(); // Exit first main loop invocation
+        requestShutdown();
     }
-}
-
-void DigiByteApplication::shutdownResult()
-{
-    quit(); // Exit second main loop invocation after shutdown finished
 }
 
 void DigiByteApplication::handleRunawayException(const QString &message)
@@ -386,6 +581,31 @@ WId DigiByteApplication::getMainWinId() const
     return window->winId();
 }
 
+bool DigiByteApplication::event(QEvent* e)
+{
+    if (e->type() == QEvent::Quit) {
+        requestShutdown();
+        return true;
+    }
+    
+    // NOTE: F5 CSS reload functionality DISABLED for production
+    // Uncomment to enable for development
+
+    /*
+    // Handle F5 key for CSS reload when using external stylesheets
+    if (e->type() == QEvent::KeyPress && !m_externalCssPath.isEmpty()) {
+        QKeyEvent* keyEvent = static_cast<QKeyEvent*>(e);
+        if (keyEvent->key() == Qt::Key_F5) {
+            qDebug() << "F5 pressed - reloading CSS...";
+            reloadStyleSheet();
+            return true;
+        }
+    }
+    */
+
+    return QApplication::event(e);
+}
+
 static void SetupUIArgs(ArgsManager& argsman)
 {
     argsman.AddArg("-choosedatadir", strprintf("Choose data directory on startup (default: %u)", DEFAULT_CHOOSE_DATADIR), ArgsManager::ALLOW_ANY, OptionsCategory::GUI);
@@ -399,14 +619,14 @@ static void SetupUIArgs(ArgsManager& argsman)
 int GuiMain(int argc, char* argv[])
 {
 #ifdef WIN32
-    util::WinCmdLineArgs winArgs;
+    common::WinCmdLineArgs winArgs;
     std::tie(argc, argv) = winArgs.get();
 #endif
+
+    std::unique_ptr<interfaces::Init> init = interfaces::MakeGuiInit(argc, argv);
+
     SetupEnvironment();
     util::ThreadSetInternalName("main");
-
-    NodeContext node_context;
-    std::unique_ptr<interfaces::Node> node = interfaces::MakeNode(&node_context);
 
     // Subscribe to global signals from core
     boost::signals2::scoped_connection handler_message_box = ::uiInterface.ThreadSafeMessageBox_connect(noui_ThreadSafeMessageBox);
@@ -419,9 +639,11 @@ int GuiMain(int argc, char* argv[])
     Q_INIT_RESOURCE(digibyte);
     Q_INIT_RESOURCE(digibyte_locale);
 
+#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
     // Generate high-dpi pixmaps
     QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+#endif
 
 #if defined(QT_QPA_PLATFORM_ANDROID)
     QApplication::setAttribute(Qt::AA_DontUseNativeMenuBar);
@@ -430,19 +652,18 @@ int GuiMain(int argc, char* argv[])
 #endif
 
     DigiByteApplication app;
-    QFontDatabase::addApplicationFont(":/fonts/monospace");
+    GUIUtil::LoadFont(QStringLiteral(":/fonts/monospace"));
 
     /// 2. Parse command-line options. We do this after qt in order to show an error if there are problems parsing these
     // Command-line options take precedence:
-    node_context.args = &gArgs;
     SetupServerArgs(gArgs);
     SetupUIArgs(gArgs);
     std::string error;
     if (!gArgs.ParseParameters(argc, argv, error)) {
-        InitError(strprintf(Untranslated("Error parsing command line arguments: %s\n"), error));
+        InitError(strprintf(Untranslated("Error parsing command line arguments: %s"), error));
         // Create a message box, because the gui has neither been created nor has subscribed to core signals
         QMessageBox::critical(nullptr, PACKAGE_NAME,
-            // message can not be translated because translations have not been initialized
+            // message cannot be translated because translations have not been initialized
             QString::fromStdString("Error parsing command line arguments: %1.").arg(QString::fromStdString(error)));
         return EXIT_FAILURE;
     }
@@ -480,46 +701,31 @@ int GuiMain(int argc, char* argv[])
     // Gracefully exit if the user cancels
     if (!Intro::showIfNeeded(did_show_intro, prune_MiB)) return EXIT_SUCCESS;
 
-    /// 6. Determine availability of data directory and parse digibyte.conf
-    /// - Do not call gArgs.GetDataDirNet() before this step finishes
-    if (!CheckDataDirOption()) {
-        InitError(strprintf(Untranslated("Specified data directory \"%s\" does not exist.\n"), gArgs.GetArg("-datadir", "")));
-        QMessageBox::critical(nullptr, PACKAGE_NAME,
-            QObject::tr("Error: Specified data directory \"%1\" does not exist.").arg(QString::fromStdString(gArgs.GetArg("-datadir", ""))));
-        return EXIT_FAILURE;
-    }
-    if (!gArgs.ReadConfigFiles(error, true)) {
-        InitError(strprintf(Untranslated("Error reading configuration file: %s\n"), error));
-        QMessageBox::critical(nullptr, PACKAGE_NAME,
-            QObject::tr("Error: Cannot parse configuration file: %1.").arg(QString::fromStdString(error)));
-        return EXIT_FAILURE;
-    }
-
-    /// 7. Determine network (and switch to network specific options)
+    /// 6-7. Parse digibyte.conf, determine network, switch to network specific
+    /// options, and create datadir and settings.json.
+    // - Do not call gArgs.GetDataDirNet() before this step finishes
     // - Do not call Params() before this step
-    // - Do this after parsing the configuration file, as the network can be switched there
     // - QSettings() will use the new application name after this, resulting in network-specific settings
     // - Needs to be done before createOptionsModel
-
-    // Check for chain settings (Params() calls are only valid after this clause)
-    try {
-        SelectParams(gArgs.GetChainName());
-    } catch(std::exception &e) {
-        InitError(Untranslated(strprintf("%s\n", e.what())));
-        QMessageBox::critical(nullptr, PACKAGE_NAME, QObject::tr("Error: %1").arg(e.what()));
+    if (auto error = common::InitConfig(gArgs, ErrorSettingsRead)) {
+        InitError(error->message, error->details);
+        if (error->status == common::ConfigStatus::FAILED_WRITE) {
+            // Show a custom error message to provide more information in the
+            // case of a datadir write error.
+            ErrorSettingsWrite(error->message, error->details);
+        } else if (error->status != common::ConfigStatus::ABORTED) {
+            // Show a generic message in other cases, and no additional error
+            // message in the case of a read error if the user decided to abort.
+            QMessageBox::critical(nullptr, PACKAGE_NAME, QObject::tr("Error: %1").arg(QString::fromStdString(error->message.translated)));
+        }
         return EXIT_FAILURE;
     }
 #ifdef ENABLE_WALLET
-    // Parse URIs on command line -- this can affect Params()
+    // Parse URIs on command line
     PaymentServer::ipcParseCommandLine(argc, argv);
 #endif
-    if (!gArgs.InitSettings(error)) {
-        InitError(Untranslated(error));
-        QMessageBox::critical(nullptr, PACKAGE_NAME, QObject::tr("Error initializing settings: %1").arg(QString::fromStdString(error)));
-        return EXIT_FAILURE;
-    }
 
-    QScopedPointer<const NetworkStyle> networkStyle(NetworkStyle::instantiate(Params().NetworkIDString()));
+    QScopedPointer<const NetworkStyle> networkStyle(NetworkStyle::instantiate(Params().GetChainType()));
     assert(!networkStyle.isNull());
     // Allow for separate UI settings for testnets
     QApplication::setApplicationName(networkStyle->getAppName());
@@ -555,23 +761,27 @@ int GuiMain(int argc, char* argv[])
     // Allow parameter interaction before we create the options model
     app.parameterSetup();
     GUIUtil::LogQtInfo();
+
+    if (gArgs.GetBoolArg("-splash", DEFAULT_SPLASHSCREEN) && !gArgs.GetBoolArg("-min", false))
+        app.createSplashScreen(networkStyle.data());
+
+    app.createNode(*init);
+
     // Load GUI settings from QSettings
-    app.createOptionsModel(gArgs.GetBoolArg("-resetguisettings", false));
+    if (!app.createOptionsModel(gArgs.GetBoolArg("-resetguisettings", false))) {
+        return EXIT_FAILURE;
+    }
 
     if (did_show_intro) {
         // Store intro dialog settings other than datadir (network specific)
         app.InitPruneSetting(prune_MiB);
     }
 
-    if (gArgs.GetBoolArg("-splash", DEFAULT_SPLASHSCREEN) && !gArgs.GetBoolArg("-min", false))
-        app.createSplashScreen(networkStyle.data());
-
-    app.setNode(*node);
-
-    int rv = EXIT_SUCCESS;
     try
     {
         app.createWindow(networkStyle.data());
+        // Apply theme after window creation
+        app.applyTheme();
         // Perform base initialization before spinning up initialization/shutdown thread
         // This is acceptable because this function only contains steps that are quick to execute,
         // so the GUI thread won't be held up.
@@ -581,12 +791,9 @@ int GuiMain(int argc, char* argv[])
             WinShutdownMonitor::registerShutdownBlockReason(QObject::tr("%1 didn't yet exit safely…").arg(PACKAGE_NAME), (HWND)app.getMainWinId());
 #endif
             app.exec();
-            app.requestShutdown();
-            app.exec();
-            rv = app.getReturnValue();
         } else {
             // A dialog with detailed error will have been shown by InitError()
-            rv = EXIT_FAILURE;
+            return EXIT_FAILURE;
         }
     } catch (const std::exception& e) {
         PrintExceptionContinue(&e, "Runaway exception");
@@ -595,5 +802,5 @@ int GuiMain(int argc, char* argv[])
         PrintExceptionContinue(nullptr, "Runaway exception");
         app.handleRunawayException(QString::fromStdString(app.node().getWarnings().translated));
     }
-    return rv;
+    return app.node().getExitStatus();
 }

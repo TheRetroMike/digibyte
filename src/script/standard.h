@@ -1,14 +1,17 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_SCRIPT_STANDARD_H
 #define DIGIBYTE_SCRIPT_STANDARD_H
 
+#include <addresstype.h>
+#include <policy/policy.h>
 #include <pubkey.h>
 #include <script/interpreter.h>
+#include <script/script.h>
+#include <script/solver.h>
 #include <uint256.h>
 #include <util/hash_type.h>
 
@@ -16,27 +19,19 @@
 #include <string>
 #include <variant>
 
-static const bool DEFAULT_ACCEPT_DATACARRIER = true;
+// DEFAULT_ACCEPT_DATACARRIER moved to policy/policy.h
 
 class CKeyID;
 class CScript;
 struct ScriptHash;
 
-/** A reference to a CScript: the Hash160 of its serialization (see script.h) */
-class CScriptID : public BaseHash<uint160>
-{
-public:
-    CScriptID() : BaseHash() {}
-    explicit CScriptID(const CScript& in);
-    explicit CScriptID(const uint160& in) : BaseHash(in) {}
-    explicit CScriptID(const ScriptHash& in);
-};
+// CScriptID moved to script/script.h
 
 /**
  * Default setting for nMaxDatacarrierBytes. 80 bytes of data, +1 for OP_RETURN,
  * +2 for the pushdata opcodes.
  */
-static const unsigned int MAX_OP_RETURN_RELAY = 83;
+// MAX_OP_RETURN_RELAY moved to policy/policy.h
 
 /**
  * A data carrying output is an unspendable output containing data. The script
@@ -55,107 +50,25 @@ extern unsigned nMaxDatacarrierBytes;
  * Failing one of these tests may trigger a DoS ban - see CheckInputScripts() for
  * details.
  */
-static const unsigned int MANDATORY_SCRIPT_VERIFY_FLAGS = SCRIPT_VERIFY_P2SH;
+// MANDATORY_SCRIPT_VERIFY_FLAGS moved to policy/policy.h
 
-enum class TxoutType {
-    NONSTANDARD,
-    // 'standard' transaction types:
-    PUBKEY,
-    PUBKEYHASH,
-    SCRIPTHASH,
-    MULTISIG,
-    NULL_DATA, //!< unspendable OP_RETURN script that carries data
-    WITNESS_V0_SCRIPTHASH,
-    WITNESS_V0_KEYHASH,
-    WITNESS_V1_TAPROOT,
-    WITNESS_UNKNOWN, //!< Only for Witness versions not already defined above
-};
+// TxoutType moved to script/solver.h
 
-class CNoDestination {
-public:
-    friend bool operator==(const CNoDestination &a, const CNoDestination &b) { return true; }
-    friend bool operator<(const CNoDestination &a, const CNoDestination &b) { return true; }
-};
+// CNoDestination moved to addresstype.h
 
-struct PKHash : public BaseHash<uint160>
-{
-    PKHash() : BaseHash() {}
-    explicit PKHash(const uint160& hash) : BaseHash(hash) {}
-    explicit PKHash(const CPubKey& pubkey);
-    explicit PKHash(const CKeyID& pubkey_id);
-};
-CKeyID ToKeyID(const PKHash& key_hash);
+// PKHash moved to addresstype.h
 
-struct WitnessV0KeyHash;
-struct ScriptHash : public BaseHash<uint160>
-{
-    ScriptHash() : BaseHash() {}
-    // These don't do what you'd expect.
-    // Use ScriptHash(GetScriptForDestination(...)) instead.
-    explicit ScriptHash(const WitnessV0KeyHash& hash) = delete;
-    explicit ScriptHash(const PKHash& hash) = delete;
+// ScriptHash moved to addresstype.h
 
-    explicit ScriptHash(const uint160& hash) : BaseHash(hash) {}
-    explicit ScriptHash(const CScript& script);
-    explicit ScriptHash(const CScriptID& script);
-};
+// WitnessV0ScriptHash moved to addresstype.h
 
-struct WitnessV0ScriptHash : public BaseHash<uint256>
-{
-    WitnessV0ScriptHash() : BaseHash() {}
-    explicit WitnessV0ScriptHash(const uint256& hash) : BaseHash(hash) {}
-    explicit WitnessV0ScriptHash(const CScript& script);
-};
+// WitnessV0KeyHash moved to addresstype.h
 
-struct WitnessV0KeyHash : public BaseHash<uint160>
-{
-    WitnessV0KeyHash() : BaseHash() {}
-    explicit WitnessV0KeyHash(const uint160& hash) : BaseHash(hash) {}
-    explicit WitnessV0KeyHash(const CPubKey& pubkey);
-    explicit WitnessV0KeyHash(const PKHash& pubkey_hash);
-};
-CKeyID ToKeyID(const WitnessV0KeyHash& key_hash);
+// WitnessV1Taproot moved to addresstype.h
 
-struct WitnessV1Taproot : public XOnlyPubKey
-{
-    WitnessV1Taproot() : XOnlyPubKey() {}
-    explicit WitnessV1Taproot(const XOnlyPubKey& xpk) : XOnlyPubKey(xpk) {}
-};
+// WitnessUnknown moved to addresstype.h
 
-//! CTxDestination subtype to encode any future Witness version
-struct WitnessUnknown
-{
-    unsigned int version;
-    unsigned int length;
-    unsigned char program[40];
-
-    friend bool operator==(const WitnessUnknown& w1, const WitnessUnknown& w2) {
-        if (w1.version != w2.version) return false;
-        if (w1.length != w2.length) return false;
-        return std::equal(w1.program, w1.program + w1.length, w2.program);
-    }
-
-    friend bool operator<(const WitnessUnknown& w1, const WitnessUnknown& w2) {
-        if (w1.version < w2.version) return true;
-        if (w1.version > w2.version) return false;
-        if (w1.length < w2.length) return true;
-        if (w1.length > w2.length) return false;
-        return std::lexicographical_compare(w1.program, w1.program + w1.length, w2.program, w2.program + w2.length);
-    }
-};
-
-/**
- * A txout script template with a specific destination. It is either:
- *  * CNoDestination: no destination set
- *  * PKHash: TxoutType::PUBKEYHASH destination (P2PKH)
- *  * ScriptHash: TxoutType::SCRIPTHASH destination (P2SH)
- *  * WitnessV0ScriptHash: TxoutType::WITNESS_V0_SCRIPTHASH destination (P2WSH)
- *  * WitnessV0KeyHash: TxoutType::WITNESS_V0_KEYHASH destination (P2WPKH)
- *  * WitnessV1Taproot: TxoutType::WITNESS_V1_TAPROOT destination (P2TR)
- *  * WitnessUnknown: TxoutType::WITNESS_UNKNOWN destination (P2W???)
- *  A CTxDestination is the internal data type encoded in a digibyte address
- */
-using CTxDestination = std::variant<CNoDestination, PKHash, ScriptHash, WitnessV0ScriptHash, WitnessV0KeyHash, WitnessV1Taproot, WitnessUnknown>;
+// CTxDestination moved to addresstype.h
 
 /** Check whether a CTxDestination is a CNoDestination. */
 bool IsValidDestination(const CTxDestination& dest);
@@ -309,7 +222,7 @@ public:
     /** Add a new script at a certain depth in the tree. Add() operations must be called
      *  in depth-first traversal order of binary tree. If track is true, it will be included in
      *  the GetSpendData() output. */
-    TaprootBuilder& Add(int depth, const CScript& script, int leaf_version, bool track = true);
+    TaprootBuilder& Add(int depth, Span<const unsigned char> script, int leaf_version, bool track = true);
     /** Like Add(), but for a Merkle node with a given hash to the tree. */
     TaprootBuilder& AddOmitted(int depth, const uint256& hash);
     /** Finalize the construction. Can only be called when IsComplete() is true.
@@ -320,12 +233,16 @@ public:
     bool IsValid() const { return m_valid; }
     /** Return whether there were either no leaves, or the leaves form a Huffman tree. */
     bool IsComplete() const { return m_valid && (m_branch.size() == 0 || (m_branch.size() == 1 && m_branch[0].has_value())); }
+    /** Return whether any scripts have been added. */
+    bool HasScripts() const { return !m_branch.empty(); }
     /** Compute scriptPubKey (after Finalize()). */
     WitnessV1Taproot GetOutput();
     /** Check if a list of depths is legal (will lead to IsComplete()). */
     static bool ValidDepths(const std::vector<int>& depths);
     /** Compute spending data (after Finalize()). */
     TaprootSpendData GetSpendData() const;
+    /** Get the control blocks and scripts as a tuple (depth, leaf_ver, script). */
+    std::vector<std::tuple<uint8_t, uint8_t, std::vector<unsigned char>>> GetTreeTuples() const;
 };
 
 /** Given a TaprootSpendData and the output key, reconstruct its script tree.
@@ -334,6 +251,6 @@ public:
  * std::nullopt is returned. Otherwise, a vector of (depth, script, leaf_ver) tuples is
  * returned, corresponding to a depth-first traversal of the script tree.
  */
-std::optional<std::vector<std::tuple<int, CScript, int>>> InferTaprootTree(const TaprootSpendData& spenddata, const XOnlyPubKey& output);
+std::optional<std::vector<std::tuple<int, std::vector<unsigned char>, int>>> InferTaprootTree(const TaprootSpendData& spenddata, const XOnlyPubKey& output);
 
 #endif // DIGIBYTE_SCRIPT_STANDARD_H

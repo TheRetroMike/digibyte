@@ -1,8 +1,7 @@
 // Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <crypto/ripemd160.h>
 
 #include <crypto/common.h>
@@ -240,7 +239,7 @@ void Transform(uint32_t* s, const unsigned char* chunk)
 
 ////// RIPEMD160
 
-CRIPEMD160::CRIPEMD160() : bytes(0)
+CRIPEMD160::CRIPEMD160()
 {
     ripemd160::Initialize(s);
 }

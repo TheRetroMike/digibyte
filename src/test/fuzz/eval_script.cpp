@@ -1,7 +1,6 @@
-// Copyright (c) 2009-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <pubkey.h>
 #include <script/interpreter.h>
 #include <test/fuzz/FuzzedDataProvider.h>
@@ -9,12 +8,7 @@
 
 #include <limits>
 
-void initialize_eval_script()
-{
-    static const ECCVerifyHandle verify_handle;
-}
-
-FUZZ_TARGET_INIT(eval_script, initialize_eval_script)
+FUZZ_TARGET(eval_script)
 {
     FuzzedDataProvider fuzzed_data_provider(buffer.data(), buffer.size());
     const unsigned int flags = fuzzed_data_provider.ConsumeIntegral<unsigned int>();

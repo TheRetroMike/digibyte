@@ -9,6 +9,7 @@ src/digibyte-gui
 src/digibyte-node
 src/digibyte-tx
 src/digibyte-util
+src/digibyte-chainstate
 src/digibyte-wallet
 src/test/fuzz/fuzz
 src/test/test_digibyte
@@ -43,8 +44,6 @@ src/obj
 share/setup.nsi
 share/qt/Info.plist
 
-src/univalue/gen
-
 src/qt/*.moc
 src/qt/moc_*.cpp
 src/qt/forms/ui_*.h
@@ -75,13 +74,14 @@ src/qt/digibyte-qt.includes
 
 *.log
 *.trs
-*.dmg
+*.zip
 
 *.json.h
 *.raw.h
 
 # Only ignore unexpected patches
 *.patch
+!contrib/guix/patches/*.patch
 !depends/patches/**/*.patch
 
 #libtool object files
@@ -95,6 +95,9 @@ Makefile
 src/qt/digibyte-qt
 DigiByte-Qt.app
 background.tiff*
+
+# Qt Creator
+Makefile.am.user
 
 # Qt Creator
 Makefile.am.user
@@ -150,3 +153,11 @@ dist/
 *.background.tiff
 
 /guix-build-*
+
+/guix-build-*
+
+/ci/scratch/
+.vscode/settings.json
+DigiByte-Core.dmg
+.wslconfig
+APPLICATION_BUGS.md

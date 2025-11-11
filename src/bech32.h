@@ -1,7 +1,8 @@
+// Copyright (c) 2021 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Copyright (c) 2017, 2021 Pieter Wuille
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 // Bech32 and Bech32m are string encoding formats used in newer
 // address types. The outputs consist of a human-readable part
 // (alphanumeric), a separator character (1), and a base32 data
@@ -43,6 +44,9 @@ struct DecodeResult
 
 /** Decode a Bech32 or Bech32m string. */
 DecodeResult Decode(const std::string& str);
+
+/** Return the positions of errors in a Bech32 string. */
+std::pair<std::string, std::vector<int>> LocateErrors(const std::string& str);
 
 } // namespace bech32
 

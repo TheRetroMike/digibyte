@@ -1,8 +1,7 @@
-// Copyright (c) 2015-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2015-2021 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_HTTPRPC_H
 #define DIGIBYTE_HTTPRPC_H
 
@@ -32,4 +31,4 @@ void InterruptREST();
  */
 void StopREST();
 
-#endif
+#endif // DIGIBYTE_HTTPRPC_H

@@ -1,13 +1,12 @@
 // Copyright (c) 2014-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_CRYPTO_SHA512_H
 #define DIGIBYTE_CRYPTO_SHA512_H
 
+#include <cstdlib>
 #include <stdint.h>
-#include <stdlib.h>
 
 /** A hasher class for SHA-512. */
 class CSHA512
@@ -15,7 +14,7 @@ class CSHA512
 private:
     uint64_t s[8];
     unsigned char buf[128];
-    size_t bytes;
+    uint64_t bytes{0};
 
 public:
     static constexpr size_t OUTPUT_SIZE = 64;

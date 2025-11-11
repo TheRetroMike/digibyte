@@ -1,7 +1,6 @@
-// Copyright (c) 2009-2021 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_TEST_FUZZ_FUZZ_H
 #define DIGIBYTE_TEST_FUZZ_FUZZ_H
 
@@ -11,28 +10,35 @@
 #include <functional>
 #include <string_view>
 
+/**
+ * Can be used to limit a theoretically unbounded loop. This caps the runtime
+ * to avoid timeouts or OOMs.
+ */
+#define LIMITED_WHILE(condition, limit) \
+    for (unsigned _count{limit}; (condition) && _count; --_count)
+
 using FuzzBufferType = Span<const uint8_t>;
 
 using TypeTestOneInput = std::function<void(FuzzBufferType)>;
-using TypeInitialize = std::function<void()>;
-using TypeHidden = bool;
+struct FuzzTargetOptions {
+    std::function<void()> init{[] {}};
+    bool hidden{false};
+};
 
-void FuzzFrameworkRegisterTarget(std::string_view name, TypeTestOneInput target, TypeInitialize init, TypeHidden hidden);
+void FuzzFrameworkRegisterTarget(std::string_view name, TypeTestOneInput target, FuzzTargetOptions opts);
 
-inline void FuzzFrameworkEmptyInitFun() {}
+#if defined(__clang__)
+#define FUZZ_TARGET(...) _Pragma("clang diagnostic push") _Pragma("clang diagnostic ignored \"-Wgnu-zero-variadic-macro-arguments\"") DETAIL_FUZZ(__VA_ARGS__) _Pragma("clang diagnostic pop")
+#else
+#define FUZZ_TARGET(...) DETAIL_FUZZ(__VA_ARGS__)
+#endif
 
-#define FUZZ_TARGET(name) \
-    FUZZ_TARGET_INIT(name, FuzzFrameworkEmptyInitFun)
-
-#define FUZZ_TARGET_INIT(name, init_fun) \
-    FUZZ_TARGET_INIT_HIDDEN(name, init_fun, false)
-
-#define FUZZ_TARGET_INIT_HIDDEN(name, init_fun, hidden)                               \
+#define DETAIL_FUZZ(name, ...)                                                        \
     void name##_fuzz_target(FuzzBufferType);                                          \
     struct name##_Before_Main {                                                       \
         name##_Before_Main()                                                          \
         {                                                                             \
-            FuzzFrameworkRegisterTarget(#name, name##_fuzz_target, init_fun, hidden); \
+            FuzzFrameworkRegisterTarget(#name, name##_fuzz_target, {__VA_ARGS__});    \
         }                                                                             \
     } const static g_##name##_before_main;                                            \
     void name##_fuzz_target(FuzzBufferType buffer)

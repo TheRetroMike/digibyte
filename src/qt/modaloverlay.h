@@ -1,8 +1,7 @@
 // Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_QT_MODALOVERLAY_H
 #define DIGIBYTE_QT_MODALOVERLAY_H
 
@@ -11,7 +10,8 @@
 #include <QWidget>
 
 //! The required delta of headers to the estimated number of available headers until we show the IBD progress
-static constexpr int HEADER_HEIGHT_DELTA_SYNC = 24;
+//! DigiByte: Increased from 24 to 960 (24 * 40) to account for 40x faster blocks (15s vs 10min)
+static constexpr int HEADER_HEIGHT_DELTA_SYNC = 960;
 
 namespace Ui {
     class ModalOverlay;
@@ -27,7 +27,7 @@ public:
     ~ModalOverlay();
 
     void tipUpdate(int count, const QDateTime& blockDate, double nVerificationProgress);
-    void setKnownBestHeight(int count, const QDateTime& blockDate);
+    void setKnownBestHeight(int count, const QDateTime& blockDate, bool presync);
 
     // will show or hide the modal layer
     void showHide(bool hide = false, bool userRequested = false);
@@ -46,13 +46,14 @@ protected:
 
 private:
     Ui::ModalOverlay *ui;
-    int bestHeaderHeight; //best known height (based on the headers)
+    int bestHeaderHeight{0}; // best known height (based on the headers)
     QDateTime bestHeaderDate;
     QVector<QPair<qint64, double> > blockProcessTime;
-    bool layerIsVisible;
-    bool userClosed;
+    bool layerIsVisible{false};
+    bool userClosed{false};
     QPropertyAnimation m_animation;
     void UpdateHeaderSyncLabel();
+    void UpdateHeaderPresyncLabel(int height, const QDateTime& blockDate);
 };
 
 #endif // DIGIBYTE_QT_MODALOVERLAY_H

@@ -25,7 +25,23 @@
     "thread": "cpp",
     "cinttypes": "cpp",
     "typeindex": "cpp",
-    "ios": "cpp"
+    "ios": "cpp",
+    "map": "cpp",
+    "vector": "cpp",
+    "limits": "cpp",
+    "type_traits": "cpp",
+    "stdexcept": "cpp",
+    "cassert": "cpp",
+    "functional": "cpp",
+    "cerrno": "cpp",
+    "set": "cpp",
+    "fstream": "cpp",
+    "string": "cpp",
+    "utility": "cpp",
+    "memory": "cpp",
+    "algorithm": "cpp",
+    "tuple": "cpp",
+    "iomanip": "cpp"
   },
   "cmake.ignoreCMakeListsMissing": true
 }

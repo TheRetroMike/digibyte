@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2021-2022 The DigiByte Core developers
+# Copyright (c) 2014-2021 The DigiByte Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Test behavior of headers messages to announce blocks.
@@ -105,9 +105,8 @@ from test_framework.test_framework import DigiByteTestFramework
 from test_framework.util import (
     assert_equal,
 )
-from time import sleep
 
-DIRECT_FETCH_RESPONSE_TIME = 0.1
+DIRECT_FETCH_RESPONSE_TIME = 5  # DigiByte: Use much longer timeout for P2P operations
 
 class BaseNode(P2PInterface):
     def __init__(self):
@@ -200,6 +199,7 @@ class SendHeadersTest(DigiByteTestFramework):
     def set_test_params(self):
         self.setup_clean_chain = True
         self.num_nodes = 2
+        self.extra_args = [["-dandelion=0"], ["-dandelion=0"]]
 
     def mine_blocks(self, count):
         """Mine count blocks and return the new tip."""
@@ -218,7 +218,6 @@ class SendHeadersTest(DigiByteTestFramework):
 
         # make sure all invalidated blocks are node0's
         self.generatetoaddress(self.nodes[0], length, self.nodes[0].get_deterministic_priv_key().address)
-        self.sync_blocks(self.nodes, wait=0.1)
         for x in self.nodes[0].p2ps:
             x.wait_for_block_announcement(int(self.nodes[0].getbestblockhash(), 16))
             x.clear_block_announcements()
@@ -227,7 +226,6 @@ class SendHeadersTest(DigiByteTestFramework):
         hash_to_invalidate = self.nodes[1].getblockhash(tip_height - (length - 1))
         self.nodes[1].invalidateblock(hash_to_invalidate)
         all_hashes = self.generatetoaddress(self.nodes[1], length + 1, self.nodes[1].get_deterministic_priv_key().address)  # Must be longer than the orig chain
-        self.sync_blocks(self.nodes, wait=0.1)
         return [int(x, 16) for x in all_hashes]
 
     def run_test(self):
@@ -549,15 +547,15 @@ class SendHeadersTest(DigiByteTestFramework):
         blocks = []
         # Now we test that if we repeatedly don't send connecting headers, we
         # don't go into an infinite loop trying to get them to connect.
-        MAX_UNCONNECTING_HEADERS = 10
-        for _ in range(MAX_UNCONNECTING_HEADERS + 1):
+        MAX_NUM_UNCONNECTING_HEADERS_MSGS = 10
+        for _ in range(MAX_NUM_UNCONNECTING_HEADERS_MSGS + 1):
             blocks.append(create_block(tip, create_coinbase(height), block_time))
             blocks[-1].solve()
             tip = blocks[-1].sha256
             block_time += 1
             height += 1
 
-        for i in range(1, MAX_UNCONNECTING_HEADERS):
+        for i in range(1, MAX_NUM_UNCONNECTING_HEADERS_MSGS):
             # Send a header that doesn't connect, check that we get a getheaders.
             with p2p_lock:
                 test_node.last_message.pop("getheaders", None)
@@ -571,8 +569,8 @@ class SendHeadersTest(DigiByteTestFramework):
         blocks = blocks[2:]
 
         # Now try to see how many unconnecting headers we can send
-        # before we get disconnected.  Should be 5*MAX_UNCONNECTING_HEADERS
-        for i in range(5 * MAX_UNCONNECTING_HEADERS - 1):
+        # before we get disconnected.  Should be 5*MAX_NUM_UNCONNECTING_HEADERS_MSGS
+        for i in range(5 * MAX_NUM_UNCONNECTING_HEADERS_MSGS - 1):
             # Send a header that doesn't connect, check that we get a getheaders.
             with p2p_lock:
                 test_node.last_message.pop("getheaders", None)

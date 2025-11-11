@@ -1,16 +1,18 @@
-// Copyright (c) 2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <boost/test/unit_test.hpp>
 #include <consensus/validation.h>
 #include <primitives/block.h>
 #include <scheduler.h>
 #include <test/util/setup_common.h>
 #include <util/check.h>
+#include <kernel/chain.h>
 #include <validationinterface.h>
 
-BOOST_FIXTURE_TEST_SUITE(validationinterface_tests, TestingSetup)
+#include <atomic>
+
+BOOST_FIXTURE_TEST_SUITE(validationinterface_tests, ChainTestingSetup)
 
 struct TestSubscriberNoop final : public CValidationInterface {
     void BlockChecked(const CBlock&, const BlockValidationState&) override {}

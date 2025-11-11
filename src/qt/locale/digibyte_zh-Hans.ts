@@ -1,4 +1,4 @@
-<TS language="zh-Hans" version="2.1">
+<TS version="2.1" language="zh_Hans">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -47,11 +47,11 @@
     </message>
     <message>
         <source>Choose the address to send coins to</source>
-        <translation>选择发送比特币地址</translation>
+        <translation>选择发送极特币地址</translation>
     </message>
     <message>
         <source>Choose the address to receive coins with</source>
-        <translation>选择接收比特币地址</translation>
+        <translation>选择接收极特币地址</translation>
     </message>
     <message>
         <source>C&amp;hoose</source>
@@ -67,12 +67,12 @@
     </message>
     <message>
         <source>These are your DigiByte addresses for sending payments. Always check the amount and the receiving address before sending coins.</source>
-        <translation>这是你的比特币发币地址。发送前请确认发送数量和接收地址</translation>
+        <translation>这是你的极特币发币地址。发送前请确认发送数量和接收地址</translation>
     </message>
     <message>
         <source>These are your DigiByte addresses for receiving payments. Use the 'Create new receiving address' button in the receive tab to create new addresses.
 Signing is only possible with addresses of the type 'legacy'.</source>
-        <translation>这是你的比特币接收地址。点击接收选项卡中“创建新的接收地址”按钮来创建新的地址。
+        <translation>这是你的极特币接收地址。点击接收选项卡中“创建新的接收地址”按钮来创建新的地址。
 签名只能使用“传统”类型的地址。</translation>
     </message>
     <message>

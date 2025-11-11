@@ -1,7 +1,6 @@
-// Copyright (c) 2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <blockfilter.h>
 #include <test/fuzz/FuzzedDataProvider.h>
 #include <test/fuzz/fuzz.h>
@@ -36,9 +35,10 @@ FUZZ_TARGET(blockfilter)
         (void)gcs_filter.GetEncoded();
         (void)gcs_filter.Match(ConsumeRandomLengthByteVector(fuzzed_data_provider));
         GCSFilter::ElementSet element_set;
-        while (fuzzed_data_provider.ConsumeBool()) {
+        LIMITED_WHILE(fuzzed_data_provider.ConsumeBool(), 30000)
+        {
             element_set.insert(ConsumeRandomLengthByteVector(fuzzed_data_provider));
-            gcs_filter.MatchAny(element_set);
         }
+        gcs_filter.MatchAny(element_set);
     }
 }

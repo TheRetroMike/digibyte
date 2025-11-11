@@ -1,4 +1,4 @@
-<TS language="uk" version="2.1">
+<TS version="2.1" language="uk">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -72,7 +72,7 @@
     <message>
         <source>These are your DigiByte addresses for receiving payments. Use the 'Create new receiving address' button in the receive tab to create new addresses.
 Signing is only possible with addresses of the type 'legacy'.</source>
-        <translation>Це ваші Біткойн адреси для отримання платежів. Використовуйте кнопку "Створити нову адресу для отримання" на вкладці отримання, щоб створити нові адреси.
+        <translation type="unfinished">Це ваші Біткоїн адреси для отримання платежів. Використовуйте кнопку "Створити нову адресу для отримання" на вкладці отримання, щоб створити нові адреси.
 Підпис можливий лише з адресами типу "legacy".</translation>
     </message>
     <message>

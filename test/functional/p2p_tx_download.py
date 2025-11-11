@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-# Copyright (c) 2021-2022 The DigiByte Core developers
+# Copyright (c) 2019-2021 The DigiByte Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """
 Test transaction download behavior
 """
+import time
 
 from test_framework.messages import (
     CInv,
@@ -13,7 +14,6 @@ from test_framework.messages import (
     MSG_WTX,
     msg_inv,
     msg_notfound,
-    tx_from_hex,
 )
 from test_framework.p2p import (
     P2PInterface,
@@ -23,9 +23,7 @@ from test_framework.test_framework import DigiByteTestFramework
 from test_framework.util import (
     assert_equal,
 )
-from test_framework.address import ADDRESS_BCRT1_UNSPENDABLE
-
-import time
+from test_framework.wallet import MiniWallet
 
 
 class TestP2PConn(P2PInterface):
@@ -56,6 +54,7 @@ MAX_GETDATA_INBOUND_WAIT = GETDATA_TX_INTERVAL + INBOUND_PEER_TX_DELAY + TXID_RE
 class TxDownloadTest(DigiByteTestFramework):
     def set_test_params(self):
         self.num_nodes = 2
+        self.extra_args = [["-maxtxfee=1", "-dandelion=0"], ["-maxtxfee=1", "-dandelion=0"]]
 
     def test_tx_requests(self):
         self.log.info("Test that we request transactions from all our peers, eventually")
@@ -88,19 +87,8 @@ class TxDownloadTest(DigiByteTestFramework):
 
     def test_inv_block(self):
         self.log.info("Generate a transaction on node 0")
-        tx = self.nodes[0].createrawtransaction(
-            inputs=[{  # coinbase
-                "txid": self.nodes[0].getblock(self.nodes[0].getblockhash(1))['tx'][0],
-                "vout": 0
-            }],
-            outputs={ADDRESS_BCRT1_UNSPENDABLE: 72000 - 0.00025},
-        )
-        tx = self.nodes[0].signrawtransactionwithkey(
-            hexstring=tx,
-            privkeys=[self.nodes[0].get_deterministic_priv_key().key],
-        )['hex']
-        ctx = tx_from_hex(tx)
-        txid = int(ctx.rehash(), 16)
+        tx = self.wallet.create_self_transfer()
+        txid = int(tx['txid'], 16)
 
         self.log.info(
             "Announce the transaction to all nodes from all {} incoming peers, but never send it".format(NUM_INBOUND))
@@ -109,7 +97,7 @@ class TxDownloadTest(DigiByteTestFramework):
             p.send_and_ping(msg)
 
         self.log.info("Put the tx in node 0's mempool")
-        self.nodes[0].sendrawtransaction(tx)
+        self.nodes[0].sendrawtransaction(tx['hex'], 1000)  # 1000 DGB/kvB limit
 
         # Since node 1 is connected outbound to an honest peer (node 0), it
         # should get the tx within a timeout. (Assuming that node 0
@@ -255,6 +243,8 @@ class TxDownloadTest(DigiByteTestFramework):
         self.nodes[0].p2ps[0].send_message(msg_notfound(vec=[CInv(MSG_TX, 1)]))
 
     def run_test(self):
+        self.wallet = MiniWallet(self.nodes[0])
+
         # Run tests without mocktime that only need one peer-connection first, to avoid restarting the nodes
         self.test_expiry_fallback()
         self.test_disconnect_fallback()
@@ -266,7 +256,7 @@ class TxDownloadTest(DigiByteTestFramework):
         self.test_large_inv_batch()
         self.test_spurious_notfound()
 
-        # Run each test against new bitcoind instances, as setting mocktimes has long-term effects on when
+        # Run each test against new digibyted instances, as setting mocktimes has long-term effects on when
         # the next trickle relay event happens.
         for test in [self.test_in_flight_max, self.test_inv_block, self.test_tx_requests]:
             self.stop_nodes()

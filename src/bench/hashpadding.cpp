@@ -1,7 +1,6 @@
-// Copyright (c) 2015-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <bench/bench.h>
 #include <hash.h>
 #include <random.h>
@@ -26,7 +25,7 @@ static void PrePadded(benchmark::Bench& bench)
     });
 }
 
-BENCHMARK(PrePadded);
+BENCHMARK(PrePadded, benchmark::PriorityLevel::HIGH);
 
 static void RegularPadded(benchmark::Bench& bench)
 {
@@ -44,4 +43,4 @@ static void RegularPadded(benchmark::Bench& bench)
     });
 }
 
-BENCHMARK(RegularPadded);
+BENCHMARK(RegularPadded, benchmark::PriorityLevel::HIGH);

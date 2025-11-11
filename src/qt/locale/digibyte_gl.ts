@@ -1,50 +1,118 @@
-<TS language="gl" version="2.1">
+<TS version="2.1" language="gl">
 <context>
     <name>AddressBookPage</name>
     <message>
+        <source>Right-click to edit address or label</source>
+        <translation type="unfinished">Fai click co botón dereito para editar o enderezo ou etiqueta</translation>
+    </message>
+    <message>
         <source>Create a new address</source>
-        <translation>Crear unha nova dirección</translation>
+        <translation type="unfinished">Crear un novo enderezo</translation>
     </message>
     <message>
         <source>&amp;New</source>
-        <translation>&amp;Novo</translation>
+        <translation type="unfinished">&amp;Novo</translation>
     </message>
     <message>
         <source>Copy the currently selected address to the system clipboard</source>
-        <translation>Copiar a dirección seleccionada ao cartafol</translation>
+        <translation type="unfinished">Copiar o enderezo seleccionado ao cartafol</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Copiar</translation>
+        <translation type="unfinished">&amp;Copiar</translation>
     </message>
     <message>
         <source>C&amp;lose</source>
-        <translation>&amp;Pechar</translation>
+        <translation type="unfinished">&amp;Pechar</translation>
     </message>
     <message>
         <source>Delete the currently selected address from the list</source>
-        <translation>Borrar a dirección actualmente seleccionada da listaxe</translation>
+        <translation type="unfinished">Borrar o enderezo actualmente seleccionado da listaxe</translation>
     </message>
     <message>
         <source>Enter address or label to search</source>
-        <translation>Introduce dirección ou etiqueta para buscar</translation>
+        <translation type="unfinished">Introduce enderezo ou etiqueta para buscar</translation>
     </message>
     <message>
         <source>Export the data in the current tab to a file</source>
-        <translation>Exportar os datos da pestaña actual a un arquivo.</translation>
+        <translation type="unfinished">Exportar os datos da pestaña actual a un arquivo.</translation>
     </message>
     <message>
         <source>&amp;Export</source>
-        <translation>&amp;Exportar</translation>
+        <translation type="unfinished">&amp;Exportar</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation>&amp;Borrar</translation>
+        <translation type="unfinished">&amp;Borrar</translation>
     </message>
-    </context>
+    <message>
+        <source>Choose the address to send coins to</source>
+        <translation type="unfinished">Escolle a dirección á que enviar moedas</translation>
+    </message>
+    <message>
+        <source>Choose the address to receive coins with</source>
+        <translation type="unfinished">Escolle a dirección da que recibir moedas</translation>
+    </message>
+    <message>
+        <source>C&amp;hoose</source>
+        <translation type="unfinished">&amp;Escoller</translation>
+    </message>
+    <message>
+        <source>These are your DigiByte addresses for sending payments. Always check the amount and the receiving address before sending coins.</source>
+        <translation type="unfinished">Estas son as túas direccións DigiByte para enviar pagos. Revisa sempre a cantidade e a dirección receptora antes de enviar moedas.</translation>
+    </message>
+    <message>
+        <source>These are your DigiByte addresses for receiving payments. Use the 'Create new receiving address' button in the receive tab to create new addresses.
+Signing is only possible with addresses of the type 'legacy'.</source>
+        <translation type="unfinished">Estes son os teus enderezos de DigiByte para recibir pagamentos. Emprega o botón 'Crear novo enderezo para recibir pagamentos' na solapa de recibir para crear novos enderezos.
+Firmar é posible unicamente con enderezos de tipo 'legacy'.</translation>
+    </message>
+    <message>
+        <source>&amp;Copy Address</source>
+        <translation type="unfinished">&amp;Copiar Enderezo</translation>
+    </message>
+    <message>
+        <source>Copy &amp;Label</source>
+        <translation type="unfinished">Copiar &amp;Etiqueta</translation>
+    </message>
+    <message>
+        <source>&amp;Edit</source>
+        <translation type="unfinished">&amp;Editar</translation>
+    </message>
+    <message>
+        <source>Export Address List</source>
+        <translation type="unfinished">Exportar Lista de Enderezos</translation>
+    </message>
+    <message>
+        <source>Comma separated file</source>
+        <extracomment>Expanded name of the CSV file format. See: https://en.wikipedia.org/wiki/Comma-separated_values.</extracomment>
+        <translation type="unfinished">Ficheiro separado por comas</translation>
+    </message>
+    <message>
+        <source>There was an error trying to save the address list to %1. Please try again.</source>
+        <extracomment>An error message. %1 is a stand-in argument for the name of the file we attempted to save to.</extracomment>
+        <translation type="unfinished">Houbo un erro tentando gardar a lista de enderezos en %1. Por favor proba de novo.</translation>
+    </message>
+    <message>
+        <source>Exporting Failed</source>
+        <translation type="unfinished">Exportación falida</translation>
+    </message>
+</context>
 <context>
     <name>AddressTableModel</name>
-    </context>
+    <message>
+        <source>Label</source>
+        <translation type="unfinished">Etiqueta</translation>
+    </message>
+    <message>
+        <source>Address</source>
+        <translation type="unfinished">Enderezo</translation>
+    </message>
+    <message>
+        <source>(no label)</source>
+        <translation type="unfinished">(sen etiqueta)</translation>
+    </message>
+</context>
 <context>
     <name>AskPassphraseDialog</name>
     <message>

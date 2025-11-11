@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-# Copyright (c) 2014-2021 The DigiByte Core developers
+# Copyright (c) 2014-2022 The DigiByte Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Helpful routines for regression testing."""
 
 from base64 import b64encode
-from binascii import unhexlify
 from decimal import Decimal, ROUND_DOWN
 from subprocess import CalledProcessError
 import hashlib
@@ -13,13 +12,15 @@ import inspect
 import json
 import logging
 import os
+import pathlib
+import random
 import re
+import sys
 import time
-import unittest
 
 from . import coverage
 from .authproxy import AuthServiceProxy, JSONRPCException
-from typing import Callable, Optional
+from typing import Callable, Optional, Tuple
 
 logger = logging.getLogger("TestFramework.utils")
 
@@ -27,23 +28,28 @@ logger = logging.getLogger("TestFramework.utils")
 ##################
 
 
-def assert_approx(v, vexp, vspan=0.001):
+def assert_approx(v, vexp, vspan=0.00001):
     """Assert that `v` is within `vspan` of `vexp`"""
+    if isinstance(v, Decimal) or isinstance(vexp, Decimal):
+        v=Decimal(v)
+        vexp=Decimal(vexp)
+        vspan=Decimal(vspan)
     if v < vexp - vspan:
         raise AssertionError("%s < [%s..%s]" % (str(v), str(vexp - vspan), str(vexp + vspan)))
     if v > vexp + vspan:
         raise AssertionError("%s > [%s..%s]" % (str(v), str(vexp - vspan), str(vexp + vspan)))
 
 
-def assert_fee_amount(fee, tx_size, feerate_BTC_kvB):
+def assert_fee_amount(fee, tx_size, feerate_DGB_kvB):
     """Assert the fee is in range."""
-    target_fee = get_fee(tx_size, feerate_BTC_kvB)
+    assert isinstance(tx_size, int)
+    target_fee = get_fee(tx_size, feerate_DGB_kvB)
     if fee < target_fee:
-        raise AssertionError("Fee of %s BTC too low! (Should be %s BTC)" % (str(fee), str(target_fee)))
+        raise AssertionError("Fee of %s DGB too low! (Should be %s DGB)" % (str(fee), str(target_fee)))
     # allow the wallet's estimation to be at most 2 bytes off
-    high_fee = get_fee(tx_size + 2, feerate_BTC_kvB)
+    high_fee = get_fee(tx_size + 2, feerate_DGB_kvB)
     if fee > high_fee:
-        raise AssertionError("Fee of %s BTC too high! (Should be %s BTC)" % (str(fee), str(target_fee)))
+        raise AssertionError("Fee of %s DGB too high! (Should be %s DGB)" % (str(fee), str(target_fee)))
 
 
 def assert_equal(thing1, thing2, *args):
@@ -198,17 +204,11 @@ def assert_array_result(object_array, to_match, expected, should_not_find=False)
 
 
 def check_json_precision():
-    """Make sure json library being used does not lose precision converting BTC values"""
+    """Make sure json library being used does not lose precision converting DGB values"""
     n = Decimal("20000000.00000003")
     satoshis = int(json.loads(json.dumps(float(n))) * 1.0e8)
     if satoshis != 2000000000000003:
         raise RuntimeError("JSON encode/decode loses precision")
-
-
-def EncodeDecimal(o):
-    if isinstance(o, Decimal):
-        return str(o)
-    raise TypeError(repr(o) + " is not JSON serializable")
 
 
 def count_bytes(hex_string):
@@ -220,22 +220,28 @@ def str_to_b64str(string):
 
 
 def ceildiv(a, b):
-    """Divide 2 ints and round up to next int rather than round down"""
+    """
+    Divide 2 ints and round up to next int rather than round down
+    Implementation requires python integers, which have a // operator that does floor division.
+    Other types like decimal.Decimal whose // operator truncates towards 0 will not work.
+    """
+    assert isinstance(a, int)
+    assert isinstance(b, int)
     return -(-a // b)
 
 
-def get_fee(tx_size, feerate_btc_kvb):
-    """Calculate the fee in BTC given a feerate is BTC/kvB. Reflects CFeeRate::GetFee"""
-    feerate_sat_kvb = int(feerate_btc_kvb * Decimal(1e8)) # Fee in sat/kvb as an int to avoid float precision errors
+def get_fee(tx_size, feerate_dgb_kvb):
+    """Calculate the fee in DGB given a feerate is DGB/kvB. Reflects CFeeRate::GetFee"""
+    feerate_sat_kvb = int(feerate_dgb_kvb * Decimal(1e8)) # Fee in sat/kvb as an int to avoid float precision errors
     target_fee_sat = ceildiv(feerate_sat_kvb * tx_size, 1000) # Round calculated fee up to nearest sat
-    return satoshi_round(target_fee_sat / Decimal(1e8)) # Truncate BTC result to nearest sat
+    return target_fee_sat / Decimal(1e8) # Return result in  DGB
 
 
 def satoshi_round(amount):
     return Decimal(amount).quantize(Decimal('0.00000001'), rounding=ROUND_DOWN)
 
 
-def wait_until_helper(predicate, *, attempts=float('inf'), timeout=float('inf'), lock=None, timeout_factor=1.0):
+def wait_until_helper_internal(predicate, *, attempts=float('inf'), timeout=float('inf'), lock=None, timeout_factor=1.0):
     """Sleep until the predicate resolves to be True.
 
     Warning: Note that this method is not recommended to be used in tests as it is
@@ -280,6 +286,13 @@ def sha256sum_file(filename):
             d = f.read(4096)
     return h.digest()
 
+
+# TODO: Remove and use random.randbytes(n) instead, available in Python 3.9
+def random_bytes(n):
+    """Return a random bytes object of length n."""
+    return bytes(random.getrandbits(8) for i in range(n))
+
+
 # RPC/P2P connection constants and functions
 ############################################
 
@@ -296,7 +309,7 @@ class PortSeed:
     n = None
 
 
-def get_rpc_proxy(url: str, node_number: int, *, timeout: int=None, coveragedir: str=None) -> coverage.AuthServiceProxyWrapper:
+def get_rpc_proxy(url: str, node_number: int, *, timeout: Optional[int]=None, coveragedir: Optional[str]=None) -> coverage.AuthServiceProxyWrapper:
     """
     Args:
         url: URL of the RPC server to call
@@ -359,7 +372,7 @@ def initialize_datadir(dirname, n, chain, disable_autoconnect=True):
 
 def write_config(config_path, *, n, chain, extra_config="", disable_autoconnect=True):
     # Translate chain subdirectory name to config name
-    if chain == 'testnet4':
+    if chain == 'testnet3':
         chain_name_conf_arg = 'testnet'
         chain_name_conf_section = 'test'
     else:
@@ -372,14 +385,16 @@ def write_config(config_path, *, n, chain, extra_config="", disable_autoconnect=
             f.write("[{}]\n".format(chain_name_conf_section))
         f.write("port=" + str(p2p_port(n)) + "\n")
         f.write("rpcport=" + str(rpc_port(n)) + "\n")
-        f.write("fallbackfee=0.001\n")
+        # Disable server-side timeouts to avoid intermittent issues
+        f.write("rpcservertimeout=99000\n")
+        f.write("rpcdoccheck=1\n")
+        f.write("fallbackfee=0.0002\n")
         f.write("server=1\n")
         f.write("keypool=1\n")
         f.write("discover=0\n")
         f.write("dnsseed=0\n")
         f.write("fixedseeds=0\n")
         f.write("listenonion=0\n")
-        f.write("easypow=1\n")
         # Increase peertimeout to avoid disconnects while using mocktime.
         # peertimeout is measured in mock time, so setting it large enough to
         # cover any duration in mock time is sufficient. It can be overridden
@@ -389,6 +404,7 @@ def write_config(config_path, *, n, chain, extra_config="", disable_autoconnect=
         f.write("upnp=0\n")
         f.write("natpmp=0\n")
         f.write("shrinkdebugfile=0\n")
+        f.write("deprecatedrpc=create_bdb\n")  # Required to run the tests
         # To improve SQLite wallet performance so that the tests don't timeout, use -unsafesqlitesync
         f.write("unsafesqlitesync=1\n")
         if disable_autoconnect:
@@ -397,7 +413,23 @@ def write_config(config_path, *, n, chain, extra_config="", disable_autoconnect=
 
 
 def get_datadir_path(dirname, n):
-    return os.path.join(dirname, "node" + str(n))
+    return pathlib.Path(dirname) / f"node{n}"
+
+
+def get_temp_default_datadir(temp_dir: pathlib.Path) -> Tuple[dict, pathlib.Path]:
+    """Return os-specific environment variables that can be set to make the
+    GetDefaultDataDir() function return a datadir path under the provided
+    temp_dir, as well as the complete path it would return."""
+    if sys.platform == "win32":
+        env = dict(APPDATA=str(temp_dir))
+        datadir = temp_dir / "DigiByte"
+    else:
+        env = dict(HOME=str(temp_dir))
+        if sys.platform == "darwin":
+            datadir = temp_dir / "Library/Application Support/DigiByte"
+        else:
+            datadir = temp_dir / ".digibyte"
+    return env, datadir
 
 
 def append_config(datadir, options):
@@ -424,7 +456,7 @@ def get_auth_cookie(datadir, chain):
             split_userpass = userpass.split(':')
             user = split_userpass[0]
             password = split_userpass[1]
-    except OSError as e:
+    except OSError:
         pass
     if user is None or password is None:
         raise ValueError("No RPC credentials")
@@ -440,7 +472,7 @@ def delete_cookie_file(datadir, chain):
 
 def softfork_active(node, key):
     """Return whether a softfork is active."""
-    return node.getblockchaininfo()['softforks'][key]['active']
+    return node.getdeploymentinfo()['deployments'][key]['active']
 
 
 def set_node_times(nodes, t):
@@ -470,115 +502,42 @@ def find_output(node, txid, amount, *, blockhash=None):
     raise RuntimeError("find_output txid %s : %s not found" % (txid, str(amount)))
 
 
-# Helper to create at least "count" utxos
-# Pass in a fee that is sufficient for relay and mining new transactions.
-def create_confirmed_utxos(test_framework, fee, node, count, **kwargs):
-    to_generate = int(0.5 * count) + 101
-    while to_generate > 0:
-        test_framework.generate(node, min(25, to_generate), **kwargs)
-        to_generate -= 25
-    utxos = node.listunspent()
-    iterations = count - len(utxos)
-    addr1 = node.getnewaddress()
-    addr2 = node.getnewaddress()
-    if iterations <= 0:
-        return utxos
-    for _ in range(iterations):
-        t = utxos.pop()
-        inputs = []
-        inputs.append({"txid": t["txid"], "vout": t["vout"]})
-        outputs = {}
-        send_value = t['amount'] - fee
-        outputs[addr1] = satoshi_round(send_value / 2)
-        outputs[addr2] = satoshi_round(send_value / 2)
-        raw_tx = node.createrawtransaction(inputs, outputs)
-        signed_tx = node.signrawtransactionwithwallet(raw_tx)["hex"]
-        node.sendrawtransaction(signed_tx)
-
-    while (node.getmempoolinfo()['size'] > 0):
-        test_framework.generate(node, 1, **kwargs)
-
-    utxos = node.listunspent()
-    assert len(utxos) >= count
-    return utxos
-
-
-def chain_transaction(node, parent_txids, vouts, value, fee, num_outputs, max_fee = 0.1):
-    """Build and send a transaction that spends the given inputs (specified
-    by lists of parent_txid:vout each), with the desired total value and fee,
-    equally divided up to the desired number of outputs.
-
-    Returns a tuple with the txid and the amount sent per output.
-    """
-    send_value = satoshi_round((value - fee)/num_outputs)
-    inputs = []
-    for (txid, vout) in zip(parent_txids, vouts):
-        inputs.append({'txid' : txid, 'vout' : vout})
-    outputs = {}
-    for _ in range(num_outputs):
-        outputs[node.getnewaddress()] = send_value
-    rawtx = node.createrawtransaction(inputs, outputs, 0, True)
-    signedtx = node.signrawtransactionwithwallet(rawtx)
-    txid = node.sendrawtransaction(signedtx['hex'], max_fee)
-    fulltx = node.getrawtransaction(txid, 1)
-    assert len(fulltx['vout']) == num_outputs  # make sure we didn't generate a change output
-    return (txid, send_value)
-
-
 # Create large OP_RETURN txouts that can be appended to a transaction
-# to make it large (helper for constructing large transactions).
+# to make it large (helper for constructing large transactions). The
+# total serialized size of the txouts is about 66k vbytes.
 def gen_return_txouts():
-    # Some pre-processing to create a bunch of OP_RETURN txouts to insert into transactions we create
-    # So we have big transactions (and therefore can't fit very many into each block)
-    # create one script_pubkey
-    script_pubkey = "6a4d0200"  # OP_RETURN OP_PUSH2 512 bytes
-    for _ in range(512):
-        script_pubkey = script_pubkey + "01"
-    # concatenate 128 txouts of above script_pubkey which we'll insert before the txout for change
-    txouts = []
     from .messages import CTxOut
-    txout = CTxOut()
-    txout.nValue = 0
-    txout.scriptPubKey = bytes.fromhex(script_pubkey)
-    for _ in range(128):
-        txouts.append(txout)
+    from .script import CScript, OP_RETURN
+    txouts = [CTxOut(nValue=0, scriptPubKey=CScript([OP_RETURN, b'\x01'*67437]))]
+    assert_equal(sum([len(txout.serialize()) for txout in txouts]), 67456)
     return txouts
 
 
 # Create a spend of each passed-in utxo, splicing in "txouts" to each raw
 # transaction to make it large.  See gen_return_txouts() above.
-def create_lots_of_big_transactions(node, txouts, utxos, num, fee):
-    addr = node.getnewaddress()
+def create_lots_of_big_transactions(mini_wallet, node, fee, tx_batch_size, txouts, utxos=None):
     txids = []
-    from .messages import tx_from_hex
-    for _ in range(num):
-        t = utxos.pop()
-        inputs = [{"txid": t["txid"], "vout": t["vout"]}]
-        outputs = {}
-        change = t['amount'] - fee
-        outputs[addr] = satoshi_round(change)
-        rawtx = node.createrawtransaction(inputs, outputs)
-        tx = tx_from_hex(rawtx)
-        for txout in txouts:
-            tx.vout.append(txout)
-        newtx = tx.serialize().hex()
-        signresult = node.signrawtransactionwithwallet(newtx, None, "NONE")
-        txid = node.sendrawtransaction(signresult["hex"], 0)
-        txids.append(txid)
+    use_internal_utxos = utxos is None
+    for _ in range(tx_batch_size):
+        tx = mini_wallet.create_self_transfer(
+            utxo_to_spend=None if use_internal_utxos else utxos.pop(),
+            fee=fee,
+        )["tx"]
+        tx.vout.extend(txouts)
+        res = node.testmempoolaccept([tx.serialize().hex()])[0]
+        # DigiByte: testmempoolaccept may not include 'fees' field in some cases
+        if 'fees' in res:
+            assert_equal(res['fees']['base'], fee)
+        txids.append(node.sendrawtransaction(tx.serialize().hex(), 0))
     return txids
 
 
-def mine_large_block(test_framework, node, utxos=None):
+def mine_large_block(test_framework, mini_wallet, node):
     # generate a 66k transaction,
     # and 14 of them is close to the 1MB block limit
-    num = 14
     txouts = gen_return_txouts()
-    utxos = utxos if utxos is not None else []
-    if len(utxos) < num:
-        utxos.clear()
-        utxos.extend(node.listunspent())
     fee = 100 * node.getnetworkinfo()["relayfee"]
-    create_lots_of_big_transactions(node, txouts, utxos, num, fee=fee)
+    create_lots_of_big_transactions(mini_wallet, node, fee, 14, txouts)
     test_framework.generate(node, 1)
 
 
@@ -592,36 +551,3 @@ def find_vout_for_address(node, txid, addr):
         if addr == tx["vout"][i]["scriptPubKey"]["address"]:
             return i
     raise RuntimeError("Vout not found for address: txid=%s, addr=%s" % (txid, addr))
-
-def modinv(a, n):
-    """Compute the modular inverse of a modulo n using the extended Euclidean
-    Algorithm. See https://en.wikipedia.org/wiki/Extended_Euclidean_algorithm#Modular_integers.
-    """
-    # TODO: Change to pow(a, -1, n) available in Python 3.8
-    t1, t2 = 0, 1
-    r1, r2 = n, a
-    while r2 != 0:
-        q = r1 // r2
-        t1, t2 = t2, t1 - q * t2
-        r1, r2 = r2, r1 - q * r2
-    if r1 > 1:
-        return None
-    if t1 < 0:
-        t1 += n
-    return t1
-
-def hex_str_to_bytes(hex_str):
-    return unhexlify(hex_str.encode('ascii'))    
-
-class TestFrameworkUtil(unittest.TestCase):
-    def test_modinv(self):
-        test_vectors = [
-            [7, 11],
-            [11, 29],
-            [90, 13],
-            [1891, 3797],
-            [6003722857, 77695236973],
-        ]
-
-        for a, n in test_vectors:
-            self.assertEqual(modinv(a, n), pow(a, n-2, n))

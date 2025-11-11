@@ -1,12 +1,13 @@
-// Copyright (c) 2011-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <bench/bench.h>
 #include <chainparams.h>
 #include <consensus/merkle.h>
 #include <consensus/validation.h>
 #include <pow.h>
+#include <primitives/block.h>
+#include <random.h>
 #include <test/util/setup_common.h>
 #include <txmempool.h>
 #include <validation.h>
@@ -27,7 +28,7 @@ static void DuplicateInputs(benchmark::Bench& bench)
     LOCK(cs_main);
     CBlockIndex* pindexPrev = testing_setup->m_node.chainman->ActiveChain().Tip();
     assert(pindexPrev != nullptr);
-    block.nBits = GetNextWorkRequired(pindexPrev, &block, chainparams.GetConsensus(), ALGO_SCRYPT);
+    block.nBits = GetNextWorkRequired(pindexPrev, &block, chainparams.GetConsensus(), ALGO_SHA256D);
     block.nNonce = 0;
     auto nHeight = pindexPrev->nHeight + 1;
 
@@ -62,4 +63,4 @@ static void DuplicateInputs(benchmark::Bench& bench)
     });
 }
 
-BENCHMARK(DuplicateInputs);
+BENCHMARK(DuplicateInputs, benchmark::PriorityLevel::HIGH);

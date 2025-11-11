@@ -1,125 +1,140 @@
-// Copyright (c) 2019 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <crypto/chacha_poly_aead.h>
+#include <crypto/chacha20poly1305.h>
 
+#include <crypto/common.h>
+#include <crypto/chacha20.h>
 #include <crypto/poly1305.h>
+#include <span.h>
 #include <support/cleanse.h>
 
 #include <assert.h>
-#include <string.h>
+#include <cstddef>
 
-#include <cstdio>
-#include <limits>
+AEADChaCha20Poly1305::AEADChaCha20Poly1305(Span<const std::byte> key) noexcept : m_chacha20(key)
+{
+    assert(key.size() == KEYLEN);
+}
+
+void AEADChaCha20Poly1305::SetKey(Span<const std::byte> key) noexcept
+{
+    assert(key.size() == KEYLEN);
+    m_chacha20.SetKey(key);
+}
+
+namespace {
 
 #ifndef HAVE_TIMINGSAFE_BCMP
+#define HAVE_TIMINGSAFE_BCMP
 
-int timingsafe_bcmp(const unsigned char* b1, const unsigned char* b2, size_t n)
+int timingsafe_bcmp(const unsigned char* b1, const unsigned char* b2, size_t n) noexcept
 {
     const unsigned char *p1 = b1, *p2 = b2;
     int ret = 0;
-
     for (; n > 0; n--)
         ret |= *p1++ ^ *p2++;
     return (ret != 0);
 }
 
-#endif // TIMINGSAFE_BCMP
+#endif
 
-ChaCha20Poly1305AEAD::ChaCha20Poly1305AEAD(const unsigned char* K_1, size_t K_1_len, const unsigned char* K_2, size_t K_2_len)
+/** Compute poly1305 tag. chacha20 must be set to the right nonce, block 0. Will be at block 1 after. */
+void ComputeTag(ChaCha20& chacha20, Span<const std::byte> aad, Span<const std::byte> cipher, Span<std::byte> tag) noexcept
 {
-    assert(K_1_len == CHACHA20_POLY1305_AEAD_KEY_LEN);
-    assert(K_2_len == CHACHA20_POLY1305_AEAD_KEY_LEN);
-    m_chacha_main.SetKey(K_1, CHACHA20_POLY1305_AEAD_KEY_LEN);
-    m_chacha_header.SetKey(K_2, CHACHA20_POLY1305_AEAD_KEY_LEN);
+    static const std::byte PADDING[16] = {{}};
 
-    // set the cached sequence number to uint64 max which hints for an unset cache.
-    // we can't hit uint64 max since the rekey rule (which resets the sequence number) is 1GB
-    m_cached_aad_seqnr = std::numeric_limits<uint64_t>::max();
+    // Get block of keystream (use a full 64 byte buffer to avoid the need for chacha20's own buffering).
+    std::byte first_block[ChaCha20Aligned::BLOCKLEN];
+    chacha20.Keystream(first_block);
+
+    // Use the first 32 bytes of the first keystream block as poly1305 key.
+    Poly1305 poly1305{Span{first_block}.first(Poly1305::KEYLEN)};
+
+    // Compute tag:
+    // - Process the padded AAD with Poly1305.
+    const unsigned aad_padding_length = (16 - (aad.size() % 16)) % 16;
+    poly1305.Update(aad).Update(Span{PADDING}.first(aad_padding_length));
+    // - Process the padded ciphertext with Poly1305.
+    const unsigned cipher_padding_length = (16 - (cipher.size() % 16)) % 16;
+    poly1305.Update(cipher).Update(Span{PADDING}.first(cipher_padding_length));
+    // - Process the AAD and plaintext length with Poly1305.
+    std::byte length_desc[Poly1305::TAGLEN];
+    WriteLE64(UCharCast(length_desc), aad.size());
+    WriteLE64(UCharCast(length_desc + 8), cipher.size());
+    poly1305.Update(length_desc);
+
+    // Output tag.
+    poly1305.Finalize(tag);
 }
 
-bool ChaCha20Poly1305AEAD::Crypt(uint64_t seqnr_payload, uint64_t seqnr_aad, int aad_pos, unsigned char* dest, size_t dest_len /* length of the output buffer for sanity checks */, const unsigned char* src, size_t src_len, bool is_encrypt)
+} // namespace
+
+void AEADChaCha20Poly1305::Encrypt(Span<const std::byte> plain1, Span<const std::byte> plain2, Span<const std::byte> aad, Nonce96 nonce, Span<std::byte> cipher) noexcept
 {
-    // check buffer boundaries
-    if (
-        // if we encrypt, make sure the source contains at least the expected AAD and the destination has at least space for the source + MAC
-        (is_encrypt && (src_len < CHACHA20_POLY1305_AEAD_AAD_LEN || dest_len < src_len + POLY1305_TAGLEN)) ||
-        // if we decrypt, make sure the source contains at least the expected AAD+MAC and the destination has at least space for the source - MAC
-        (!is_encrypt && (src_len < CHACHA20_POLY1305_AEAD_AAD_LEN + POLY1305_TAGLEN || dest_len < src_len - POLY1305_TAGLEN))) {
-        return false;
-    }
+    assert(cipher.size() == plain1.size() + plain2.size() + EXPANSION);
 
-    unsigned char expected_tag[POLY1305_TAGLEN], poly_key[POLY1305_KEYLEN];
-    memset(poly_key, 0, sizeof(poly_key));
-    m_chacha_main.SetIV(seqnr_payload);
+    // Encrypt using ChaCha20 (starting at block 1).
+    m_chacha20.Seek(nonce, 1);
+    m_chacha20.Crypt(plain1, cipher.first(plain1.size()));
+    m_chacha20.Crypt(plain2, cipher.subspan(plain1.size()).first(plain2.size()));
 
-    // block counter 0 for the poly1305 key
-    // use lower 32bytes for the poly1305 key
-    // (throws away 32 unused bytes (upper 32) from this ChaCha20 round)
-    m_chacha_main.Seek(0);
-    m_chacha_main.Crypt(poly_key, poly_key, sizeof(poly_key));
+    // Seek to block 0, and compute tag using key drawn from there.
+    m_chacha20.Seek(nonce, 0);
+    ComputeTag(m_chacha20, aad, cipher.first(cipher.size() - EXPANSION), cipher.last(EXPANSION));
+}
 
-    // if decrypting, verify the tag prior to decryption
-    if (!is_encrypt) {
-        const unsigned char* tag = src + src_len - POLY1305_TAGLEN;
-        poly1305_auth(expected_tag, src, src_len - POLY1305_TAGLEN, poly_key);
+bool AEADChaCha20Poly1305::Decrypt(Span<const std::byte> cipher, Span<const std::byte> aad, Nonce96 nonce, Span<std::byte> plain1, Span<std::byte> plain2) noexcept
+{
+    assert(cipher.size() == plain1.size() + plain2.size() + EXPANSION);
 
-        // constant time compare the calculated MAC with the provided MAC
-        if (timingsafe_bcmp(expected_tag, tag, POLY1305_TAGLEN) != 0) {
-            memory_cleanse(expected_tag, sizeof(expected_tag));
-            memory_cleanse(poly_key, sizeof(poly_key));
-            return false;
-        }
-        memory_cleanse(expected_tag, sizeof(expected_tag));
-        // MAC has been successfully verified, make sure we don't covert it in decryption
-        src_len -= POLY1305_TAGLEN;
-    }
+    // Verify tag (using key drawn from block 0).
+    m_chacha20.Seek(nonce, 0);
+    std::byte expected_tag[EXPANSION];
+    ComputeTag(m_chacha20, aad, cipher.first(cipher.size() - EXPANSION), expected_tag);
+    if (timingsafe_bcmp(UCharCast(expected_tag), UCharCast(cipher.last(EXPANSION).data()), EXPANSION)) return false;
 
-    // calculate and cache the next 64byte keystream block if requested sequence number is not yet the cache
-    if (m_cached_aad_seqnr != seqnr_aad) {
-        m_cached_aad_seqnr = seqnr_aad;
-        m_chacha_header.SetIV(seqnr_aad);
-        m_chacha_header.Seek(0);
-        m_chacha_header.Keystream(m_aad_keystream_buffer, CHACHA20_ROUND_OUTPUT);
-    }
-    // crypt the AAD (3 bytes message length) with given position in AAD cipher instance keystream
-    dest[0] = src[0] ^ m_aad_keystream_buffer[aad_pos];
-    dest[1] = src[1] ^ m_aad_keystream_buffer[aad_pos + 1];
-    dest[2] = src[2] ^ m_aad_keystream_buffer[aad_pos + 2];
-
-    // Set the playload ChaCha instance block counter to 1 and crypt the payload
-    m_chacha_main.Seek(1);
-    m_chacha_main.Crypt(src + CHACHA20_POLY1305_AEAD_AAD_LEN, dest + CHACHA20_POLY1305_AEAD_AAD_LEN, src_len - CHACHA20_POLY1305_AEAD_AAD_LEN);
-
-    // If encrypting, calculate and append tag
-    if (is_encrypt) {
-        // the poly1305 tag expands over the AAD (3 bytes length) & encrypted payload
-        poly1305_auth(dest + src_len, dest, src_len, poly_key);
-    }
-
-    // cleanse no longer required MAC and polykey
-    memory_cleanse(poly_key, sizeof(poly_key));
+    // Decrypt (starting at block 1).
+    m_chacha20.Crypt(cipher.first(plain1.size()), plain1);
+    m_chacha20.Crypt(cipher.subspan(plain1.size()).first(plain2.size()), plain2);
     return true;
 }
 
-bool ChaCha20Poly1305AEAD::GetLength(uint32_t* len24_out, uint64_t seqnr_aad, int aad_pos, const uint8_t* ciphertext)
+void AEADChaCha20Poly1305::Keystream(Nonce96 nonce, Span<std::byte> keystream) noexcept
 {
-    // enforce valid aad position to avoid accessing outside of the 64byte keystream cache
-    // (there is space for 21 times 3 bytes)
-    assert(aad_pos >= 0 && aad_pos < CHACHA20_ROUND_OUTPUT - CHACHA20_POLY1305_AEAD_AAD_LEN);
-    if (m_cached_aad_seqnr != seqnr_aad) {
-        // we need to calculate the 64 keystream bytes since we reached a new aad sequence number
-        m_cached_aad_seqnr = seqnr_aad;
-        m_chacha_header.SetIV(seqnr_aad);                                         // use LE for the nonce
-        m_chacha_header.Seek(0);                                                  // block counter 0
-        m_chacha_header.Keystream(m_aad_keystream_buffer, CHACHA20_ROUND_OUTPUT); // write keystream to the cache
+    // Skip the first output block, as it's used for generating the poly1305 key.
+    m_chacha20.Seek(nonce, 1);
+    m_chacha20.Keystream(keystream);
+}
+
+void FSChaCha20Poly1305::NextPacket() noexcept
+{
+    if (++m_packet_counter == m_rekey_interval) {
+        // Generate a full block of keystream, to avoid needing the ChaCha20 buffer, even though
+        // we only need KEYLEN (32) bytes.
+        std::byte one_block[ChaCha20Aligned::BLOCKLEN];
+        m_aead.Keystream({0xFFFFFFFF, m_rekey_counter}, one_block);
+        // Switch keys.
+        m_aead.SetKey(Span{one_block}.first(KEYLEN));
+        // Wipe the generated keystream (a copy remains inside m_aead, which will be cleaned up
+        // once it cycles again, or is destroyed).
+        memory_cleanse(one_block, sizeof(one_block));
+        // Update counters.
+        m_packet_counter = 0;
+        ++m_rekey_counter;
     }
+}
 
-    // decrypt the ciphertext length by XORing the right position of the 64byte keystream cache with the ciphertext
-    *len24_out = (ciphertext[0] ^ m_aad_keystream_buffer[aad_pos + 0]) |
-                 (ciphertext[1] ^ m_aad_keystream_buffer[aad_pos + 1]) << 8 |
-                 (ciphertext[2] ^ m_aad_keystream_buffer[aad_pos + 2]) << 16;
+void FSChaCha20Poly1305::Encrypt(Span<const std::byte> plain1, Span<const std::byte> plain2, Span<const std::byte> aad, Span<std::byte> cipher) noexcept
+{
+    m_aead.Encrypt(plain1, plain2, aad, {m_packet_counter, m_rekey_counter}, cipher);
+    NextPacket();
+}
 
-    return true;
+bool FSChaCha20Poly1305::Decrypt(Span<const std::byte> cipher, Span<const std::byte> aad, Span<std::byte> plain1, Span<std::byte> plain2) noexcept
+{
+    bool ret = m_aead.Decrypt(cipher, aad, {m_packet_counter, m_rekey_counter}, plain1, plain2);
+    NextPacket();
+    return ret;
 }

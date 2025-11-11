@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: DigiByte Core Security Policy
+    url: https://github.com/digibyte/digibyte/blob/master/SECURITY.md
+    about: View security policy
+  - name: DigiByte Core Developers
+    url: https://digibytecore.org
+    about: DigiByte Core homepage

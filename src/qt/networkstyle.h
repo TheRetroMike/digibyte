@@ -1,10 +1,11 @@
 // Copyright (c) 2014-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_QT_NETWORKSTYLE_H
 #define DIGIBYTE_QT_NETWORKSTYLE_H
+
+#include <util/chaintype.h>
 
 #include <QIcon>
 #include <QPixmap>
@@ -15,7 +16,7 @@ class NetworkStyle
 {
 public:
     /** Get style associated with provided network id, or 0 if not known */
-    static const NetworkStyle* instantiate(const std::string& networkId);
+    static const NetworkStyle* instantiate(const ChainType networkId);
 
     const QString &getAppName() const { return appName; }
     const QIcon &getAppIcon() const { return appIcon; }

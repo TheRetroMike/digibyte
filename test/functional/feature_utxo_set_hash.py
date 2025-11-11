@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2020-2021 The DigiByte Core developers
+# Copyright (c) 2020-2022 The DigiByte Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Test UTXO set hash value calculation in gettxoutsetinfo."""
@@ -69,8 +69,8 @@ class UTXOSetHashTest(DigiByteTestFramework):
         assert_equal(finalized[::-1].hex(), node_muhash)
 
         self.log.info("Test deterministic UTXO set hash results")
-        assert_equal(node.gettxoutsetinfo()['hash_serialized_2'], "40e88b9c20adc4780a1113ece4d836107b9d947e7c8dfb27c2f49043df90cbc5")
-        assert_equal(node.gettxoutsetinfo("muhash")['muhash'], "d027002757987d940396c4a90481843ba1298d54ab3f3258a4b857967cfeec54")
+        assert_equal(node.gettxoutsetinfo()['hash_serialized_3'], "f2394386f671a23886fec1b819caa4d6c5cf9fde0a34f54e282e19ded9dc94fc")  # DigiByte v8.26 hash
+        assert_equal(node.gettxoutsetinfo("muhash")['muhash'], "b9678ef04621339679a49e5e2ddd916ee0651b038b0d50ce2830e77cdce13412")  # DigiByte v8.26 muhash
 
     def run_test(self):
         self.test_muhash_implementation()

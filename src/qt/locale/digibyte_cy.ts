@@ -1,96 +1,101 @@
-<TS language="cy" version="2.1">
+<TS version="2.1" language="cy">
 <context>
     <name>AddressBookPage</name>
     <message>
+        <source>Right-click to edit address or label</source>
+        <translation type="unfinished">Clic-dde i olygu cyfeiriad neu label</translation>
+    </message>
+    <message>
         <source>Create a new address</source>
-        <translation>Creu cyfeiriad newydd</translation>
+        <translation type="unfinished">Creu cyfeiriad newydd</translation>
     </message>
     <message>
         <source>&amp;New</source>
-        <translation>&amp;Newydd</translation>
+        <translation type="unfinished">&amp;Newydd</translation>
     </message>
     <message>
         <source>Copy the currently selected address to the system clipboard</source>
-        <translation>Copio'r cyfeiriad sydd wedi'i ddewis i'r clipfwrdd system</translation>
+        <translation type="unfinished">Copio'r cyfeiriad sydd wedi'i ddewis i'r clipfwrdd system</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Copïo</translation>
+        <translation type="unfinished">&amp;Copïo</translation>
     </message>
     <message>
         <source>C&amp;lose</source>
-        <translation>C&amp;au</translation>
+        <translation type="unfinished">C&amp;au</translation>
     </message>
     <message>
         <source>Delete the currently selected address from the list</source>
-        <translation>Dileu'r cyfeiriad presennol wedi ei ddewis o'r rhestr</translation>
+        <translation type="unfinished">Dileu'r cyfeiriad presennol wedi ei ddewis o'r rhestr</translation>
     </message>
     <message>
         <source>Enter address or label to search</source>
-        <translation>Cyfeiriad neu label i chwilio</translation>
+        <translation type="unfinished">Cyfeiriad neu label i chwilio</translation>
     </message>
     <message>
         <source>Export the data in the current tab to a file</source>
-        <translation>Allforio'r data yn y tab presennol i ffeil</translation>
+        <translation type="unfinished">Allforio'r data yn y tab presennol i ffeil</translation>
     </message>
     <message>
         <source>&amp;Export</source>
-        <translation>&amp;Allforio</translation>
+        <translation type="unfinished">&amp;Allforio</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation>&amp;Dileu</translation>
+        <translation type="unfinished">&amp;Dileu</translation>
     </message>
     <message>
         <source>Choose the address to send coins to</source>
-        <translation>Dewis y cyfeiriad i yrru'r arian</translation>
+        <translation type="unfinished">Dewis y cyfeiriad i yrru'r arian</translation>
     </message>
     <message>
         <source>Choose the address to receive coins with</source>
-        <translation>Dewis y cyfeiriad i dderbyn arian</translation>
+        <translation type="unfinished">Dewis y cyfeiriad i dderbyn arian</translation>
     </message>
     <message>
         <source>C&amp;hoose</source>
-        <translation>D&amp;ewis</translation>
-    </message>
-    <message>
-        <source>Sending addresses</source>
-        <translation>Anfon cyfeiriadau</translation>
-    </message>
-    <message>
-        <source>Receiving addresses</source>
-        <translation>Derbyn cyfeiriadau</translation>
+        <translation type="unfinished">D&amp;ewis</translation>
     </message>
     <message>
         <source>These are your DigiByte addresses for sending payments. Always check the amount and the receiving address before sending coins.</source>
-        <translation>Rhain ydi eich cyfeiriadau DigiByte ar gyfer gyrru taliadau. Gwnewch yn sicr o'r swm a'r cyfeiriad derbyn cyn gyrru arian.</translation>
+        <translation type="unfinished">Rhain ydi eich cyfeiriadau DigiByte ar gyfer gyrru taliadau. Gwnewch yn sicr o'r swm a'r cyfeiriad derbyn cyn gyrru arian.</translation>
     </message>
     <message>
         <source>&amp;Copy Address</source>
-        <translation>&amp;Copïo Cyfeiriad</translation>
+        <translation type="unfinished">&amp;Copïo Cyfeiriad</translation>
     </message>
     <message>
         <source>Copy &amp;Label</source>
-        <translation>Copïo &amp;Label</translation>
+        <translation type="unfinished">Copïo &amp;Label</translation>
+    </message>
+    <message>
+        <source>&amp;Edit</source>
+        <translation type="unfinished">&amp;Golygu</translation>
+    </message>
+    <message>
+        <source>Export Address List</source>
+        <translation type="unfinished">Allforio Rhestr Cyfeiriadau</translation>
+    </message>
+    <message>
+        <source>There was an error trying to save the address list to %1. Please try again.</source>
+        <extracomment>An error message. %1 is a stand-in argument for the name of the file we attempted to save to.</extracomment>
+        <translation type="unfinished">Roedd camgymeriad yn trïo safio'r rhestr gyfeiriadau i'r %1. Triwch eto os gwelwch yn dda.</translation>
     </message>
     <message>
         <source>Exporting Failed</source>
-        <translation>Methu Allforio</translation>
+        <translation type="unfinished">Methu Allforio</translation>
     </message>
-    </context>
+</context>
 <context>
     <name>AddressTableModel</name>
     <message>
-        <source>Label</source>
-        <translation>Label</translation>
-    </message>
-    <message>
         <source>Address</source>
-        <translation>Cyfeiriad</translation>
+        <translation type="unfinished">Cyfeiriad</translation>
     </message>
     <message>
         <source>(no label)</source>
-        <translation>(dim label)</translation>
+        <translation type="unfinished">(dim label)</translation>
     </message>
 </context>
 <context>
@@ -190,6 +195,89 @@
 </context>
 <context>
     <name>BanTableModel</name>
+    <message>
+        <source>IP/Netmask</source>
+        <translation type="unfinished">IP/Rhwydfwgwd</translation>
+    </message>
+    <message>
+        <source>Banned Until</source>
+        <translation type="unfinished">Gwaharddwyd Nes</translation>
+    </message>
+</context>
+<context>
+    <name>QObject</name>
+    <message>
+        <source>Error: %1</source>
+        <translation type="unfinished"> Gwall: %1</translation>
+    </message>
+    <message>
+        <source>Amount</source>
+        <translation type="unfinished">Cyfanswm</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n second(s)</source>
+        <translation type="unfinished">
+            <numerusform />
+            <numerusform />
+            <numerusform />
+            <numerusform />
+            <numerusform />
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation type="unfinished">
+            <numerusform />
+            <numerusform />
+            <numerusform />
+            <numerusform />
+            <numerusform />
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n hour(s)</source>
+        <translation type="unfinished">
+            <numerusform />
+            <numerusform />
+            <numerusform />
+            <numerusform />
+            <numerusform />
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n day(s)</source>
+        <translation type="unfinished">
+            <numerusform />
+            <numerusform />
+            <numerusform />
+            <numerusform />
+            <numerusform />
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n week(s)</source>
+        <translation type="unfinished">
+            <numerusform />
+            <numerusform />
+            <numerusform />
+            <numerusform />
+            <numerusform />
+        </translation>
+    </message>
+    <message>
+        <source>%1 and %2</source>
+        <translation type="unfinished">%1 a %2</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n year(s)</source>
+        <translation type="unfinished">
+            <numerusform />
+            <numerusform />
+            <numerusform />
+            <numerusform />
+            <numerusform />
+        </translation>
+    </message>
     </context>
 <context>
     <name>DigiByteGUI</name>
@@ -428,19 +516,19 @@
     <message>
         <source>Date: %1
 </source>
-        <translation>Dyddiad: %1
+        <translation type="unfinished">Dyddiad: %1
 </translation>
     </message>
     <message>
         <source>Amount: %1
 </source>
-        <translation>Cyfanswm: %1
+        <translation type="unfinished">Cyfanswm: %1
 </translation>
     </message>
     <message>
         <source>Wallet: %1
 </source>
-        <translation>Waled: %1
+        <translation type="unfinished">Waled: %1
 </translation>
     </message>
     <message>
@@ -458,7 +546,7 @@
     <message>
         <source>Address: %1
 </source>
-        <translation>Cyfeiriad: %1
+        <translation type="unfinished">Cyfeiriad: %1
 </translation>
     </message>
     <message>
@@ -964,6 +1052,10 @@
     </context>
 <context>
     <name>WalletFrame</name>
+    <message>
+        <source>Error</source>
+        <translation type="unfinished">Gwall</translation>
+    </message>
     </context>
 <context>
     <name>WalletModel</name>

@@ -1,8 +1,7 @@
 // Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_QT_ASKPASSPHRASEDIALOG_H
 #define DIGIBYTE_QT_ASKPASSPHRASEDIALOG_H
 
@@ -39,8 +38,8 @@ public:
 private:
     Ui::AskPassphraseDialog *ui;
     Mode mode;
-    WalletModel *model;
-    bool fCapsLock;
+    WalletModel* model{nullptr};
+    bool fCapsLock{false};
     SecureString* m_passphrase_out;
 
 private Q_SLOTS:

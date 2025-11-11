@@ -1,37 +1,100 @@
-<TS language="yo" version="2.1">
+<TS version="2.1" language="yo">
 <context>
     <name>AddressBookPage</name>
     <message>
+        <source>Right-click to edit address or label</source>
+        <translation type="unfinished">Te botiini apa otun lati se atunse si adireesi tabi isaami</translation>
+    </message>
+    <message>
+        <source>Create a new address</source>
+        <translation type="unfinished">si adireesi tuntun</translation>
+    </message>
+    <message>
         <source>&amp;New</source>
-        <translation>&amp;ati tuntun</translation>
+        <translation type="unfinished">&amp;ati tuntun</translation>
+    </message>
+    <message>
+        <source>Copy the currently selected address to the system clipboard</source>
+        <translation type="unfinished">da adiresi tuntun ti o sayan ko si eto sileti </translation>
+    </message>
+    <message>
+        <source>&amp;Copy</source>
+        <translation type="unfinished">daako</translation>
+    </message>
+    <message>
+        <source>C&amp;lose</source>
+        <translation type="unfinished">paade</translation>
+    </message>
+    <message>
+        <source>Delete the currently selected address from the list</source>
+        <translation type="unfinished">samukuro adiresi ti o sese sayan kuro ninu akojo</translation>
     </message>
     </context>
 <context>
-    <name>AddressTableModel</name>
-    </context>
-<context>
-    <name>AskPassphraseDialog</name>
-    </context>
-<context>
-    <name>BanTableModel</name>
+    <name>QObject</name>
+    <message numerus="yes">
+        <source>%n second(s)</source>
+        <translation type="unfinished">
+            <numerusform />
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation type="unfinished">
+            <numerusform />
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n hour(s)</source>
+        <translation type="unfinished">
+            <numerusform />
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n day(s)</source>
+        <translation type="unfinished">
+            <numerusform />
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n week(s)</source>
+        <translation type="unfinished">
+            <numerusform />
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n year(s)</source>
+        <translation type="unfinished">
+            <numerusform />
+        </translation>
+    </message>
     </context>
 <context>
     <name>DigiByteGUI</name>
+    <message numerus="yes">
+        <source>Processed %n block(s) of transaction history.</source>
+        <translation type="unfinished">
+            <numerusform />
+        </translation>
+    </message>
     <message>
         <source>Open Wallet</source>
-        <translation>sii apamowo</translation>
+        <translation type="unfinished">sii apamowo</translation>
     </message>
     <message>
         <source>Open a wallet</source>
-        <translation>sii apamowo</translation>
-    </message>
-    <message>
-        <source>Close Wallet...</source>
-        <translation>ti apamowo</translation>
+        <translation type="unfinished">sii apamowo</translation>
     </message>
     <message>
         <source>Close wallet</source>
-        <translation>Ti Apamowo</translation>
+        <translation type="unfinished">Ti Apamowo</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n active connection(s) to DigiByte network.</source>
+        <extracomment>A substring of the tooltip.</extracomment>
+        <translation type="unfinished">
+            <numerusform />
+        </translation>
     </message>
     </context>
 <context>

@@ -1,4 +1,4 @@
-<TS language="hu" version="2.1">
+<TS version="2.1" language="hu">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -3395,8 +3395,8 @@ Figyelem: Mivel bájtonként lesz a dj kiszámolva ezért a "100 satoshi per kB"
         <source>No wallet has been loaded.
 Go to File &gt; Open Wallet to load a wallet.
 - OR -</source>
-        <translation>Nincs tárca megnyitva. 
-A Fájl &gt; Megnyitás menüben lehet megnyitni.
+        <translation type="unfinished">Nincs tárca betöltve.
+A "Fájl &gt; Tárca megnyitása" menüben tölthet be egyet.
 - VAGY -</translation>
     </message>
     <message>

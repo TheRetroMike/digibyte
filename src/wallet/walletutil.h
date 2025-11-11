@@ -1,16 +1,16 @@
-// Copyright (c) 2017-2020 The Bitcoin Core developers
-// Copyright (c) 2017-2020 The DigiByte Core developers
+// Copyright (c) 2017-2021 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_WALLET_WALLETUTIL_H
 #define DIGIBYTE_WALLET_WALLETUTIL_H
 
-#include <fs.h>
 #include <script/descriptor.h>
+#include <util/fs.h>
 
 #include <vector>
 
+namespace wallet {
 /** (client) version numbers for particular wallet features */
 enum WalletFeature
 {
@@ -53,9 +53,17 @@ enum WalletFlags : uint64_t {
     //! Flag set when a wallet contains no HD seed and no private keys, scripts,
     //! addresses, and other watch only things, and is therefore "blank."
     //!
-    //! The only function this flag serves is to distinguish a blank wallet from
+    //! The main function this flag serves is to distinguish a blank wallet from
     //! a newly created wallet when the wallet database is loaded, to avoid
     //! initialization that should only happen on first run.
+    //!
+    //! A secondary function of this flag, which applies to descriptor wallets
+    //! only, is to serve as an ongoing indication that descriptors in the
+    //! wallet should be created manually, and that the wallet should not
+    //! generate automatically generate new descriptors if it is later
+    //! encrypted. To support this behavior, descriptor wallets unlike legacy
+    //! wallets do not automatically unset the BLANK flag when things are
+    //! imported.
     //!
     //! This flag is also a mandatory flag to prevent previous versions of
     //! digibyte from opening the wallet, thinking it was newly created, and
@@ -104,5 +112,6 @@ public:
     WalletDescriptor() {}
     WalletDescriptor(std::shared_ptr<Descriptor> descriptor, uint64_t creation_time, int32_t range_start, int32_t range_end, int32_t next_index) : descriptor(descriptor), creation_time(creation_time), range_start(range_start), range_end(range_end), next_index(next_index) {}
 };
+} // namespace wallet
 
 #endif // DIGIBYTE_WALLET_WALLETUTIL_H

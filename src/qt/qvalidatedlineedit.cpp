@@ -1,19 +1,24 @@
 // Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <qt/qvalidatedlineedit.h>
 
 #include <qt/digibyteaddressvalidator.h>
 #include <qt/guiconstants.h>
 
-QValidatedLineEdit::QValidatedLineEdit(QWidget *parent) :
-    QLineEdit(parent),
-    valid(true),
-    checkValidator(nullptr)
+#include <QStyle>
+
+QValidatedLineEdit::QValidatedLineEdit(QWidget* parent)
+    : QLineEdit(parent)
 {
     connect(this, &QValidatedLineEdit::textChanged, this, &QValidatedLineEdit::markValid);
+}
+
+void QValidatedLineEdit::setText(const QString& text)
+{
+    QLineEdit::setText(text);
+    checkValidity();
 }
 
 void QValidatedLineEdit::setValid(bool _valid)
@@ -26,12 +31,18 @@ void QValidatedLineEdit::setValid(bool _valid)
     if(_valid)
     {
         setStyleSheet("");
+        setProperty("invalid", false);
     }
     else
     {
-        setStyleSheet(STYLE_INVALID);
+        // Don't use inline styles - let CSS handle the styling
+        setProperty("invalid", true);
     }
     this->valid = _valid;
+    
+    // Force style update
+    style()->unpolish(this);
+    style()->polish(this);
 }
 
 void QValidatedLineEdit::focusInEvent(QFocusEvent *evt)
@@ -107,6 +118,7 @@ void QValidatedLineEdit::checkValidity()
 void QValidatedLineEdit::setCheckValidator(const QValidator *v)
 {
     checkValidator = v;
+    checkValidity();
 }
 
 bool QValidatedLineEdit::isValid()

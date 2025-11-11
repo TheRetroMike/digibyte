@@ -1,0 +1,7 @@
+[main]
+host = https://www.transifex.com
+
+[o:digibyte:p:digibyte:r:qt-translation-026x]
+file_filter = src/qt/locale/digibyte_<lang>.xlf
+source_file = src/qt/locale/digibyte_en.xlf
+source_lang = en

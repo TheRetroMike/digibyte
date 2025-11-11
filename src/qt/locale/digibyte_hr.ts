@@ -1,4 +1,4 @@
-<TS language="hr" version="2.1">
+<TS version="2.1" language="hr">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -222,6 +222,173 @@
 </context>
 <context>
     <name>BanTableModel</name>
+    <message>
+        <source>IP/Netmask</source>
+        <translation type="unfinished">IP/Mrežna maska</translation>
+    </message>
+    <message>
+        <source>Banned Until</source>
+        <translation type="unfinished">Zabranjen do</translation>
+    </message>
+</context>
+<context>
+    <name>DigiByteApplication</name>
+    <message>
+        <source>Runaway exception</source>
+        <translation type="unfinished">Runaway iznimka</translation>
+    </message>
+    <message>
+        <source>A fatal error occurred. %1 can no longer continue safely and will quit.</source>
+        <translation type="unfinished">Dogodila se greška. %1 ne može sigurno nastaviti te će se zatvoriti.</translation>
+    </message>
+    <message>
+        <source>Internal error</source>
+        <translation type="unfinished">Interna greška</translation>
+    </message>
+    <message>
+        <source>An internal error occurred. %1 will attempt to continue safely. This is an unexpected bug which can be reported as described below.</source>
+        <translation type="unfinished">Dogodila se interna greška. %1 će pokušati sigurno nastaviti. Ovo je neočekivani bug koji se može prijaviti kao što je objašnjeno ispod.</translation>
+    </message>
+</context>
+<context>
+    <name>QObject</name>
+    <message>
+        <source>Do you want to reset settings to default values, or to abort without making changes?</source>
+        <extracomment>Explanatory text shown on startup when the settings file cannot be read. Prompts user to make a choice between resetting or aborting.</extracomment>
+        <translation type="unfinished">Želite li resetirati postavke na početne vrijednosti ili izaći bez promjena?</translation>
+    </message>
+    <message>
+        <source>A fatal error occurred. Check that settings file is writable, or try running with -nosettings.</source>
+        <extracomment>Explanatory text shown on startup when the settings file could not be written. Prompts user to check that we have the ability to write to the file. Explains that the user has the option of running without a settings file.</extracomment>
+        <translation type="unfinished">Dogodila se kobna greška. Provjerite je li datoteka za postavke otvorena za promjene ili pokušajte pokrenuti s -nosettings.</translation>
+    </message>
+    <message>
+        <source>Error: %1</source>
+        <translation type="unfinished">Greška: %1</translation>
+    </message>
+    <message>
+        <source>%1 didn't yet exit safely…</source>
+        <translation type="unfinished">%1 se nije još zatvorio na siguran način.</translation>
+    </message>
+    <message>
+        <source>unknown</source>
+        <translation type="unfinished">nepoznato</translation>
+    </message>
+    <message>
+        <source>Amount</source>
+        <translation type="unfinished">Iznos</translation>
+    </message>
+    <message>
+        <source>Enter a DigiByte address (e.g. %1)</source>
+        <translation type="unfinished">Unesite DigiByte adresu (npr. %1)</translation>
+    </message>
+    <message>
+        <source>Unroutable</source>
+        <translation type="unfinished">Neusmjeriv</translation>
+    </message>
+    <message>
+        <source>IPv4</source>
+        <comment>network name</comment>
+        <extracomment>Name of IPv4 network in peer info</extracomment>
+        <translation type="unfinished">IPv4-a</translation>
+    </message>
+    <message>
+        <source>IPv6</source>
+        <comment>network name</comment>
+        <extracomment>Name of IPv6 network in peer info</extracomment>
+        <translation type="unfinished">IPv6-a</translation>
+    </message>
+    <message>
+        <source>Inbound</source>
+        <extracomment>An inbound connection from a peer. An inbound connection is a connection initiated by a peer.</extracomment>
+        <translation type="unfinished">Dolazni</translation>
+    </message>
+    <message>
+        <source>Outbound</source>
+        <extracomment>An outbound connection to a peer. An outbound connection is a connection initiated by us.</extracomment>
+        <translation type="unfinished">Izlazni</translation>
+    </message>
+    <message>
+        <source>Full Relay</source>
+        <extracomment>Peer connection type that relays all network information.</extracomment>
+        <translation type="unfinished">Potpuni prijenos</translation>
+    </message>
+    <message>
+        <source>Block Relay</source>
+        <extracomment>Peer connection type that relays network information about blocks and not transactions or addresses.</extracomment>
+        <translation type="unfinished">Blok prijenos</translation>
+    </message>
+    <message>
+        <source>Manual</source>
+        <extracomment>Peer connection type established manually through one of several methods.</extracomment>
+        <translation type="unfinished">Priručnik</translation>
+    </message>
+    <message>
+        <source>Feeler</source>
+        <extracomment>Short-lived peer connection type that tests the aliveness of known addresses.</extracomment>
+        <translation type="unfinished">Ispipavač</translation>
+    </message>
+    <message>
+        <source>Address Fetch</source>
+        <extracomment>Short-lived peer connection type that solicits known addresses from a peer.</extracomment>
+        <translation type="unfinished">Dohvaćanje adrese</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <translation type="unfinished">Ništa</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n second(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n second(s)</numerusform>
+            <numerusform>%n second(s)</numerusform>
+            <numerusform>%n sekundi</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n minute(s)</numerusform>
+            <numerusform>%n minute(s)</numerusform>
+            <numerusform>%n minuta</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n hour(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n hour(s)</numerusform>
+            <numerusform>%n hour(s)</numerusform>
+            <numerusform>%n sati</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n day(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n day(s)</numerusform>
+            <numerusform>%n day(s)</numerusform>
+            <numerusform>%n dana</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n week(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n week(s)</numerusform>
+            <numerusform>%n week(s)</numerusform>
+            <numerusform>%n tjedana</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>%1 and %2</source>
+        <translation type="unfinished">%1 i %2</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n year(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n year(s)</numerusform>
+            <numerusform>%n year(s)</numerusform>
+            <numerusform>%n godina</numerusform>
+        </translation>
+    </message>
     </context>
 <context>
     <name>DigiByteGUI</name>
@@ -452,31 +619,37 @@
     <message>
         <source>Date: %1
 </source>
-        <translation>Datum: %1
+        <translation type="unfinished">Datum: %1
 </translation>
     </message>
     <message>
         <source>Amount: %1
 </source>
-        <translation>Iznos: %1
+        <translation type="unfinished">Iznos: %1
+</translation>
+    </message>
+    <message>
+        <source>Wallet: %1
+</source>
+        <translation type="unfinished">Novčanik: %1
 </translation>
     </message>
     <message>
         <source>Type: %1
 </source>
-        <translation>Vrsta: %1
+        <translation type="unfinished">Vrsta: %1
 </translation>
     </message>
     <message>
         <source>Label: %1
 </source>
-        <translation>Oznaka: %1
+        <translation type="unfinished">Oznaka: %1
 </translation>
     </message>
     <message>
         <source>Address: %1
 </source>
-        <translation>Adresa: %1
+        <translation type="unfinished">Adresa: %1
 </translation>
     </message>
     <message>

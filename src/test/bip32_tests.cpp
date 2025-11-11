@@ -1,8 +1,7 @@
 // Copyright (c) 2013-2021 The Bitcoin Core developers
-// Copyright (c) 2014-2021 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <boost/test/unit_test.hpp>
 
 #include <clientversion.h>
@@ -101,10 +100,10 @@ TestVector test4 =
      0);
 
 static void RunTest(const TestVector &test) {
-    std::vector<unsigned char> seed = ParseHex(test.strHexMaster);
+    std::vector<std::byte> seed{ParseHex<std::byte>(test.strHexMaster)};
     CExtKey key;
     CExtPubKey pubkey;
-    key.SetSeed(seed.data(), seed.size());
+    key.SetSeed(seed);
     pubkey = key.Neuter();
     for (const TestDerivation &derive : test.vDerive) {
         unsigned char data[74];

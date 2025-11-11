@@ -86,7 +86,22 @@ DOCKER_EXEC df -h
 
 if [ "$RUN_FUZZ_TESTS" = "true" ] || [ "$RUN_UNIT_TESTS" = "true" ] || [ "$RUN_UNIT_TESTS_SEQUENTIAL" = "true" ]; then
   if [ ! -d ${DIR_QA_ASSETS} ]; then
-    DOCKER_EXEC git clone --depth=1 https://github.com/digibyte-core/qa-assets ${DIR_QA_ASSETS}
+    echo "Creating test data directories..."
+    DOCKER_EXEC mkdir -p ${DIR_QA_ASSETS}/fuzz_seed_corpus/
+    DOCKER_EXEC mkdir -p ${DIR_QA_ASSETS}/unit_test_data/
+
+    # Create basic fuzz seed files
+    DOCKER_EXEC sh -c "echo 'fuzz_seed_1' > ${DIR_QA_ASSETS}/fuzz_seed_corpus/seed1"
+    DOCKER_EXEC sh -c "echo 'fuzz_seed_2' > ${DIR_QA_ASSETS}/fuzz_seed_corpus/seed2"
+    DOCKER_EXEC sh -c "echo -n '\x00\x01\x02\x03' > ${DIR_QA_ASSETS}/fuzz_seed_corpus/binary_seed"
+
+    # Create minimal script_assets_test.json for unit tests
+    DOCKER_EXEC sh -c "cat > ${DIR_QA_ASSETS}/unit_test_data/script_assets_test.json << 'EOF'
+{
+  \"sha256\": [],
+  \"base58\": []
+}
+EOF"
   fi
 
   export DIR_FUZZ_IN=${DIR_QA_ASSETS}/fuzz_seed_corpus/

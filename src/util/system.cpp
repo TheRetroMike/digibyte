@@ -1,8 +1,7 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <util/system.h>
 
 #ifdef ENABLE_EXTERNAL_SIGNER
@@ -80,8 +79,6 @@ const int64_t nStartupTime = GetTime();
 
 const char * const DIGIBYTE_CONF_FILENAME = "digibyte.conf";
 const char * const DIGIBYTE_SETTINGS_FILENAME = "settings.json";
-
-ArgsManager gArgs;
 
 /** Mutex to protect dir_locks. */
 static Mutex cs_dir_locks;

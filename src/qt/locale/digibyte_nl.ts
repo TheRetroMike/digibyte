@@ -1,4 +1,4 @@
-<TS language="nl" version="2.1">
+<TS version="2.1" language="nl">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -72,7 +72,7 @@
     <message>
         <source>These are your DigiByte addresses for receiving payments. Use the 'Create new receiving address' button in the receive tab to create new addresses.
 Signing is only possible with addresses of the type 'legacy'.</source>
-        <translation>Dit zijn uw DigiByte adressen voor het ontvangen van betalingen. Gebruik de 'Nieuw ontvangst adres maken' knop in de ontvangst tab om een nieuwe adres te maken.
+        <translation type="unfinished">Dit zijn uw DigiByte adressen voor het ontvangen van betalingen. Gebruik de 'Nieuw ontvangstadres maken' knop in de ontvangst tab om nieuwe adressen te maken.
 Ondertekenen is alleen mogelijk met adressen van het type 'legacy'.</translation>
     </message>
     <message>

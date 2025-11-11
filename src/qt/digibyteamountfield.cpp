@@ -1,8 +1,6 @@
-// Copyright (c) 2011-2018 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <qt/digibyteamountfield.h>
 
 #include <qt/digibyteunits.h>
@@ -15,6 +13,9 @@
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLineEdit>
+#include <QVariant>
+
+#include <cassert>
 
 /** QSpinBox that uses fixed-point numbers internally and uses our own
  * formatting/parsing functions.
@@ -97,7 +98,7 @@ public:
         setValue(val);
     }
 
-    void setDisplayUnit(int unit)
+    void setDisplayUnit(DigiByteUnit unit)
     {
         bool valid = false;
         CAmount val = value(&valid);
@@ -123,7 +124,7 @@ public:
 
             const QFontMetrics fm(fontMetrics());
             int h = lineEdit()->minimumSizeHint().height();
-            int w = GUIUtil::TextWidth(fm, DigiByteUnits::format(DigiByteUnits::DGB, DigiByteUnits::maxMoney(), false, DigiByteUnits::SeparatorStyle::ALWAYS));
+            int w = GUIUtil::TextWidth(fm, DigiByteUnits::format(DigiByteUnit::DGB, DigiByteUnits::maxMoney(), false, DigiByteUnits::SeparatorStyle::ALWAYS));
             w += 2; // cursor blinking space
 
             QStyleOptionSpinBox opt;
@@ -142,14 +143,13 @@ public:
 
             opt.rect = rect();
 
-            cachedMinimumSizeHint = style()->sizeFromContents(QStyle::CT_SpinBox, &opt, hint, this)
-                                    .expandedTo(QApplication::globalStrut());
+            cachedMinimumSizeHint = style()->sizeFromContents(QStyle::CT_SpinBox, &opt, hint, this);
         }
         return cachedMinimumSizeHint;
     }
 
 private:
-    int currentUnit{DigiByteUnits::DGB};
+    DigiByteUnit currentUnit{DigiByteUnit::DGB};
     CAmount singleStep{CAmount(100000)}; // satoshis
     mutable QSize cachedMinimumSizeHint;
     bool m_allow_empty{true};
@@ -216,9 +216,8 @@ Q_SIGNALS:
 
 #include <qt/digibyteamountfield.moc>
 
-DigiByteAmountField::DigiByteAmountField(QWidget *parent) :
-    QWidget(parent),
-    amount(nullptr)
+DigiByteAmountField::DigiByteAmountField(QWidget* parent)
+    : QWidget(parent)
 {
     amount = new AmountSpinBox(this);
     amount->setLocale(QLocale::c());
@@ -268,10 +267,16 @@ bool DigiByteAmountField::validate()
 
 void DigiByteAmountField::setValid(bool valid)
 {
-    if (valid)
+    if (valid) {
         amount->setStyleSheet("");
-    else
-        amount->setStyleSheet(STYLE_INVALID);
+        amount->setProperty("invalid", false);
+    } else {
+        // Don't use inline styles - let CSS handle the styling
+        amount->setProperty("invalid", true);
+    }
+    // Force style update
+    amount->style()->unpolish(amount);
+    amount->style()->polish(amount);
 }
 
 bool DigiByteAmountField::eventFilter(QObject *object, QEvent *event)
@@ -327,14 +332,14 @@ void DigiByteAmountField::unitChanged(int idx)
     unit->setToolTip(unit->itemData(idx, Qt::ToolTipRole).toString());
 
     // Determine new unit ID
-    int newUnit = unit->itemData(idx, DigiByteUnits::UnitRole).toInt();
-
-    amount->setDisplayUnit(newUnit);
+    QVariant new_unit = unit->currentData(DigiByteUnits::UnitRole);
+    assert(new_unit.isValid());
+    amount->setDisplayUnit(new_unit.value<DigiByteUnit>());
 }
 
-void DigiByteAmountField::setDisplayUnit(int newUnit)
+void DigiByteAmountField::setDisplayUnit(DigiByteUnit new_unit)
 {
-    unit->setValue(newUnit);
+    unit->setValue(QVariant::fromValue(new_unit));
 }
 
 void DigiByteAmountField::setSingleStep(const CAmount& step)

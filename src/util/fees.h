@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef DIGIBYTE_UTIL_FEES_H
@@ -13,6 +13,6 @@ enum class FeeReason;
 bool FeeModeFromString(const std::string& mode_string, FeeEstimateMode& fee_estimate_mode);
 std::string StringForFeeReason(FeeReason reason);
 std::string FeeModes(const std::string& delimiter);
-const std::string InvalidEstimateModeErrorMessage();
+std::string InvalidEstimateModeErrorMessage();
 
 #endif // DIGIBYTE_UTIL_FEES_H

@@ -1,12 +1,14 @@
-// Copyright (c) 2018-2021 The DigiByte Core developers
+// Copyright (c) 2018-2021 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_EXTERNAL_SIGNER_H
 #define DIGIBYTE_EXTERNAL_SIGNER_H
 
+
+#include <common/system.h>
 #include <univalue.h>
-#include <util/system.h>
+
 
 #include <string>
 #include <vector>
@@ -21,10 +23,12 @@ private:
     //! The command which handles interaction with the external signer.
     std::string m_command;
 
+
     //! DigiByte mainnet, testnet, etc
     std::string m_chain;
 
-    const std::string NetworkArg() const;
+    std::string NetworkArg() const;
+
 
 public:
     //! @param[in] command      the command which handles interaction with the external signer

@@ -1,10 +1,11 @@
+/* Copyright (c) 2007-2010  Projet RNRT SAPHIR
+ * The above copyright notice and this permission notice shall be
 /* $Id: jh.c 255 2011-06-07 19:50:20Z tp $ */
 /*
  * JH implementation.
  *
  * ==========================(LICENSE BEGIN)============================
  *
- * Copyright (c) 2007-2010  Projet RNRT SAPHIR
  * 
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -14,7 +15,6 @@
  * permit persons to whom the Software is furnished to do so, subject to
  * the following conditions:
  * 
- * The above copyright notice and this permission notice shall be
  * included in all copies or substantial portions of the Software.
  * 
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,

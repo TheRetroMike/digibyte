@@ -1,7 +1,6 @@
-// Copyright (c) 2021 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_IPC_PROTOCOL_H
 #define DIGIBYTE_IPC_PROTOCOL_H
 
@@ -12,6 +11,7 @@
 #include <typeindex>
 
 namespace ipc {
+struct Context;
 //! IPC protocol interface for calling IPC methods over sockets.
 //!
 //! There may be different implementations of this interface for different IPC
@@ -33,6 +33,9 @@ public:
     //! Add cleanup callback to interface that will run when the interface is
     //! deleted.
     virtual void addCleanup(std::type_index type, void* iface, std::function<void()> cleanup) = 0;
+
+    //! Context accessor.
+    virtual Context& context() = 0;
 };
 } // namespace ipc
 

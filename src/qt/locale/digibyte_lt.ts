@@ -1,4 +1,4 @@
-<TS language="lt" version="2.1">
+<TS version="2.1" language="lt">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -264,7 +264,37 @@
     <message>
         <source>Date: %1
 </source>
-        <translation>Data: %1
+        <translation type="unfinished">Data: %1
+</translation>
+    </message>
+    <message>
+        <source>Amount: %1
+</source>
+        <translation type="unfinished">Suma: %1
+</translation>
+    </message>
+    <message>
+        <source>Wallet: %1
+</source>
+        <translation type="unfinished">Piniginė: %1
+</translation>
+    </message>
+    <message>
+        <source>Type: %1
+</source>
+        <translation type="unfinished">Spausti: %1
+</translation>
+    </message>
+    <message>
+        <source>Label: %1
+</source>
+        <translation type="unfinished">Antraštė: %1
+</translation>
+    </message>
+    <message>
+        <source>Address: %1
+</source>
+        <translation type="unfinished">Adresas: %1
 </translation>
     </message>
     <message>

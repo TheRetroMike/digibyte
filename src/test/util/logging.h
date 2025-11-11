@@ -1,7 +1,6 @@
-// Copyright (c) 2019-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_TEST_UTIL_LOGGING_H
 #define DIGIBYTE_TEST_UTIL_LOGGING_H
 
@@ -36,6 +35,6 @@ public:
     ~DebugLogHelper() { check_found(); }
 };
 
-#define ASSERT_DEBUG_LOG(message) DebugLogHelper PASTE2(debugloghelper, __COUNTER__)(message)
+#define ASSERT_DEBUG_LOG(message) DebugLogHelper UNIQUE_NAME(debugloghelper)(message)
 
 #endif // DIGIBYTE_TEST_UTIL_LOGGING_H

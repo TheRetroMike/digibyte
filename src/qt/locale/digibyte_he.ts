@@ -1,4 +1,4 @@
-<TS language="he" version="2.1">
+<TS version="2.1" language="he">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -3392,7 +3392,7 @@ Note:  Since the fee is calculated on a per-byte basis, a fee of "100 satoshis p
         <source>No wallet has been loaded.
 Go to File &gt; Open Wallet to load a wallet.
 - OR -</source>
-        <translation>לא נטען ארנק.
+        <translation type="unfinished">לא נטען ארנק.
 עליך לגשת לקובץ &gt; פתיחת ארנק כדי לטעון ארנק.
 - או -</translation>
     </message>

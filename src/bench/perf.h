@@ -1,7 +1,6 @@
-// Copyright (c) 2016 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 /** Functions for measurement of CPU cycles */
 #ifndef H_PERF
 #define H_PERF

@@ -1,4 +1,4 @@
-<TS language="ar" version="2.1">
+<TS version="2.1" language="ar">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -72,7 +72,7 @@
     <message>
         <source>These are your DigiByte addresses for receiving payments. Use the 'Create new receiving address' button in the receive tab to create new addresses.
 Signing is only possible with addresses of the type 'legacy'.</source>
-        <translation>هذه هي عناوين بتكوين الخاصة بك لتلقي المدفوعات. استخدم الزر "إنشاء عنوان استلام جديد" في علامة تبويب الاستلام لإنشاء عناوين جديدة.
+        <translation>هذه هي عناوين DigiByte الخاصة بك لتلقي المدفوعات. استخدم الزر "إنشاء عنوان استلام جديد" في علامة تبويب الاستلام لإنشاء عناوين جديدة.
 التوقيع ممكن فقط مع عناوين من النوع "قديم".</translation>
     </message>
     <message>
@@ -481,7 +481,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>Load Partially Signed DigiByte Transaction</source>
-        <translation>تحميل معاملة بتكوين الموقعة جزئيًا</translation>
+        <translation>تحميل معاملة DigiByte الموقعة جزئيًا</translation>
     </message>
     <message>
         <source>Load PSBT from clipboard...</source>
@@ -489,7 +489,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>Load Partially Signed DigiByte Transaction from clipboard</source>
-        <translation>تحميل معاملة بتكوين الموقعة جزئيًا من الحافظة</translation>
+        <translation>تحميل معاملة DigiByte الموقعة جزئيًا من الحافظة</translation>
     </message>
     <message>
         <source>Node window</source>
@@ -537,7 +537,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>Show the %1 help message to get a list with possible DigiByte command-line options</source>
-        <translation>بين اشارة المساعدة %1 للحصول على قائمة من خيارات اوامر البت كوين المحتملة </translation>
+        <translation>بين اشارة المساعدة %1 للحصول على قائمة من خيارات اوامر DigiByte المحتملة </translation>
     </message>
     <message>
         <source>&amp;Mask values</source>
@@ -1011,7 +1011,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>DigiByte</source>
-        <translation>بتكوين</translation>
+        <translation>DigiByte</translation>
     </message>
     <message>
         <source>Discard blocks after verification, except most recent %1 GB (prune)</source>
@@ -1027,7 +1027,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>%1 will download and store a copy of the DigiByte block chain.</source>
-        <translation>سيقوم %1 بتنزيل نسخة من سلسلة كتل بتكوين وتخزينها.</translation>
+        <translation>سيقوم %1 بتنزيل نسخة من سلسلة كتل DigiByte وتخزينها.</translation>
     </message>
     <message>
         <source>The wallet will also be stored in this directory.</source>
@@ -1054,7 +1054,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>Attempting to spend digibytes that are affected by not-yet-displayed transactions will not be accepted by the network.</source>
-        <translation>لن تقبل الشبكة محاولة إنفاق البتكوين المتأثرة بالمعاملات التي لم يتم عرضها بعد.</translation>
+        <translation>لن تقبل الشبكة محاولة إنفاق الDigiByte المتأثرة بالمعاملات التي لم يتم عرضها بعد.</translation>
     </message>
     <message>
         <source>Number of blocks left</source>
@@ -1097,7 +1097,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     <name>OpenURIDialog</name>
     <message>
         <source>Open digibyte URI</source>
-        <translation>افتح بتكوين URI</translation>
+        <translation>افتح DigiByte URI</translation>
     </message>
     <message>
         <source>URI:</source>
@@ -1239,7 +1239,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>Connect to the DigiByte network through a SOCKS5 proxy.</source>
-        <translation>الاتصال بشبكة البتكوين عبر وكيل SOCKS5.</translation>
+        <translation>الاتصال بشبكة الDigiByte عبر وكيل SOCKS5.</translation>
     </message>
     <message>
         <source>&amp;Connect through SOCKS5 proxy (default proxy):</source>
@@ -1315,7 +1315,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>Connect to the DigiByte network through a separate SOCKS5 proxy for Tor onion services.</source>
-        <translation>اتصل بشبكة بتكوين من خلال وكيل SOCKS5 منفصل لخدمات Tor onion.</translation>
+        <translation>اتصل بشبكة DigiByte من خلال وكيل SOCKS5 منفصل لخدمات Tor onion.</translation>
     </message>
     <message>
         <source>Use separate SOCKS&amp;5 proxy to reach peers via Tor onion services:</source>
@@ -1390,7 +1390,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>The displayed information may be out of date. Your wallet automatically synchronizes with the DigiByte network after a connection is established, but this process has not completed yet.</source>
-        <translation>قد تكون المعلومات المعروضة قديمة. تتزامن محفظتك تلقائيًا مع شبكة البتكوين بعد إنشاء الاتصال، ولكن هذه العملية لم تكتمل بعد.</translation>
+        <translation>قد تكون المعلومات المعروضة قديمة. تتزامن محفظتك تلقائيًا مع شبكة الDigiByte بعد إنشاء الاتصال، ولكن هذه العملية لم تكتمل بعد.</translation>
     </message>
     <message>
         <source>Watch-only:</source>
@@ -1556,7 +1556,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>Cannot start digibyte: click-to-pay handler</source>
-        <translation>لا يمكن تشغيل بتكوين: معالج النقر للدفع</translation>
+        <translation>لا يمكن تشغيل DigiByte: معالج النقر للدفع</translation>
     </message>
     <message>
         <source>URI handling</source>
@@ -1568,7 +1568,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>URI cannot be parsed! This can be caused by an invalid DigiByte address or malformed URI parameters.</source>
-        <translation>لا يمكن تحليل العنوان (URI)! يمكن أن يحدث هذا بسبب عنوان بتكوين غير صالح أو معلمات عنوان (URI) غير صحيحة.</translation>
+        <translation>لا يمكن تحليل العنوان (URI)! يمكن أن يحدث هذا بسبب عنوان DigiByte غير صالح أو معلمات عنوان (URI) غير صحيحة.</translation>
     </message>
     <message>
         <source>Payment request file handling</source>
@@ -1610,7 +1610,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>Enter a DigiByte address (e.g. %1)</source>
-        <translation>ادخل عنوان محفطة البتكوين (مثال %1)</translation>
+        <translation>ادخل عنوان محفطة الDigiByte (مثال %1)</translation>
     </message>
     <message>
         <source>%1 d</source>
@@ -2003,7 +2003,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>An optional message to attach to the payment request, which will be displayed when the request is opened. Note: The message will not be sent with the payment over the DigiByte network.</source>
-        <translation>رسالة اختيارية لإرفاقها بطلب الدفع، والتي سيتم عرضها عند فتح الطلب. ملاحظة: لن يتم إرسال الرسالة مع الدفعة عبر شبكة البتكوين.</translation>
+        <translation>رسالة اختيارية لإرفاقها بطلب الدفع، والتي سيتم عرضها عند فتح الطلب. ملاحظة: لن يتم إرسال الرسالة مع الدفعة عبر شبكة الDigiByte.</translation>
     </message>
     <message>
         <source>An optional label to associate with the new receiving address.</source>
@@ -2388,7 +2388,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>Warning: Invalid DigiByte address</source>
-        <translation>تحذير: عنوان بتكوين غير صالح</translation>
+        <translation>تحذير: عنوان DigiByte غير صالح</translation>
     </message>
     <message>
         <source>Warning: Unknown change address</source>
@@ -2423,7 +2423,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>The DigiByte address to send the payment to</source>
-        <translation>عنوان البت كوين المرسل اليه الدفع</translation>
+        <translation>عنوان DigiByte المرسل اليه الدفع</translation>
     </message>
     <message>
         <source>Alt+A</source>
@@ -2443,7 +2443,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>The fee will be deducted from the amount being sent. The recipient will receive less digibytes than you enter in the amount field. If multiple recipients are selected, the fee is split equally.</source>
-        <translation>سيتم خصم الرسوم من المبلغ الذي يتم إرساله. لذا سوف يتلقى المستلم مبلغ أقل من البتكوين المدخل في حقل المبلغ. في حالة تحديد عدة مستلمين، يتم تقسيم الرسوم بالتساوي.</translation>
+        <translation>سيتم خصم الرسوم من المبلغ الذي يتم إرساله. لذا سوف يتلقى المستلم مبلغ أقل من الDigiByte المدخل في حقل المبلغ. في حالة تحديد عدة مستلمين، يتم تقسيم الرسوم بالتساوي.</translation>
     </message>
     <message>
         <source>S&amp;ubtract fee from amount</source>
@@ -2471,7 +2471,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>A message that was attached to the digibyte: URI which will be stored with the transaction for your reference. Note: This message will not be sent over the DigiByte network.</source>
-        <translation>الرسالة التي تم إرفاقها مع البتكوين: العنوان الذي سيتم تخزينه مع المعاملة للرجوع إليه. ملاحظة: لن يتم إرسال هذه الرسالة عبر شبكة البتكوين.</translation>
+        <translation>الرسالة التي تم إرفاقها مع الDigiByte: العنوان الذي سيتم تخزينه مع المعاملة للرجوع إليه. ملاحظة: لن يتم إرسال هذه الرسالة عبر شبكة الDigiByte.</translation>
     </message>
     <message>
         <source>Pay To:</source>
@@ -2505,7 +2505,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>The DigiByte address to sign the message with</source>
-        <translation>عنوان البتكوين لتوقيع الرسالة به</translation>
+        <translation>عنوان الDigiByte لتوقيع الرسالة به</translation>
     </message>
     <message>
         <source>Choose previously used address</source>
@@ -2537,7 +2537,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>Sign the message to prove you own this DigiByte address</source>
-        <translation>وقع الرسالة لتثبت انك تمتلك عنوان البت كوين هذا</translation>
+        <translation>وقع الرسالة لتثبت انك تمتلك عنوان DigiByte هذا</translation>
     </message>
     <message>
         <source>Sign &amp;Message</source>
@@ -2557,11 +2557,11 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>The DigiByte address the message was signed with</source>
-        <translation>عنوان البتكوين الذي تم توقيع الرسالة به</translation>
+        <translation>عنوان الDigiByte الذي تم توقيع الرسالة به</translation>
     </message>
     <message>
         <source>Verify the message to ensure it was signed with the specified DigiByte address</source>
-        <translation>تحقق من الرسالة للتأكد من توقيعها مع عنوان البتكوين المحدد</translation>
+        <translation>تحقق من الرسالة للتأكد من توقيعها مع عنوان الDigiByte المحدد</translation>
     </message>
     <message>
         <source>Verify &amp;Message</source>

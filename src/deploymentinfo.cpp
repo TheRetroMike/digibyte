@@ -1,10 +1,16 @@
-// Copyright (c) 2016-2020 The DigiByte Core developers
+// Copyright (c) 2016-2021 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <deploymentinfo.h>
 
 #include <consensus/params.h>
+
+
+
+#include <string_view>
+
+
 const struct VBDeploymentInfo VersionBitsDeploymentInfo[Consensus::MAX_VERSION_BITS_DEPLOYMENTS] = {
     {
         /*.name =*/ "testdummy",
@@ -30,6 +36,7 @@ std::string DeploymentName(Consensus::BuriedDeployment dep)
         return "csv";
     case Consensus::DEPLOYMENT_SEGWIT:
         return "segwit";
+
     case Consensus::DEPLOYMENT_NVERSIONBIPS:
         return "nversion";
     case Consensus::DEPLOYMENT_RESERVEALGO:
@@ -39,3 +46,20 @@ std::string DeploymentName(Consensus::BuriedDeployment dep)
     } // no default case, so the compiler can warn about missing cases
     return "";
 }
+
+std::optional<Consensus::BuriedDeployment> GetBuriedDeployment(const std::string_view name)
+{
+    if (name == "segwit") {
+        return Consensus::BuriedDeployment::DEPLOYMENT_SEGWIT;
+    } else if (name == "bip34") {
+        return Consensus::BuriedDeployment::DEPLOYMENT_HEIGHTINCB;
+    } else if (name == "dersig") {
+        return Consensus::BuriedDeployment::DEPLOYMENT_DERSIG;
+    } else if (name == "cltv") {
+        return Consensus::BuriedDeployment::DEPLOYMENT_CLTV;
+    } else if (name == "csv") {
+        return Consensus::BuriedDeployment::DEPLOYMENT_CSV;
+    }
+    return std::nullopt;
+}
+

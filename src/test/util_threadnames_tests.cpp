@@ -1,7 +1,6 @@
-// Copyright (c) 2018-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <util/string.h>
 #include <util/threadnames.h>
 
@@ -38,8 +37,9 @@ std::set<std::string> RenameEnMasse(int num_threads)
         names.insert(util::ThreadGetInternalName());
     };
 
+    threads.reserve(num_threads);
     for (int i = 0; i < num_threads; ++i) {
-        threads.push_back(std::thread(RenameThisThread, i));
+        threads.emplace_back(RenameThisThread, i);
     }
 
     for (std::thread& thread : threads) thread.join();

@@ -71,7 +71,7 @@
     </message>
     <message>
         <source>These are your DigiByte addresses for receiving payments. It is recommended to use a new receiving address for each transaction.</source>
-        <translation>اینها آدرس‌های بیتکوین شما برای دریافت وجوه هستند. توصیه می‌شود برای هر دریافت از یک آدرس جدید استفاده کنید.</translation>
+        <translation>اینها آدرس‌های دیجی بایت شما برای دریافت وجوه هستند. توصیه می‌شود برای هر دریافت از یک آدرس جدید استفاده کنید.</translation>
     </message>
     <message>
         <source>&amp;Copy Address</source>
@@ -177,7 +177,7 @@
     </message>
     <message>
         <source>Warning: If you encrypt your wallet and lose your passphrase, you will &lt;b&gt;LOSE ALL OF YOUR DIGIBYTES&lt;/b&gt;!</source>
-        <translation>اخطار: اگر کیف‌پول خود را رمزگذاری کرده و رمز خود را فراموش کنید، شما &lt;b&gt;تمام بیت‌کوین‌های خود را از دست خواهید داد&lt;/b&gt;!</translation>
+        <translation>اخطار: اگر کیف‌پول خود را رمزگذاری کرده و رمز خود را فراموش کنید، شما &lt;b&gt;تمام دیجی بایت‌های خود را از دست خواهید داد&lt;/b&gt;!</translation>
     </message>
     <message>
         <source>Are you sure you wish to encrypt your wallet?</source>
@@ -347,7 +347,7 @@
     </message>
     <message>
         <source>Send coins to a DigiByte address</source>
-        <translation>ارسال کوین به آدرس بیت کوین</translation>
+        <translation>ارسال کوین به آدرس دیجی بایت</translation>
     </message>
     <message>
         <source>Backup wallet to another location</source>
@@ -367,7 +367,7 @@
     </message>
     <message>
         <source>DigiByte</source>
-        <translation>بیت کوین</translation>
+        <translation>دیجی بایت</translation>
     </message>
     <message>
         <source>Wallet</source>
@@ -395,11 +395,11 @@
     </message>
     <message>
         <source>Sign messages with your DigiByte addresses to prove you own them</source>
-        <translation>پیام‌ها را با آدرس بیت‌کوین خود امضا کنید تا مالکیت آن‌ها را اثبات کنید</translation>
+        <translation>پیام‌ها را با آدرس دیجی بایت خود امضا کنید تا مالکیت آن‌ها را اثبات کنید</translation>
     </message>
     <message>
         <source>Verify messages to ensure they were signed with specified DigiByte addresses</source>
-        <translation>پیام‌ها را تائید کنید تا از امضاشدن آن‌ها با آدرس بیت‌کوین مطمئن شوید</translation>
+        <translation>پیام‌ها را تائید کنید تا از امضاشدن آن‌ها با آدرس دیجی بایت مطمئن شوید</translation>
     </message>
     <message>
         <source>&amp;File</source>
@@ -419,7 +419,7 @@
     </message>
     <message>
         <source>Request payments (generates QR codes and digibyte: URIs)</source>
-        <translation>درخواست پرداخت (ساخت کد QR و بیت‌کوین: URIs)</translation>
+        <translation>درخواست پرداخت (ساخت کد QR و دیجی بایت: URIs)</translation>
     </message>
     <message>
         <source>Show the list of used sending addresses and labels</source>
@@ -431,11 +431,11 @@
     </message>
     <message>
         <source>Open a digibyte: URI or payment request</source>
-        <translation>بازکردن بیت‌کوین: آدرس یا درخواست پرداخت</translation>
+        <translation>بازکردن دیجی بایت: آدرس یا درخواست پرداخت</translation>
     </message>
     <message numerus="yes">
         <source>%n active connection(s) to DigiByte network</source>
-        <translation><numerusform>%n ارتباط فعال به شبکه بیت‌کوین</numerusform><numerusform>%n ارتباط فعال به شبکه بیت‌کوین</numerusform></translation>
+        <translation><numerusform>%n ارتباط فعال به شبکه دیجی بایت</numerusform><numerusform>%n ارتباط فعال به شبکه دیجی بایت</numerusform></translation>
     </message>
     <message>
         <source>Indexing blocks on disk...</source>
@@ -629,7 +629,7 @@
     </message>
     <message>
         <source>The entered address "%1" is not a valid DigiByte address.</source>
-        <translation>آدرس وارد شده "%1" آدرس معتبر بیت کوین نیست.</translation>
+        <translation>آدرس وارد شده "%1" آدرس معتبر دیجی بایت نیست.</translation>
     </message>
     </context>
 <context>
@@ -658,7 +658,7 @@
     </message>
     <message>
         <source>DigiByte</source>
-        <translation>بیت کوین</translation>
+        <translation>دیجی بایت</translation>
     </message>
     <message>
         <source>The wallet will also be stored in this directory.</source>

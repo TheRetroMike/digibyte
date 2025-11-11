@@ -1,9 +1,8 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2009-2022 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_CONSENSUS_VALIDATION_H
 #define DIGIBYTE_CONSENSUS_VALIDATION_H
 
@@ -54,6 +53,7 @@ enum class TxValidationResult {
      */
     TX_CONFLICT,
     TX_MEMPOOL_POLICY,        //!< violated mempool's fee/size/descendant/RBF/etc limits
+    TX_NO_MEMPOOL,            //!< this node does not have a mempool so can't validate the transaction
 };
 
 /** A "reason" why a block was invalid, suitable for determining whether the
@@ -80,6 +80,7 @@ enum class BlockValidationResult {
     BLOCK_TIME_FUTURE,       //!< block timestamp was > 2 hours in the future (or our clock is bad)
     BLOCK_CHECKPOINT,        //!< the block failed to meet one of our checkpoints
     BLOCK_INVALID_ALGO,      //!< the block has an invalid algo set
+    BLOCK_HEADER_LOW_WORK    //!< the block header may be on a too-little-work chain
 };
 
 
@@ -145,7 +146,7 @@ class BlockValidationState : public ValidationState<BlockValidationResult> {};
 // using only serialization with and without witness data. As witness_size
 // is equal to total_size - stripped_size, this formula is identical to:
 // weight = (stripped_size * 3) + total_size.
-static inline int64_t GetTransactionWeight(const CTransaction& tx)
+static inline int32_t GetTransactionWeight(const CTransaction& tx)
 {
     return ::GetSerializeSize(tx, PROTOCOL_VERSION | SERIALIZE_TRANSACTION_NO_WITNESS) * (WITNESS_SCALE_FACTOR - 1) + ::GetSerializeSize(tx, PROTOCOL_VERSION);
 }

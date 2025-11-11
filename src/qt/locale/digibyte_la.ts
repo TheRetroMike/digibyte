@@ -1,4 +1,4 @@
-<TS language="la" version="2.1">
+<TS version="2.1" language="la">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -162,6 +162,63 @@
 </context>
 <context>
     <name>BanTableModel</name>
+    <message>
+        <source>Banned Until</source>
+        <translation type="unfinished">Interdictum usque ad</translation>
+    </message>
+</context>
+<context>
+    <name>QObject</name>
+    <message>
+        <source>unknown</source>
+        <translation type="unfinished">ignotum</translation>
+    </message>
+    <message>
+        <source>Amount</source>
+        <translation type="unfinished">Quantitas</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n second(s)</source>
+        <translation type="unfinished">
+            <numerusform />
+            <numerusform />
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation type="unfinished">
+            <numerusform />
+            <numerusform />
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n hour(s)</source>
+        <translation type="unfinished">
+            <numerusform />
+            <numerusform />
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n day(s)</source>
+        <translation type="unfinished">
+            <numerusform />
+            <numerusform />
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n week(s)</source>
+        <translation type="unfinished">
+            <numerusform />
+            <numerusform />
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n year(s)</source>
+        <translation type="unfinished">
+            <numerusform />
+            <numerusform />
+        </translation>
+    </message>
     </context>
 <context>
     <name>DigiByteGUI</name>
@@ -592,6 +649,10 @@
     </context>
 <context>
     <name>PSBTOperationsDialog</name>
+    <message>
+        <source>own address</source>
+        <translation type="unfinished">inscriptio propria</translation>
+    </message>
     </context>
 <context>
     <name>PaymentServer</name>

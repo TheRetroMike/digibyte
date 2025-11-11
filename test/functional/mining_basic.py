@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2014-2021 The DigiByte Core developers
+# Copyright (c) 2014-2022 The DigiByte Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Test mining RPCs
@@ -16,12 +16,12 @@ from test_framework.blocktools import (
     get_witness_script,
     NORMAL_GBT_REQUEST_PARAMS,
     TIME_GENESIS_BLOCK,
-    VERSIONBITS_TOP_BITS,
 )
 from test_framework.messages import (
+    BLOCK_HEADER_SIZE,
     CBlock,
     CBlockHeader,
-    BLOCK_HEADER_SIZE,
+    COIN,
     ser_uint256,
 )
 from test_framework.p2p import P2PDataStore
@@ -29,11 +29,15 @@ from test_framework.test_framework import DigiByteTestFramework
 from test_framework.util import (
     assert_equal,
     assert_raises_rpc_error,
+    get_fee,
 )
+from test_framework.wallet import MiniWallet
+
 
 VERSIONBITS_TOP_BITS = 0x20000000
 VERSIONBITS_DEPLOYMENT_TESTDUMMY_BIT = 27
-VERSIONBITS_DEPLOYMENT_TAPROOT_BIT = 0x02
+VERSIONBITS_DEPLOYMENT_TAPROOT_BIT = 0x02  # DigiByte taproot bit
+DEFAULT_BLOCK_MIN_TX_FEE = 100000  # default `-blockmintxfee` setting [sat/kvB] - DigiByte uses higher fees
 
 
 def assert_template(node, block, expect, rehash=True):
@@ -52,34 +56,75 @@ class MiningTest(DigiByteTestFramework):
         self.num_nodes = 2
         self.setup_clean_chain = True
         self.supports_cli = False
-
-    def skip_test_if_missing_module(self):
-        self.skip_if_no_wallet()
+        self.extra_args = [['-dandelion=0'], ['-dandelion=0']]
 
     def mine_chain(self):
         self.log.info('Create some old blocks')
-        for t in range(TIME_GENESIS_BLOCK, TIME_GENESIS_BLOCK + 240 * 15, 15):
+        # Generate blocks one by one with proper mock time like v8.22.2 did  
+        # Use 200 blocks to stay in Period I (< 334) and avoid Period V validation bug  
+        block_count = 200
+        for t in range(TIME_GENESIS_BLOCK, TIME_GENESIS_BLOCK + block_count * 15, 15):
             self.nodes[0].setmocktime(t)
             self.generate(self.nodes[0], 1, sync_fun=self.no_op)
         mining_info = self.nodes[0].getmininginfo()
-        assert_equal(mining_info['blocks'], 240)
+        assert_equal(mining_info['blocks'], block_count)
         assert_equal(mining_info['currentblocktx'], 0)
         assert_equal(mining_info['currentblockweight'], 4000)
 
         self.log.info('test blockversion')
-        block_version = 255 | VERSIONBITS_TOP_BITS
-        self.restart_node(0, extra_args=[f'-mocktime={t}', '-blockversion={}'.format(block_version)])
+        mock_time = TIME_GENESIS_BLOCK + block_count * 15
+        self.restart_node(0, extra_args=[f'-mocktime={mock_time}', '-blockversion=1337', '-dandelion=0'])
         self.connect_nodes(0, 1)
-        assert_equal(block_version, self.nodes[0].getblocktemplate(NORMAL_GBT_REQUEST_PARAMS)['version'])
-        self.restart_node(0, extra_args=[f'-mocktime={t}'])
+        assert_equal(1337, self.nodes[0].getblocktemplate(NORMAL_GBT_REQUEST_PARAMS)['version'])
+        self.restart_node(0, extra_args=[f'-mocktime={mock_time}', '-dandelion=0'])
         self.connect_nodes(0, 1)
-        assert_equal(VERSIONBITS_TOP_BITS + (1 << VERSIONBITS_DEPLOYMENT_TESTDUMMY_BIT) + (VERSIONBITS_DEPLOYMENT_TAPROOT_BIT), self.nodes[0].getblocktemplate(NORMAL_GBT_REQUEST_PARAMS)['version'])
+        assert_equal(VERSIONBITS_TOP_BITS + (1 << VERSIONBITS_DEPLOYMENT_TESTDUMMY_BIT) + VERSIONBITS_DEPLOYMENT_TAPROOT_BIT, self.nodes[0].getblocktemplate(NORMAL_GBT_REQUEST_PARAMS)['version'])
         self.restart_node(0)
         self.connect_nodes(0, 1)
 
-    def run_test(self):
-        self.mine_chain()
+    def test_blockmintxfee_parameter(self):
+        self.log.info("Test -blockmintxfee setting")
+        self.restart_node(0, extra_args=['-minrelaytxfee=0', '-persistmempool=0'])
         node = self.nodes[0]
+
+        # test default (no parameter), zero and a bunch of arbitrary blockmintxfee rates [sat/kvB]
+        for blockmintxfee_sat_kvb in (DEFAULT_BLOCK_MIN_TX_FEE, 0, 50, 100, 500, 2500, 5000, 21000, 333333, 2500000):
+            blockmintxfee_dgb_kvb = blockmintxfee_sat_kvb / Decimal(COIN)
+            if blockmintxfee_sat_kvb == DEFAULT_BLOCK_MIN_TX_FEE:
+                self.log.info(f"-> Default -blockmintxfee setting ({blockmintxfee_sat_kvb} sat/kvB)...")
+            else:
+                blockmintxfee_parameter = f"-blockmintxfee={blockmintxfee_dgb_kvb:.8f}"
+                self.log.info(f"-> Test {blockmintxfee_parameter} ({blockmintxfee_sat_kvb} sat/kvB)...")
+                self.restart_node(0, extra_args=[blockmintxfee_parameter, '-minrelaytxfee=0', '-persistmempool=0'])
+                self.wallet.rescan_utxos()  # to avoid spending outputs of txs that are not in mempool anymore after restart
+
+            # submit one tx with exactly the blockmintxfee rate, and one slightly below
+            tx_with_min_feerate = self.wallet.send_self_transfer(from_node=node, fee_rate=blockmintxfee_dgb_kvb)
+            assert_equal(tx_with_min_feerate["fee"], get_fee(tx_with_min_feerate["tx"].get_vsize(), blockmintxfee_dgb_kvb))
+            if blockmintxfee_dgb_kvb > 0:
+                lowerfee_dgb_kvb = blockmintxfee_dgb_kvb - Decimal(10)/COIN  # 0.01 sat/vbyte lower
+                tx_below_min_feerate = self.wallet.send_self_transfer(from_node=node, fee_rate=lowerfee_dgb_kvb)
+                assert_equal(tx_below_min_feerate["fee"], get_fee(tx_below_min_feerate["tx"].get_vsize(), lowerfee_dgb_kvb))
+            else:  # go below zero fee by using modified fees
+                tx_below_min_feerate = self.wallet.send_self_transfer(from_node=node, fee_rate=blockmintxfee_dgb_kvb)
+                node.prioritisetransaction(tx_below_min_feerate["txid"], 0, -1)
+
+            # check that tx below specified fee-rate is neither in template nor in the actual block
+            block_template = node.getblocktemplate(NORMAL_GBT_REQUEST_PARAMS)
+            block_template_txids = [tx['txid'] for tx in block_template['transactions']]
+            self.generate(self.wallet, 1, sync_fun=self.no_op)
+            block = node.getblock(node.getbestblockhash(), verbosity=2)
+            block_txids = [tx['txid'] for tx in block['tx']]
+
+            assert tx_with_min_feerate['txid'] in block_template_txids
+            assert tx_with_min_feerate['txid'] in block_txids
+            assert tx_below_min_feerate['txid'] not in block_template_txids
+            assert tx_below_min_feerate['txid'] not in block_txids
+
+    def run_test(self):
+        node = self.nodes[0]
+        self.wallet = MiniWallet(node)
+        self.mine_chain()
 
         def assert_submitblock(block, result_str_1, result_str_2=None):
             block.solve()
@@ -89,16 +134,22 @@ class MiningTest(DigiByteTestFramework):
 
         self.log.info('getmininginfo')
         mining_info = node.getmininginfo()
-        assert_equal(mining_info['blocks'], 240)
+        # Only 200 blocks from mine_chain at this point 
+        expected_blocks = 200  # 200 from mine_chain
+        assert_equal(mining_info['blocks'], expected_blocks)
         assert_equal(mining_info['chain'], self.chain)
         assert 'currentblocktx' not in mining_info
         assert 'currentblockweight' not in mining_info
-        assert_equal(mining_info['difficulties']['scrypt'], Decimal('4.656542373906925E-10'))
-        assert_equal(mining_info['networkhashps'], Decimal('0.1344444444444444'))
+        assert_equal(mining_info['difficulty'], Decimal('4.656542373906925E-10'))
+        assert_equal(mining_info['networkhashps'], Decimal('459.6844444444445'))
         assert_equal(mining_info['pooledtx'], 0)
+        
+        # Fund the wallet by generating blocks to its address and wait for maturity
+        from test_framework.blocktools import COINBASE_MATURITY_2
+        self.generate(self.wallet, COINBASE_MATURITY_2 + 1, sync_fun=self.no_op)
 
         self.log.info("getblocktemplate: Test default witness commitment")
-        txid = int(node.sendtoaddress(node.getnewaddress(), 1), 16)
+        txid = int(self.wallet.send_self_transfer(from_node=node)['wtxid'], 16)
         tmpl = node.getblocktemplate(NORMAL_GBT_REQUEST_PARAMS)
 
         # Check that default_witness_commitment is present.
@@ -133,7 +184,7 @@ class MiningTest(DigiByteTestFramework):
         block.vtx = [coinbase_tx]
 
         self.log.info("getblocktemplate: segwit rule must be set")
-        assert_raises_rpc_error(-8, "getblocktemplate must be called with the segwit rule set", node.getblocktemplate)
+        assert_raises_rpc_error(-8, "getblocktemplate must be called with the segwit rule set", node.getblocktemplate, {})
 
         self.log.info("getblocktemplate: Test valid block")
         assert_template(node, block, None)
@@ -148,6 +199,7 @@ class MiningTest(DigiByteTestFramework):
         assert_template(node, bad_block, 'bad-cb-missing')
 
         self.log.info("submitblock: Test invalid coinbase transaction")
+        assert_raises_rpc_error(-22, "Block does not start with a coinbase", node.submitblock, CBlock().serialize().hex())
         assert_raises_rpc_error(-22, "Block does not start with a coinbase", node.submitblock, bad_block.serialize().hex())
 
         self.log.info("getblocktemplate: Test truncated final transaction")
@@ -203,7 +255,7 @@ class MiningTest(DigiByteTestFramework):
 
         self.log.info("getblocktemplate: Test bad timestamps")
         bad_block = copy.deepcopy(block)
-        bad_block.nTime = 2**31 - 1
+        bad_block.nTime = 2**32 - 1
         assert_template(node, bad_block, 'time-too-new')
         assert_submitblock(bad_block, 'time-too-new', 'time-too-new')
         bad_block.nTime = 0
@@ -225,7 +277,15 @@ class MiningTest(DigiByteTestFramework):
         block.solve()
 
         def chain_tip(b_hash, *, status='headers-only', branchlen=1):
-            return {'hash': b_hash, 'height': 242, 'branchlen': branchlen, 'status': status}
+            # For headers-only: height = current + 1, for active: height stays same when accepted
+            current_height = node.getblockcount()
+            if status == 'active':
+                # When block becomes active, it's at the current chain height (doesn't increment)
+                height = current_height
+            else:
+                # Headers-only are at current height + 1
+                height = current_height + 1
+            return {'hash': b_hash, 'height': height, 'branchlen': branchlen, 'status': status}
 
         assert chain_tip(block.hash) not in node.getchaintips()
         node.submitheader(hexdata=block.serialize().hex())
@@ -280,6 +340,8 @@ class MiningTest(DigiByteTestFramework):
         node.submitheader(hexdata=CBlockHeader(block).serialize().hex())
         node.submitheader(hexdata=CBlockHeader(bad_block_root).serialize().hex())
         assert_equal(node.submitblock(hexdata=block.serialize().hex()), 'duplicate')  # valid
+
+        self.test_blockmintxfee_parameter()
 
 
 if __name__ == '__main__':

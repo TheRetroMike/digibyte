@@ -1,8 +1,7 @@
-// Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2009-2021 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifdef HAVE_CONFIG_H
 #include <config/digibyte-config.h>
 #endif
@@ -11,9 +10,8 @@
 
 #include <policy/policy.h>
 
-WalletModelTransaction::WalletModelTransaction(const QList<SendCoinsRecipient> &_recipients) :
-    recipients(_recipients),
-    fee(0)
+WalletModelTransaction::WalletModelTransaction(const QList<SendCoinsRecipient>& _recipients)
+    : recipients(_recipients)
 {
 }
 

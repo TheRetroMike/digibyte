@@ -1,15 +1,14 @@
 // Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_CRYPTO_HMAC_SHA512_H
 #define DIGIBYTE_CRYPTO_HMAC_SHA512_H
 
 #include <crypto/sha512.h>
 
+#include <cstdlib>
 #include <stdint.h>
-#include <stdlib.h>
 
 /** A hasher class for HMAC-SHA-512. */
 class CHMAC_SHA512

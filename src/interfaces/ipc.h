@@ -1,13 +1,24 @@
-// Copyright (c) 2021 The DigiByte Core developers
+
+
+
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+// Copyright (c) 2021 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 #ifndef DIGIBYTE_INTERFACES_IPC_H
 #define DIGIBYTE_INTERFACES_IPC_H
 
 #include <functional>
 #include <memory>
 #include <typeindex>
+
+
+
+namespace ipc {
+struct Context;
+} // namespace ipc
+
 
 namespace interfaces {
 class Init;
@@ -57,6 +68,12 @@ public:
     {
         addCleanup(typeid(Interface), &iface, std::move(cleanup));
     }
+
+
+
+    //! IPC context struct accessor (see struct definition for more description).
+    virtual ipc::Context& context() = 0;
+
 
 protected:
     //! Internal implementation of public addCleanup method (above) as a

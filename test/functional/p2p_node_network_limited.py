@@ -8,7 +8,7 @@ Tests that a node configured with -prune=550 signals NODE_NETWORK_LIMITED correc
 and that it responds to getdata requests for blocks correctly:
     - send a block within 288 + 2 of the tip
     - disconnect peers who request blocks older than that."""
-from test_framework.messages import CInv, MSG_BLOCK, msg_getdata, msg_verack, NODE_NETWORK_LIMITED, NODE_WITNESS
+from test_framework.messages import CInv, MSG_BLOCK, msg_getdata, msg_verack, NODE_NETWORK, NODE_NETWORK_LIMITED, NODE_WITNESS
 from test_framework.p2p import P2PInterface
 from test_framework.test_framework import DigiByteTestFramework
 from test_framework.util import (
@@ -23,7 +23,7 @@ class P2PIgnoreInv(P2PInterface):
         pass
     def on_addr(self, message):
         self.firstAddrnServices = message.addrs[0].nServices
-    def wait_for_addr(self, timeout=5):
+    def wait_for_addr(self, timeout=60):  # DigiByte: Longer P2P timeout
         test_function = lambda: self.last_message.get("addr")
         self.wait_until(test_function, timeout=timeout)
     def send_getdata_for_block(self, blockhash):
@@ -35,7 +35,8 @@ class NodeNetworkLimitedTest(DigiByteTestFramework):
     def set_test_params(self):
         self.setup_clean_chain = True
         self.num_nodes = 3
-        self.extra_args = [['-prune=550', '-addrmantest'], [], []]
+        self.extra_args = [['-prune=550', '-addrmantest', '-dandelion=0', '-easypow', '-peertimeout=300'], ['-dandelion=0', '-easypow', '-peertimeout=300'], ['-dandelion=0', '-easypow', '-peertimeout=300']]
+        self.rpc_timeout *= 4  # DigiByte: Scale timeouts for 15s blocks
 
     def disconnect_all(self):
         self.disconnect_nodes(0, 1)
@@ -63,11 +64,11 @@ class NodeNetworkLimitedTest(DigiByteTestFramework):
 
         self.log.info("Make sure we can max retrieve block at tip-288.")
         node.send_getdata_for_block(blocks[1])  # last block in valid range
-        node.wait_for_block(int(blocks[1], 16), timeout=3)
+        node.wait_for_block(int(blocks[1], 16), timeout=60)  # DigiByte: Longer P2P timeout
 
         self.log.info("Requesting block at height 2 (tip-289) must fail (ignored).")
         node.send_getdata_for_block(blocks[0])  # first block outside of the 288+2 limit
-        node.wait_for_disconnect(5)
+        node.wait_for_disconnect(60)  # DigiByte: Wait longer for expected disconnect
 
         self.log.info("Check local address relay, do a fresh connection.")
         self.nodes[0].disconnect_p2ps()
@@ -84,8 +85,8 @@ class NodeNetworkLimitedTest(DigiByteTestFramework):
         # because node 2 is in IBD and node 0 is a NODE_NETWORK_LIMITED peer, sync must not be possible
         self.connect_nodes(0, 2)
         try:
-            self.sync_blocks([self.nodes[0], self.nodes[2]], timeout=5)
-        except:
+            self.sync_blocks([self.nodes[0], self.nodes[2]], timeout=60)  # DigiByte: Longer timeout
+        except Exception:
             pass
         # node2 must remain at height 0
         assert_equal(self.nodes[2].getblockheader(self.nodes[2].getbestblockhash())['height'], 0)

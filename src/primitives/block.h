@@ -1,15 +1,15 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2009-2022 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_PRIMITIVES_BLOCK_H
 #define DIGIBYTE_PRIMITIVES_BLOCK_H
 
 #include <primitives/transaction.h>
 #include <serialize.h>
 #include <uint256.h>
+#include <util/time.h>
 
 namespace Consensus { struct Params; }
 
@@ -127,6 +127,11 @@ public:
 
     uint256 GetPoWAlgoHash(const Consensus::Params& params) const;
 
+    NodeSeconds Time() const
+    {
+        return NodeSeconds{std::chrono::seconds{nTime}};
+    }
+
     int64_t GetBlockTime() const
     {
         return (int64_t)nTime;
@@ -140,8 +145,10 @@ public:
     // network and disk
     std::vector<CTransactionRef> vtx;
 
-    // memory only
-    mutable bool fChecked;
+    // Memory-only flags for caching expensive checks
+    mutable bool fChecked;                            // CheckBlock()
+    mutable bool m_checked_witness_commitment{false}; // CheckWitnessCommitment()
+    mutable bool m_checked_merkle_root{false};        // CheckMerkleRoot()
 
     CBlock()
     {
@@ -156,8 +163,7 @@ public:
 
     SERIALIZE_METHODS(CBlock, obj)
     {
-        READWRITEAS(CBlockHeader, obj);
-        READWRITE(obj.vtx);
+        READWRITE(AsBase<CBlockHeader>(obj), obj.vtx);
     }
 
     void SetNull()
@@ -165,6 +171,8 @@ public:
         CBlockHeader::SetNull();
         vtx.clear();
         fChecked = false;
+        m_checked_witness_commitment = false;
+        m_checked_merkle_root = false;
     }
 
     CBlockHeader GetBlockHeader() const
@@ -188,17 +196,25 @@ public:
  */
 struct CBlockLocator
 {
+    /** Historically CBlockLocator's version field has been written to network
+     * streams as the negotiated protocol version and to disk streams as the
+     * client version, but the value has never been used.
+     *
+     * Hard-code to the highest protocol version ever written to a network stream.
+     * SerParams can be used if the field requires any meaning in the future,
+     **/
+    static constexpr int DUMMY_VERSION = 70016;
+
     std::vector<uint256> vHave;
 
     CBlockLocator() {}
 
-    explicit CBlockLocator(const std::vector<uint256>& vHaveIn) : vHave(vHaveIn) {}
+    explicit CBlockLocator(std::vector<uint256>&& have) : vHave(std::move(have)) {}
 
     SERIALIZE_METHODS(CBlockLocator, obj)
     {
-        int nVersion = s.GetVersion();
-        if (!(s.GetType() & SER_GETHASH))
-            READWRITE(nVersion);
+        int nVersion = DUMMY_VERSION;
+        READWRITE(nVersion);
         READWRITE(obj.vHave);
     }
 

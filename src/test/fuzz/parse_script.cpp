@@ -1,7 +1,6 @@
-// Copyright (c) 2009-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <core_io.h>
 #include <script/script.h>
 #include <test/fuzz/fuzz.h>

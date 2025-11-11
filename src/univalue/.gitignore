@@ -30,3 +30,6 @@ test-suite.log
 
 .dirstamp
 .libs
+
+# Build aux directory
+build-aux/

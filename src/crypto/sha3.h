@@ -1,14 +1,13 @@
-// Copyright (c) 2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_CRYPTO_SHA3_H
 #define DIGIBYTE_CRYPTO_SHA3_H
 
 #include <span.h>
 
+#include <cstdlib>
 #include <stdint.h>
-#include <stdlib.h>
 
 //! The Keccak-f[1600] transform.
 void KeccakF(uint64_t (&st)[25]);

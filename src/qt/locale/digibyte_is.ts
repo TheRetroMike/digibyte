@@ -1,4 +1,4 @@
-<TS language="is" version="2.1">
+<TS version="2.1" language="is">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -444,31 +444,31 @@
     <message>
         <source>Date: %1
 </source>
-        <translation>Dagsetning: %1
+        <translation type="unfinished">Dagsetning: %1
 </translation>
     </message>
     <message>
         <source>Amount: %1
 </source>
-        <translation>Upphæð: %1
+        <translation type="unfinished">Upphæð: %1
 </translation>
     </message>
     <message>
         <source>Type: %1
 </source>
-        <translation>Tegund: %1
+        <translation type="unfinished">Tegund: %1
 </translation>
     </message>
     <message>
         <source>Label: %1
 </source>
-        <translation>Merki: %1
+        <translation type="unfinished">Merki: %1
 </translation>
     </message>
     <message>
         <source>Address: %1
 </source>
-        <translation>Færslugildi: %1
+        <translation type="unfinished">Færslugildi: %1
 </translation>
     </message>
     <message>

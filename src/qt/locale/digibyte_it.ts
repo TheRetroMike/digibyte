@@ -1,4 +1,4 @@
-<TS language="it" version="2.1">
+<TS version="2.1" language="it">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -72,7 +72,7 @@
     <message>
         <source>These are your DigiByte addresses for receiving payments. Use the 'Create new receiving address' button in the receive tab to create new addresses.
 Signing is only possible with addresses of the type 'legacy'.</source>
-        <translation>Questi sono i tuoi indirizzi DigiByte per ricevere pagamenti. Usa il tasto "Crea nuovo indirizzo ricevente" nella schermata "Ricevi" per creare nuovi indirizzi.
+        <translation type="unfinished">Questi sono i tuoi indirizzi DigiByte per ricevere pagamenti. Usa il tasto "Crea nuovo indirizzo ricevente" nella schermata "Ricevi" per creare nuovi indirizzi.
 E' possibile firmare solo con indirizzi di tipo "legacy".</translation>
     </message>
     <message>
@@ -3403,7 +3403,7 @@ Nota: poiché la commissione è calcolata su base per byte, una commissione di "
         <source>No wallet has been loaded.
 Go to File &gt; Open Wallet to load a wallet.
 - OR -</source>
-        <translation>Nessun portafoglio è stato caricato.
+        <translation type="unfinished">Nessun portafoglio è stato caricato.
 Vai su File &gt; Apri Portafoglio per caricare un portafoglio.
 - OR -</translation>
     </message>

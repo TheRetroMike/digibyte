@@ -1,8 +1,6 @@
-// Copyright (c) 2014-2019 The Bitcoin Core developers
-// Copyright (c) 2014-2019 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_COMPAT_BYTESWAP_H
 #define DIGIBYTE_COMPAT_BYTESWAP_H
 
@@ -10,7 +8,7 @@
 #include <config/digibyte-config.h>
 #endif
 
-#include <stdint.h>
+#include <cstdint>
 
 #if defined(HAVE_BYTESWAP_H)
 #include <byteswap.h>

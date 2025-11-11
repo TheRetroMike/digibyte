@@ -1,207 +1,51 @@
-<TS language="fa" version="2.1">
-<context>
-    <name>AddressBookPage</name>
-    <message>
-        <source>Right-click to edit address or label</source>
-        <translation>برای تغییر آدرس و یا برچسب کلیک راست کنید</translation>
-    </message>
-    <message>
-        <source>Create a new address</source>
-        <translation>ایجاد آدرس جدید</translation>
-    </message>
-    <message>
-        <source>&amp;New</source>
-        <translation>&amp;جدید</translation>
-    </message>
-    <message>
-        <source>Copy the currently selected address to the system clipboard</source>
-        <translation>کپی‌برداری از آدرس منتخب به حافظهٔ سیستم</translation>
-    </message>
-    <message>
-        <source>&amp;Copy</source>
-        <translation>&amp;کپی</translation>
-    </message>
-    <message>
-        <source>C&amp;lose</source>
-        <translation>&amp;بستن</translation>
-    </message>
-    <message>
-        <source>Delete the currently selected address from the list</source>
-        <translation>حذف آدرس منتخب از لیست</translation>
-    </message>
-    <message>
-        <source>Enter address or label to search</source>
-        <translation>برای جست‌‌وجو نشانی یا برچسب را وارد کنید</translation>
-    </message>
-    <message>
-        <source>Export the data in the current tab to a file</source>
-        <translation>صدور داده‌های برگهٔ فعلی به یک پرونده</translation>
-    </message>
-    <message>
-        <source>&amp;Export</source>
-        <translation>&amp;صدور</translation>
-    </message>
-    <message>
-        <source>&amp;Delete</source>
-        <translation>&amp;حذف</translation>
-    </message>
-    <message>
-        <source>Choose the address to send coins to</source>
-        <translation>آدرس مورد نظر برای ارسال سکه‌ها را انتخاب کنید</translation>
-    </message>
-    <message>
-        <source>Choose the address to receive coins with</source>
-        <translation>آدرس موردنظر برای دریافت سکه‌ها را انتخاب کنید</translation>
-    </message>
-    <message>
-        <source>C&amp;hoose</source>
-        <translation>ان&amp;تخاب</translation>
-    </message>
-    <message>
-        <source>Sending addresses</source>
-        <translation>آدرس‌های ارسالی</translation>
-    </message>
-    <message>
-        <source>Receiving addresses</source>
-        <translation>آدرس‌های دریافتی</translation>
-    </message>
-    <message>
-        <source>These are your DigiByte addresses for sending payments. Always check the amount and the receiving address before sending coins.</source>
-        <translation>این‌ها آدرس‌های بیتکوین برای پرداخت‌ها هستند. همیشه قبل از فرستادن سکه‌ها مقدار و آدرس دریافت‌کننده را بررسی نمایید.</translation>
-    </message>
-    <message>
-        <source>These are your DigiByte addresses for receiving payments. It is recommended to use a new receiving address for each transaction.</source>
-        <translation>این‌ها آدرس‌های بیتکوین شما برای دریافت مبالغ می‌باشد. توصیه می‌شود برای هر تراکنش از یک آدرس جدید استفاده کنید.</translation>
-    </message>
-    <message>
-        <source>&amp;Copy Address</source>
-        <translation>کپ&amp;ی کردن آدرس</translation>
-    </message>
-    <message>
-        <source>Copy &amp;Label</source>
-        <translation>کپی و برچسب‌&amp;گذاری</translation>
-    </message>
-    <message>
-        <source>&amp;Edit</source>
-        <translation>&amp;ویرایش</translation>
-    </message>
-    <message>
-        <source>Export Address List</source>
-        <translation>صدور لیست آدرس ها</translation>
-    </message>
-    <message>
-        <source>Comma separated file (*.csv)</source>
-        <translation>فایل جدا شده با ویرگول(*.csv)</translation>
-    </message>
-    <message>
-        <source>Exporting Failed</source>
-        <translation>صدور موفق نبود</translation>
-    </message>
-    <message>
-        <source>There was an error trying to save the address list to %1. Please try again.</source>
-        <translation>خطا در ذخیره‌سازی لیست آدرس‌ها در %1.</translation>
-    </message>
-</context>
-<context>
-    <name>AddressTableModel</name>
-    <message>
-        <source>Label</source>
-        <translation>برچسب</translation>
-    </message>
-    <message>
-        <source>Address</source>
-        <translation>آدرس</translation>
-    </message>
-    <message>
-        <source>(no label)</source>
-        <translation>(بدون برچسب)</translation>
-    </message>
-</context>
+<TS version="2.1" language="fa">
 <context>
     <name>AskPassphraseDialog</name>
     <message>
-        <source>Passphrase Dialog</source>
-        <translation>پنجرهٔ گذرواژه</translation>
+        <source>Your wallet is about to be encrypted. </source>
+        <translation type="unfinished">کیف پول شما در حال رمزگذاری ست.</translation>
     </message>
     <message>
-        <source>Enter passphrase</source>
-        <translation>گذرواژه را وارد کنید</translation>
+        <source>Your wallet is now encrypted. </source>
+        <translation type="unfinished">کیف پول شما اکنون رمزگذاری شد.</translation>
     </message>
     <message>
-        <source>New passphrase</source>
-        <translation>گذرواژهٔ جدید</translation>
-    </message>
-    <message>
-        <source>Repeat new passphrase</source>
-        <translation>تکرار گذرواژهٔ جدید</translation>
-    </message>
-    <message>
-        <source>Show password</source>
-        <translation>نمایش گذرواژه</translation>
-    </message>
-    <message>
-        <source>Encrypt wallet</source>
-        <translation>رمزنگاری کیف پول</translation>
-    </message>
-    <message>
-        <source>This operation needs your wallet passphrase to unlock the wallet.</source>
-        <translation>این عملیات نیاز به عبارت کیف پول شما برای بازگشایی کیف پول دارد.</translation>
-    </message>
-    <message>
-        <source>Unlock wallet</source>
-        <translation>باز کردن قفل کیف پول</translation>
-    </message>
-    <message>
-        <source>This operation needs your wallet passphrase to decrypt the wallet.</source>
-        <translation>این عملیات نیاز به عبارت کیف پول شما برای رمزگشایی کیف پول دارد.</translation>
-    </message>
-    <message>
-        <source>Decrypt wallet</source>
-        <translation>رمزگشایی کیف پول</translation>
-    </message>
-    <message>
-        <source>Change passphrase</source>
-        <translation>تغییر گذرواژه</translation>
-    </message>
-    <message>
-        <source>Enter the old passphrase and new passphrase to the wallet.</source>
-        <translation>عبارت کهنه و جدید کیف پول را وارد کنید.</translation>
-    </message>
-    <message>
-        <source>Confirm wallet encryption</source>
-        <translation>تأیید رمزنگاری کیف پول</translation>
-    </message>
-    <message>
-        <source>Are you sure you wish to encrypt your wallet?</source>
-        <translation>آیا مطمئن هستید که می‌خواهید کیف پول خود را رمزنگاری کنید؟</translation>
-    </message>
-    <message>
-        <source>Wallet encrypted</source>
-        <translation>کیف پول رمزنگاری شد</translation>
+        <source>IMPORTANT: Any previous backups you have made of your wallet file should be replaced with the newly generated, encrypted wallet file. For security reasons, previous backups of the unencrypted wallet file will become useless as soon as you start using the new, encrypted wallet.</source>
+        <translation type="unfinished">مهم: پشتیبان گیری قبلی که از پرونده کیف پول خود انجام داده اید باید با پرونده کیف پول رمزگذاری شده تازه ایجاد شده جایگزین شود. به دلایل امنیتی ، به محض شروع استفاده از کیف پول رمزگذاری شده جدید ، پشتیبان گیری قبلی از پرونده کیف پول رمزگذاری نشده فایده ای نخواهد داشت.
+ </translation>
     </message>
     <message>
         <source>Wallet encryption failed</source>
-        <translation>رمزنگاری کیف پول با شکست مواجه شد</translation>
+        <translation type="unfinished">رمزگذاری کیف پول انجام نشد
+ </translation>
     </message>
     <message>
         <source>Wallet encryption failed due to an internal error. Your wallet was not encrypted.</source>
-        <translation>رمزنگاری کیف پول بنا به یک خطای داخلی با شکست مواجه شد. کیف پول شما رمزنگاری نشد.</translation>
+        <translation type="unfinished">رمزگذاری کیف پول به دلیل خطای داخلی انجام نشد. کیف پول شما رمزگذاری نشده است.
+ </translation>
+    </message>
+    <message>
+        <source>The supplied passphrases do not match.</source>
+        <translation type="unfinished">رمزهای واردشده تطابق ندارند.</translation>
     </message>
     <message>
         <source>Wallet unlock failed</source>
-        <translation>بازگشایی قفل کیف‌پول با شکست مواجه شد</translation>
+        <translation type="unfinished">باز کردن قفل کیف پول انجام نشد
+ </translation>
     </message>
     <message>
-        <source>Wallet decryption failed</source>
-        <translation>رمزگشایی کیف پول با شکست مواجه شد</translation>
+        <source>The passphrase entered for the wallet decryption was incorrect.</source>
+        <translation type="unfinished">عبارت عبور وارد شده برای رمزگشایی کیف پول نادرست است.
+ </translation>
     </message>
     <message>
-        <source>Wallet passphrase was successfully changed.</source>
-        <translation>گذرواژهٔ کیف پول با موفقیت عوض شد.</translation>
+        <source>The passphrase entered for the wallet decryption is incorrect. It contains a null character (ie - a zero byte). If the passphrase was set with a version of this software prior to 25.0, please try again with only the characters up to — but not including — the first null character. If this is successful, please set a new passphrase to avoid this issue in the future.</source>
+        <translation type="unfinished">عبارت عبور وارد شده برای رمزگشایی کیف پول نادرست است. این شامل یک کاراکتر تهی (به معنی صفر بایت) است.  اگر عبارت عبور را در نسخه ای از این نرم افزار که قدیمی تر نسخه 25.0 است تنظیم کرده اید ، لطفا عبارت را تا آنجایی که اولین کاراکتر تهی قرار دارد امتحان کنید ( خود کاراکتر تهی را درج نکنید ) و دوباره امتحان کنید. اگر این کار موفقیت آمیز بود ، لطفا یک عبارت عبور جدید تنظیم کنید تا دوباره به این مشکل بر نخورید.</translation>
     </message>
     <message>
         <source>Warning: The Caps Lock key is on!</source>
-        <translation>هشدار: کلید Caps Lock روشن است!</translation>
+        <translation type="unfinished">هشدار: کلید کلاه قفل  روشن است!
+ </translation>
     </message>
 </context>
 <context>
@@ -319,7 +163,7 @@
     </message>
     <message>
         <source>Send coins to a DigiByte address</source>
-        <translation>ارسال وجه به نشانی بیت‌کوین</translation>
+        <translation>ارسال وجه به نشانی دیجی بایت</translation>
     </message>
     <message>
         <source>Backup wallet to another location</source>
@@ -343,7 +187,7 @@
     </message>
     <message>
         <source>DigiByte</source>
-        <translation>بیت‌کوین</translation>
+        <translation>دیجی بایت</translation>
     </message>
     <message>
         <source>Wallet</source>
@@ -371,11 +215,11 @@
     </message>
     <message>
         <source>Sign messages with your DigiByte addresses to prove you own them</source>
-        <translation>برای اثبات اینکه پیام‌ها به شما تعلق دارند، آن‌ها را با نشانی بیت‌کوین خود امضا کنید</translation>
+        <translation>برای اثبات اینکه پیام‌ها به شما تعلق دارند، آن‌ها را با نشانی دیجی بایت خود امضا کنید</translation>
     </message>
     <message>
         <source>Verify messages to ensure they were signed with specified DigiByte addresses</source>
-        <translation>برای حصول اطمینان از اینکه پیام با نشانی بیت‌کوین مشخص شده امضا است یا خیر، پیام را شناسایی کنید</translation>
+        <translation>برای حصول اطمینان از اینکه پیام با نشانی دیجی بایت مشخص شده امضا است یا خیر، پیام را شناسایی کنید</translation>
     </message>
     <message>
         <source>&amp;File</source>
@@ -395,7 +239,7 @@
     </message>
     <message>
         <source>Request payments (generates QR codes and digibyte: URIs)</source>
-        <translation>درخواست پرداخت ( تولید کد کیوار و ادرس بیت کوین)</translation>
+        <translation>درخواست پرداخت ( تولید کد کیوار و ادرس دیجی بایت)</translation>
     </message>
     <message>
         <source>Show the list of used sending addresses and labels</source>
@@ -407,7 +251,7 @@
     </message>
     <message>
         <source>Open a digibyte: URI or payment request</source>
-        <translation>بازکردن یک بیت کوین: آدرس یا درخواست پرداخت</translation>
+        <translation>بازکردن یک دیجی بایت: آدرس یا درخواست پرداخت</translation>
     </message>
     <message>
         <source>&amp;Command-line options</source>
@@ -415,7 +259,7 @@
     </message>
     <message numerus="yes">
         <source>%n active connection(s) to DigiByte network</source>
-        <translation><numerusform>%n ارتباط فعال با شبکهٔ بیت‌کوین</numerusform><numerusform>%n ارتباط فعال با شبکهٔ بیت‌کوین</numerusform></translation>
+        <translation><numerusform>%n ارتباط فعال با شبکهٔ دیجی بایت</numerusform><numerusform>%n ارتباط فعال با شبکهٔ دیجی بایت</numerusform></translation>
     </message>
     <message>
         <source>Processing blocks on disk...</source>
@@ -460,31 +304,37 @@
     <message>
         <source>Date: %1
 </source>
-        <translation>تاریخ: %1
+        <translation type="unfinished">تاریخ: %1
 </translation>
     </message>
     <message>
         <source>Amount: %1
 </source>
-        <translation>مقدار: %1
+        <translation type="unfinished">مبلغ: %1
+</translation>
+    </message>
+    <message>
+        <source>Wallet: %1
+</source>
+        <translation type="unfinished">کیف پول: %1
 </translation>
     </message>
     <message>
         <source>Type: %1
 </source>
-        <translation>نوع: %1
+        <translation type="unfinished">نوع: %1
 </translation>
     </message>
     <message>
         <source>Label: %1
 </source>
-        <translation>برچسب: %1
+        <translation type="unfinished">برچسب: %1
 </translation>
     </message>
     <message>
         <source>Address: %1
 </source>
-        <translation>نشانی: %1
+        <translation type="unfinished">آدرس: %1
 </translation>
     </message>
     <message>
@@ -659,7 +509,7 @@
     </message>
     <message>
         <source>The entered address "%1" is not a valid DigiByte address.</source>
-        <translation>نشانی وارد شده "%1" یک نشانی معتبر بیت‌کوین نیست.</translation>
+        <translation>نشانی وارد شده "%1" یک نشانی معتبر دیجی بایت نیست.</translation>
     </message>
     <message>
         <source>Could not unlock wallet.</source>
@@ -732,7 +582,7 @@
     </message>
     <message>
         <source>DigiByte</source>
-        <translation>بیت‌کوین</translation>
+        <translation>دیجی بایت</translation>
     </message>
     <message>
         <source>Error</source>
@@ -837,7 +687,7 @@
     </message>
     <message>
         <source>Automatically open the DigiByte client port on the router. This only works when your router supports UPnP and it is enabled.</source>
-        <translation>باز کردن خودکار درگاه شبکهٔ بیت‌کوین روی روترها. تنها زمانی کار می‌کند که روتر از پروتکل UPnP پشتیبانی کند و این پروتکل فعال باشد.</translation>
+        <translation>باز کردن خودکار درگاه شبکهٔ دیجی بایت روی روترها. تنها زمانی کار می‌کند که روتر از پروتکل UPnP پشتیبانی کند و این پروتکل فعال باشد.</translation>
     </message>
     <message>
         <source>Map port using &amp;UPnP</source>
@@ -940,7 +790,7 @@
     </message>
     <message>
         <source>The displayed information may be out of date. Your wallet automatically synchronizes with the DigiByte network after a connection is established, but this process has not completed yet.</source>
-        <translation>اطلاعات نمایش‌داده شده ممکن است قدیمی باشند. بعد از این که یک اتصال با شبکه برقرار شد، کیف پول شما به‌صورت خودکار با شبکهٔ بیت‌کوین همگام‌سازی می‌شود. اما این روند هنوز کامل نشده است.</translation>
+        <translation>اطلاعات نمایش‌داده شده ممکن است قدیمی باشند. بعد از این که یک اتصال با شبکه برقرار شد، کیف پول شما به‌صورت خودکار با شبکهٔ دیجی بایت همگام‌سازی می‌شود. اما این روند هنوز کامل نشده است.</translation>
     </message>
     <message>
         <source>Available:</source>
@@ -1013,7 +863,7 @@
     </message>
     <message>
         <source>Enter a DigiByte address (e.g. %1)</source>
-        <translation>یک آدرس بیت‌کوین وارد کنید (مثلاً %1)</translation>
+        <translation>یک آدرس دیجی بایت وارد کنید (مثلاً %1)</translation>
     </message>
     <message>
         <source>%1 d</source>
@@ -1493,7 +1343,7 @@
     </message>
     <message>
         <source>The DigiByte address to send the payment to</source>
-        <translation>نشانی بیت‌کوین برای ارسال پرداخت به آن</translation>
+        <translation>نشانی دیجی بایت برای ارسال پرداخت به آن</translation>
     </message>
     <message>
         <source>Alt+A</source>
@@ -1546,7 +1396,7 @@
     </message>
     <message>
         <source>The DigiByte address to sign the message with</source>
-        <translation>نشانی بیت‌کوین برای امضاء پیغام با آن</translation>
+        <translation>نشانی دیجی بایت برای امضاء پیغام با آن</translation>
     </message>
     <message>
         <source>Choose previously used address</source>
@@ -1598,11 +1448,11 @@
     </message>
     <message>
         <source>The DigiByte address the message was signed with</source>
-        <translation>نشانی بیت‌کوین که پیغام با آن امضاء شده</translation>
+        <translation>نشانی دیجی بایت که پیغام با آن امضاء شده</translation>
     </message>
     <message>
         <source>Verify the message to ensure it was signed with the specified DigiByte address</source>
-        <translation>برای حصول اطمینان از اینکه پیام با نشانی بیت‌کوین مشخص شده امضا است یا خیر، پیام را شناسایی کنید</translation>
+        <translation>برای حصول اطمینان از اینکه پیام با نشانی دیجی بایت مشخص شده امضا است یا خیر، پیام را شناسایی کنید</translation>
     </message>
     <message>
         <source>Verify &amp;Message</source>

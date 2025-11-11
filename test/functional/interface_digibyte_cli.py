@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2017-2021 The Bitcoin Core developers
-# Copyright (c) 2021-2022 The DigiByte Core developers
+# Copyright (c) 2017-2022 The DigiByte Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Test digibyte-cli"""
@@ -8,7 +7,7 @@
 from decimal import Decimal
 import re
 
-from test_framework.blocktools import COINBASE_MATURITY_2
+from test_framework.blocktools import COINBASE_MATURITY, COINBASE_MATURITY_2
 from test_framework.test_framework import DigiByteTestFramework
 from test_framework.util import (
     assert_equal,
@@ -20,8 +19,8 @@ from test_framework.util import (
 import time
 
 # The block reward of coinbaseoutput.nValue (72000) DGB/block matures after
-# COINBASE_MATURITY (100) blocks. Therefore, after mining 8+1 blocks we expect
-# node 0 to have a balance of (BLOCKS - COINBASE_MATURITY) * 72000 DGB/block.
+# COINBASE_MATURITY_2 (100) blocks. Therefore, after mining 101 blocks we expect
+# node 0 to have a balance of (BLOCKS - COINBASE_MATURITY_2) * 72000 DGB/block.
 BLOCKS = COINBASE_MATURITY_2 + 1
 BALANCE = (BLOCKS - COINBASE_MATURITY_2) * 72000
 
@@ -30,6 +29,7 @@ BLOCKS_VALUE_OF_ZERO = 'error: the first argument (number of blocks to generate,
 TOO_MANY_ARGS = 'error: too many arguments (maximum 2 for nblocks and maxtries)'
 WALLET_NOT_LOADED = 'Requested wallet does not exist or is not loaded'
 WALLET_NOT_SPECIFIED = 'Wallet file not specified'
+
 
 def cli_get_info_string_to_dict(cli_get_info_string):
     """Helper method to convert human-readable -getinfo into a dictionary"""
@@ -57,29 +57,23 @@ def cli_get_info_string_to_dict(cli_get_info_string):
             if key == 'Wallet' and value == '""':
                 # Set default wallet("") to empty string
                 value = ''
-            if key == "Proxy" and value == "N/A":
+            if key == "Proxies" and value == "n/a":
                 # Set N/A to empty string to represent no proxy
                 value = ''
-            if key.startswith("Difficulty"):
-                match = re.match("Difficulty \((.+)\)", key)
-                key = "Difficulties"
-                difficulties =  cli_get_info[key] if key in cli_get_info else {}
-                difficulties[match.group(1)] = value
-                value = difficulties
-            else:
-                value = value.strip()
-
-            cli_get_info[key.strip()] = value
+            cli_get_info[key.strip()] = value.strip()
         line_idx += 1
     return cli_get_info
 
 
 class TestDigiByteCli(DigiByteTestFramework):
+    def add_options(self, parser):
+        self.add_wallet_options(parser)
+
     def set_test_params(self):
         self.setup_clean_chain = True
         self.num_nodes = 1
-        if self.is_specified_wallet_compiled():
-            self.requires_wallet = True
+        # Disable Dandelion++ to prevent transaction propagation issues
+        self.extra_args = [["-dandelion=0"]]
 
     def skip_test_if_missing_module(self):
         self.skip_if_no_cli()
@@ -93,7 +87,16 @@ class TestDigiByteCli(DigiByteTestFramework):
         rpc_response = self.nodes[0].getblockchaininfo()
         assert_equal(cli_response, rpc_response)
 
-        user, password = get_auth_cookie(self.nodes[0].datadir, self.chain)
+        self.log.info("Test named arguments")
+        assert_equal(self.nodes[0].cli.echo(0, 1, arg3=3, arg5=5), ['0', '1', None, '3', None, '5'])
+        assert_raises_rpc_error(-8, "Parameter arg1 specified twice both as positional and named argument", self.nodes[0].cli.echo, 0, 1, arg1=1)
+        assert_raises_rpc_error(-8, "Parameter arg1 specified twice both as positional and named argument", self.nodes[0].cli.echo, 0, None, 2, arg1=1)
+
+        self.log.info("Test that later cli named arguments values silently overwrite earlier ones")
+        assert_equal(self.nodes[0].cli("-named", "echo", "arg0=0", "arg1=1", "arg2=2", "arg1=3").send_cli(), ['0', '3', '2'])
+        assert_raises_rpc_error(-8, "Parameter args specified multiple times", self.nodes[0].cli("-named", "echo", "args=[0,1,2,3]", "4", "5", "6", ).send_cli)
+
+        user, password = get_auth_cookie(self.nodes[0].datadir_path, self.chain)
 
         self.log.info("Test -stdinrpcpass option")
         assert_equal(BLOCKS, self.nodes[0].cli(f'-rpcuser={user}', '-stdinrpcpass', input=password).getblockcount())
@@ -123,6 +126,7 @@ class TestDigiByteCli(DigiByteTestFramework):
 
         self.log.info("Test -getinfo returns expected network and blockchain info")
         if self.is_specified_wallet_compiled():
+            self.import_deterministic_coinbase_privkeys()
             self.nodes[0].encryptwallet(password)
         cli_get_info_string = self.nodes[0].cli('-getinfo').send_cli()
         cli_get_info = cli_get_info_string_to_dict(cli_get_info_string)
@@ -136,9 +140,16 @@ class TestDigiByteCli(DigiByteTestFramework):
         assert_equal(int(cli_get_info['Time offset (s)']), network_info['timeoffset'])
         expected_network_info = f"in {network_info['connections_in']}, out {network_info['connections_out']}, total {network_info['connections']}"
         assert_equal(cli_get_info["Network"], expected_network_info)
-        assert_equal(cli_get_info['Proxy'], network_info['networks'][0]['proxy'])
-        assert_equal(Decimal(cli_get_info['Difficulties']['scrypt']), blockchain_info['difficulties']['scrypt'])
+        assert_equal(cli_get_info['Proxies'], network_info['networks'][0]['proxy'])
+        assert_equal(Decimal(cli_get_info['Difficulty']), blockchain_info['difficulty'])
         assert_equal(cli_get_info['Chain'], blockchain_info['chain'])
+
+        self.log.info("Test -getinfo and digibyte-cli return all proxies")
+        self.restart_node(0, extra_args=["-proxy=127.0.0.1:9050", "-i2psam=127.0.0.1:7656", "-dandelion=0"])
+        network_info = self.nodes[0].getnetworkinfo()
+        cli_get_info_string = self.nodes[0].cli('-getinfo').send_cli()
+        cli_get_info = cli_get_info_string_to_dict(cli_get_info_string)
+        assert_equal(cli_get_info["Proxies"], "127.0.0.1:9050 (ipv4, ipv6, onion, cjdns), 127.0.0.1:7656 (i2p)")
 
         if self.is_specified_wallet_compiled():
             self.log.info("Test -getinfo and digibyte-cli getwalletinfo return expected wallet info")
@@ -156,7 +167,7 @@ class TestDigiByteCli(DigiByteTestFramework):
 
             # Setup to test -getinfo, -generate, and -rpcwallet= with multiple wallets.
             wallets = [self.default_wallet_name, 'Encrypted', 'secret']
-            amounts = [BALANCE + Decimal('9.96400000'), Decimal(9), Decimal(71981)]
+            amounts = [BALANCE + 72000 - Decimal('40.036'), Decimal(9), Decimal(31)]
             self.nodes[0].createwallet(wallet_name=wallets[1])
             self.nodes[0].createwallet(wallet_name=wallets[2])
             w1 = self.nodes[0].get_wallet_rpc(wallets[0])

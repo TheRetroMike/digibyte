@@ -1,18 +1,18 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_SCRIPT_SIGNINGPROVIDER_H
 #define DIGIBYTE_SCRIPT_SIGNINGPROVIDER_H
 
+#include <addresstype.h>
+#include <attributes.h>
 #include <key.h>
 #include <pubkey.h>
+#include <script/keyorigin.h>
 #include <script/script.h>
 #include <script/standard.h>
 #include <sync.h>
-
-struct KeyOriginInfo;
 
 /** An interface to be implemented by keystores that support signing. */
 class SigningProvider
@@ -26,6 +26,31 @@ public:
     virtual bool HaveKey(const CKeyID &address) const { return false; }
     virtual bool GetKeyOrigin(const CKeyID& keyid, KeyOriginInfo& info) const { return false; }
     virtual bool GetTaprootSpendData(const XOnlyPubKey& output_key, TaprootSpendData& spenddata) const { return false; }
+    virtual bool GetTaprootBuilder(const XOnlyPubKey& output_key, TaprootBuilder& builder) const { return false; }
+
+    bool GetKeyByXOnly(const XOnlyPubKey& pubkey, CKey& key) const
+    {
+        for (const auto& id : pubkey.GetKeyIDs()) {
+            if (GetKey(id, key)) return true;
+        }
+        return false;
+    }
+
+    bool GetPubKeyByXOnly(const XOnlyPubKey& pubkey, CPubKey& out) const
+    {
+        for (const auto& id : pubkey.GetKeyIDs()) {
+            if (GetPubKey(id, out)) return true;
+        }
+        return false;
+    }
+
+    bool GetKeyOriginByXOnly(const XOnlyPubKey& pubkey, KeyOriginInfo& info) const
+    {
+        for (const auto& id : pubkey.GetKeyIDs()) {
+            if (GetKeyOrigin(id, info)) return true;
+        }
+        return false;
+    }
 };
 
 extern const SigningProvider& DUMMY_SIGNING_PROVIDER;
@@ -44,6 +69,7 @@ public:
     bool GetKey(const CKeyID& keyid, CKey& key) const override;
     bool GetKeyOrigin(const CKeyID& keyid, KeyOriginInfo& info) const override;
     bool GetTaprootSpendData(const XOnlyPubKey& output_key, TaprootSpendData& spenddata) const override;
+    bool GetTaprootBuilder(const XOnlyPubKey& output_key, TaprootBuilder& builder) const override;
 };
 
 struct FlatSigningProvider final : public SigningProvider
@@ -52,16 +78,17 @@ struct FlatSigningProvider final : public SigningProvider
     std::map<CKeyID, CPubKey> pubkeys;
     std::map<CKeyID, std::pair<CPubKey, KeyOriginInfo>> origins;
     std::map<CKeyID, CKey> keys;
-    std::map<XOnlyPubKey, TaprootSpendData> tr_spenddata; /** Map from output key to spend data. */
+    std::map<XOnlyPubKey, TaprootBuilder> tr_trees; /** Map from output key to Taproot tree (which can then make the TaprootSpendData) */
 
     bool GetCScript(const CScriptID& scriptid, CScript& script) const override;
     bool GetPubKey(const CKeyID& keyid, CPubKey& pubkey) const override;
     bool GetKeyOrigin(const CKeyID& keyid, KeyOriginInfo& info) const override;
     bool GetKey(const CKeyID& keyid, CKey& key) const override;
     bool GetTaprootSpendData(const XOnlyPubKey& output_key, TaprootSpendData& spenddata) const override;
-};
+    bool GetTaprootBuilder(const XOnlyPubKey& output_key, TaprootBuilder& builder) const override;
 
-FlatSigningProvider Merge(const FlatSigningProvider& a, const FlatSigningProvider& b);
+    FlatSigningProvider& Merge(FlatSigningProvider&& b) LIFETIMEBOUND;
+};
 
 /** Fillable signing provider that keeps keys in an address->secret map */
 class FillableSigningProvider : public SigningProvider
@@ -139,4 +166,18 @@ public:
 /** Return the CKeyID of the key involved in a script (if there is a unique one). */
 CKeyID GetKeyForDestination(const SigningProvider& store, const CTxDestination& dest);
 
+/** A signing provider to be used to interface with multiple signing providers at once. */
+class MultiSigningProvider: public SigningProvider {
+    std::vector<std::unique_ptr<SigningProvider>> m_providers;
+
+public:
+    void AddProvider(std::unique_ptr<SigningProvider> provider);
+
+    bool GetCScript(const CScriptID& scriptid, CScript& script) const override;
+    bool GetPubKey(const CKeyID& keyid, CPubKey& pubkey) const override;
+    bool GetKeyOrigin(const CKeyID& keyid, KeyOriginInfo& info) const override;
+    bool GetKey(const CKeyID& keyid, CKey& key) const override;
+    bool GetTaprootSpendData(const XOnlyPubKey& output_key, TaprootSpendData& spenddata) const override;
+    bool GetTaprootBuilder(const XOnlyPubKey& output_key, TaprootBuilder& builder) const override;
+};
 #endif // DIGIBYTE_SCRIPT_SIGNINGPROVIDER_H

@@ -1,15 +1,20 @@
 // Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_QT_GUICONSTANTS_H
 #define DIGIBYTE_QT_GUICONSTANTS_H
 
+#include <chrono>
 #include <cstdint>
 
-/* Milliseconds between model updates */
-static const int MODEL_UPDATE_DELAY = 250;
+using namespace std::chrono_literals;
+
+/* A delay between model updates */
+static constexpr auto MODEL_UPDATE_DELAY{250ms};
+
+/* A delay between shutdown pollings */
+static constexpr auto SHUTDOWN_POLLING_DELAY{200ms};
 
 /* AskPassphraseDialog -- Maximum passphrase length */
 static const int MAX_PASSPHRASE_SIZE = 1024;
@@ -28,8 +33,6 @@ static const bool DEFAULT_SPLASHSCREEN = true;
 #define COLOR_NEGATIVE QColor(255, 0, 0)
 /* Transaction list -- bare address (without label) */
 #define COLOR_BAREADDRESS QColor(140, 140, 140)
-/* Transaction list -- TX status decoration - open until date */
-#define COLOR_TX_STATUS_OPENUNTILDATE QColor(64, 64, 255)
 /* Transaction list -- TX status decoration - danger, tx needs attention */
 #define COLOR_TX_STATUS_DANGER QColor(200, 100, 100)
 /* Transaction list -- TX status decoration - default color */

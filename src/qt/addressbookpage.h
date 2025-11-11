@@ -1,8 +1,7 @@
 // Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_QT_ADDRESSBOOKPAGE_H
 #define DIGIBYTE_QT_ADDRESSBOOKPAGE_H
 
@@ -50,13 +49,14 @@ public Q_SLOTS:
 
 private:
     Ui::AddressBookPage *ui;
-    AddressTableModel *model;
+    AddressTableModel* model{nullptr};
     Mode mode;
     Tabs tab;
     QString returnValue;
     AddressBookSortFilterProxyModel *proxyModel;
     QMenu *contextMenu;
     QString newAddressToSelect;
+    void updateWindowsTitleWithWalletName();
 
 private Q_SLOTS:
     /** Delete currently selected address entry */

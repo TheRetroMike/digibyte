@@ -1,12 +1,11 @@
-// Copyright (c) 2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <chainparams.h>
 #include <consensus/validation.h>
 #include <interfaces/chain.h>
-#include <script/standard.h>
 #include <test/util/setup_common.h>
+#include <script/solver.h>
 #include <validation.h>
 
 #include <boost/test/unit_test.hpp>
@@ -17,6 +16,7 @@ BOOST_FIXTURE_TEST_SUITE(interfaces_tests, TestChain100Setup)
 
 BOOST_AUTO_TEST_CASE(findBlock)
 {
+    LOCK(Assert(m_node.chainman)->GetMutex());
     auto& chain = m_node.chain;
     const CChain& active = Assert(m_node.chainman)->ActiveChain();
 
@@ -61,6 +61,7 @@ BOOST_AUTO_TEST_CASE(findBlock)
 
 BOOST_AUTO_TEST_CASE(findFirstBlockWithTimeAndHeight)
 {
+    LOCK(Assert(m_node.chainman)->GetMutex());
     auto& chain = m_node.chain;
     const CChain& active = Assert(m_node.chainman)->ActiveChain();
     uint256 hash;
@@ -73,6 +74,7 @@ BOOST_AUTO_TEST_CASE(findFirstBlockWithTimeAndHeight)
 
 BOOST_AUTO_TEST_CASE(findAncestorByHeight)
 {
+    LOCK(Assert(m_node.chainman)->GetMutex());
     auto& chain = m_node.chain;
     const CChain& active = Assert(m_node.chainman)->ActiveChain();
     uint256 hash;
@@ -83,6 +85,7 @@ BOOST_AUTO_TEST_CASE(findAncestorByHeight)
 
 BOOST_AUTO_TEST_CASE(findAncestorByHash)
 {
+    LOCK(Assert(m_node.chainman)->GetMutex());
     auto& chain = m_node.chain;
     const CChain& active = Assert(m_node.chainman)->ActiveChain();
     int height = -1;
@@ -94,7 +97,7 @@ BOOST_AUTO_TEST_CASE(findAncestorByHash)
 BOOST_AUTO_TEST_CASE(findCommonAncestor)
 {
     auto& chain = m_node.chain;
-    const CChain& active = Assert(m_node.chainman)->ActiveChain();
+    const CChain& active{*WITH_LOCK(Assert(m_node.chainman)->GetMutex(), return &Assert(m_node.chainman)->ActiveChain())};
     auto* orig_tip = active.Tip();
     for (int i = 0; i < 10; ++i) {
         BlockValidationState state;
@@ -103,7 +106,6 @@ BOOST_AUTO_TEST_CASE(findCommonAncestor)
     BOOST_CHECK_EQUAL(active.Height(), orig_tip->nHeight - 10);
     coinbaseKey.MakeNewKey(true);
     for (int i = 0; i < 20; ++i) {
-        SetMockTime(GetTime() + 1);
         CreateAndProcessBlock({}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
     }
     BOOST_CHECK_EQUAL(active.Height(), orig_tip->nHeight + 10);
@@ -124,6 +126,7 @@ BOOST_AUTO_TEST_CASE(findCommonAncestor)
 
 BOOST_AUTO_TEST_CASE(hasBlocks)
 {
+    LOCK(::cs_main);
     auto& chain = m_node.chain;
     const CChain& active = Assert(m_node.chainman)->ActiveChain();
 

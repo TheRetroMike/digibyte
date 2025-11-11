@@ -1,4 +1,4 @@
-<TS language="ka" version="2.1">
+<TS version="2.1" language="ka">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -432,37 +432,37 @@
     <message>
         <source>Date: %1
 </source>
-        <translation>თარიღი: %1
+        <translation type="unfinished">თარიღი: %1
 </translation>
     </message>
     <message>
         <source>Amount: %1
 </source>
-        <translation>რაოდენობა^ %1
+        <translation type="unfinished">რაოდენობა^ %1
 </translation>
     </message>
     <message>
         <source>Wallet: %1
 </source>
-        <translation>საფულე: %1
+        <translation type="unfinished">საფულე: %1
 </translation>
     </message>
     <message>
         <source>Type: %1
 </source>
-        <translation>ტიპი: %1
+        <translation type="unfinished">ტიპი: %1
 </translation>
     </message>
     <message>
         <source>Label: %1
 </source>
-        <translation>ლეიბლი: %1
+        <translation type="unfinished">ლეიბლი: %1
 </translation>
     </message>
     <message>
         <source>Address: %1
 </source>
-        <translation>მისამართი: %1
+        <translation type="unfinished">მისამართი: %1
 </translation>
     </message>
     <message>

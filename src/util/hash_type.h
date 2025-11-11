@@ -1,7 +1,6 @@
-// Copyright (c) 2020-2021 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_UTIL_HASH_TYPE_H
 #define DIGIBYTE_UTIL_HASH_TYPE_H
 

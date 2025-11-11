@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2016-2021 The DigiByte Core developers
+# Copyright (c) 2016-2022 The DigiByte Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Test label RPCs.
@@ -11,30 +11,76 @@ RPCs tested are:
 """
 from collections import defaultdict
 
-from test_framework.blocktools import COINBASE_MATURITY_2
+from test_framework.blocktools import COINBASE_MATURITY, COINBASE_MATURITY_2
 from test_framework.test_framework import DigiByteTestFramework
 from test_framework.util import assert_equal, assert_raises_rpc_error
 from test_framework.wallet_util import test_address
 
 
 class WalletLabelsTest(DigiByteTestFramework):
+    def add_options(self, parser):
+        self.add_wallet_options(parser)
+
     def set_test_params(self):
         self.setup_clean_chain = True
-        self.num_nodes = 1
+        self.num_nodes = 2
+        self.extra_args = [["-dandelion=0"], ["-dandelion=0"]]
 
     def skip_test_if_missing_module(self):
         self.skip_if_no_wallet()
+
+    def invalid_label_name_test(self):
+        node = self.nodes[0]
+        address = node.getnewaddress()
+        pubkey = node.getaddressinfo(address)['pubkey']
+        rpc_calls = [
+            [node.getnewaddress],
+            [node.setlabel, address],
+            [node.getaddressesbylabel],
+            [node.importpubkey, pubkey],
+            [node.addmultisigaddress, 1, [pubkey]],
+            [node.getreceivedbylabel],
+            [node.listsinceblock, node.getblockhash(0), 1, False, True, False],
+        ]
+        if self.options.descriptors:
+            response = node.importdescriptors([{
+                'desc': f'pkh({pubkey})',
+                'label': '*',
+                'timestamp': 'now',
+            }])
+        else:
+            rpc_calls.extend([
+                [node.importprivkey, node.dumpprivkey(address)],
+                [node.importaddress, address],
+            ])
+
+            response = node.importmulti([{
+                'scriptPubKey': {'address': address},
+                'label': '*',
+                'timestamp': 'now',
+            }])
+
+        assert_equal(response[0]['success'], False)
+        assert_equal(response[0]['error']['code'], -11)
+        assert_equal(response[0]['error']['message'], "Invalid label name")
+
+        for rpc_call in rpc_calls:
+            assert_raises_rpc_error(-11, "Invalid label name", *rpc_call, "*")
 
     def run_test(self):
         # Check that there's no UTXO on the node
         node = self.nodes[0]
         assert_equal(len(node.listunspent()), 0)
 
+        self.log.info("Checking listlabels' invalid parameters")
+        assert_raises_rpc_error(-8, "Invalid 'purpose' argument, must be a known purpose string, typically 'send', or 'receive'.", node.listlabels, "notavalidpurpose")
+        assert_raises_rpc_error(-8, "Invalid 'purpose' argument, must be a known purpose string, typically 'send', or 'receive'.", node.listlabels, "unknown")
+
         # Note each time we call generate, all generated coins go into
-        # the same address, so we call twice to get two addresses w/50 each
+        # the same address, so we call twice to get two addresses w/72000 each
         self.generatetoaddress(node, nblocks=1, address=node.getnewaddress(label='coinbase'))
         self.generatetoaddress(node, nblocks=COINBASE_MATURITY_2 + 1, address=node.getnewaddress(label='coinbase'))
-        assert_equal(node.getbalance(), 72000 * 2)
+        assert_equal(node.getbalance(), 144000)
 
         # there should be 2 address groups
         # each with 1 address with a balance of 72000 DigiBytes
@@ -50,10 +96,10 @@ class WalletLabelsTest(DigiByteTestFramework):
             assert_equal(address_group[0][2], 'coinbase')
             linked_addresses.add(address_group[0][0])
 
-        # send 50 from each address to a third address not in this wallet
+        # send 72000 from each address to a third address not in this wallet
         common_address = "smGXzdWyDk9UDriWWFG3PVyLgpw7USPJNh"
         node.sendmany(
-            amounts={common_address: 72000 * 2},
+            amounts={common_address: 144000},
             subtractfeefrom=[common_address],
             minconf=1,
         )
@@ -80,8 +126,14 @@ class WalletLabelsTest(DigiByteTestFramework):
             label.add_receive_address(address)
             label.verify(node)
 
+        # Check listlabels when passing 'purpose'
+        node2_addr = self.nodes[1].getnewaddress()
+        node.setlabel(node2_addr, "node2_addr")
+        assert_equal(node.listlabels(purpose="send"), ["node2_addr"])
+        assert_equal(node.listlabels(purpose="receive"), sorted(['coinbase'] + [label.name for label in labels]))
+
         # Check all labels are returned by listlabels.
-        assert_equal(node.listlabels(), sorted(['coinbase'] + [label.name for label in labels]))
+        assert_equal(node.listlabels(), sorted(['coinbase'] + [label.name for label in labels] + ["node2_addr"]))
 
         # Send a transaction to each label.
         for label in labels:
@@ -134,6 +186,8 @@ class WalletLabelsTest(DigiByteTestFramework):
         # Check that setlabel can set the label of an address already
         # in the label. This is a no-op.
         change_label(node, labels[2].addresses[0], labels[2], labels[2])
+
+        self.invalid_label_name_test()
 
         if self.options.descriptors:
             # This is a descriptor wallet test because of segwit v1+ addresses

@@ -1,101 +1,92 @@
-<TS language="sk" version="2.1">
+<TS version="2.1" language="sk">
 <context>
     <name>AddressBookPage</name>
     <message>
-        <source>Right-click to edit address or label</source>
-        <translation>Kliknutím pravým tlačidlom upraviť adresu alebo popis</translation>
-    </message>
-    <message>
         <source>Create a new address</source>
-        <translation>Vytvoriť novú adresu</translation>
+        <translation type="unfinished">Vytvoriť novú adresu</translation>
     </message>
     <message>
         <source>&amp;New</source>
-        <translation>&amp;Nový</translation>
+        <translation type="unfinished">&amp;Nový</translation>
     </message>
     <message>
         <source>Copy the currently selected address to the system clipboard</source>
-        <translation>Zkopírovať práve zvolenú adresu</translation>
+        <translation type="unfinished">Zkopírovať práve zvolenú adresu</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Kopírovať</translation>
+        <translation type="unfinished">&amp;Kopírovať</translation>
     </message>
     <message>
         <source>C&amp;lose</source>
-        <translation>Z&amp;atvoriť</translation>
+        <translation type="unfinished">Z&amp;atvoriť</translation>
     </message>
     <message>
         <source>Delete the currently selected address from the list</source>
-        <translation>Vymaž vybranú adresu zo zoznamu</translation>
+        <translation type="unfinished">Vymazať vybranú adresu zo zoznamu</translation>
     </message>
     <message>
         <source>Enter address or label to search</source>
-        <translation>Zadajte adresu alebo popis pre hľadanie</translation>
+        <translation type="unfinished">Zadajte adresu alebo popis pre hľadanie</translation>
     </message>
     <message>
         <source>Export the data in the current tab to a file</source>
-        <translation>Exportovať tento náhľad do súboru</translation>
+        <translation type="unfinished">Exportovať dáta v aktuálnej karte do súboru</translation>
     </message>
     <message>
         <source>&amp;Export</source>
-        <translation>&amp;Exportovať...</translation>
+        <translation type="unfinished">&amp;Exportovať...</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation>&amp;Zmazať</translation>
+        <translation type="unfinished">&amp;Zmazať</translation>
     </message>
     <message>
         <source>Choose the address to send coins to</source>
-        <translation>Zvoľte adresu kam poslať mince</translation>
-    </message>
-    <message>
-        <source>Choose the address to receive coins with</source>
-        <translation>Zvoľte adresu na ktorú chcete prijať mince</translation>
+        <translation type="unfinished">Zvoľte adresu kam poslať mince</translation>
     </message>
     <message>
         <source>C&amp;hoose</source>
-        <translation>Vy&amp;brať</translation>
-    </message>
-    <message>
-        <source>Sending addresses</source>
-        <translation>Odosielajúce adresy</translation>
-    </message>
-    <message>
-        <source>Receiving addresses</source>
-        <translation>Prijímajúce adresy</translation>
+        <translation type="unfinished">Vy&amp;brať</translation>
     </message>
     <message>
         <source>These are your DigiByte addresses for sending payments. Always check the amount and the receiving address before sending coins.</source>
-        <translation>Toto sú Vaše DigiByte adresy pre posielanie platieb. Vždy skontrolujte sumu a prijímaciu adresu pred poslaním mincí.</translation>
+        <translation type="unfinished">Toto sú Vaše DigiByte adresy pre posielanie platieb. Vždy skontrolujte sumu a prijímaciu adresu pred poslaním mincí.</translation>
+    </message>
+    <message>
+        <source>These are your DigiByte addresses for receiving payments. Use the 'Create new receiving address' button in the receive tab to create new addresses.
+Signing is only possible with addresses of the type 'legacy'.</source>
+        <translation type="unfinished">Toto sú vaše DigiByte adresy pre prijímanie platieb. Pre vytvorenie nových adries kliknite na "Vytvoriť novú prijímaciu adresu" na karte "Prijať". Podpisovanie je možné iba s adresami typu "legacy".</translation>
     </message>
     <message>
         <source>&amp;Copy Address</source>
-        <translation>&amp;Kopírovať adresu</translation>
+        <translation type="unfinished">&amp;Kopírovať adresu</translation>
     </message>
     <message>
         <source>Copy &amp;Label</source>
-        <translation>Kopírovať &amp;popis</translation>
+        <translation type="unfinished">Kopírovať &amp;popis</translation>
     </message>
     <message>
         <source>&amp;Edit</source>
-        <translation>&amp;Upraviť</translation>
+        <translation type="unfinished">&amp;Upraviť</translation>
     </message>
     <message>
         <source>Export Address List</source>
-        <translation>Exportovať zoznam adries</translation>
+        <translation type="unfinished">Exportovať zoznam adries</translation>
     </message>
     <message>
-        <source>Comma separated file (*.csv)</source>
-        <translation>Čiarkou oddelovaný súbor (*.csv)</translation>
-    </message>
-    <message>
-        <source>Exporting Failed</source>
-        <translation>Export zlyhal</translation>
+        <source>Comma separated file</source>
+        <extracomment>Expanded name of the CSV file format. See: https://en.wikipedia.org/wiki/Comma-separated_values.</extracomment>
+        <translation type="unfinished">Čiarkou oddelený súbor</translation>
     </message>
     <message>
         <source>There was an error trying to save the address list to %1. Please try again.</source>
-        <translation>Nastala chyba pri pokuse uložiť zoznam adries do %1. Skúste znovu.</translation>
+        <extracomment>An error message. %1 is a stand-in argument for the name of the file we attempted to save to.</extracomment>
+        <translation type="unfinished">Nastala chyba pri pokuse uložiť zoznam adries do %1. Skúste znovu.</translation>
+    </message>
+    <message>
+        <source>Exporting Failed</source>
+        <translation type="unfinished">Export zlyhal</translation>
     </message>
 </context>
 <context>

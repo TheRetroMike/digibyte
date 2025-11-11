@@ -1,4 +1,4 @@
-<TS language="eo" version="2.1">
+<TS version="2.1" language="eo">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -210,6 +210,86 @@
 </context>
 <context>
     <name>BanTableModel</name>
+    <message>
+        <source>Banned Until</source>
+        <translation type="unfinished">Ekzilita Ĝis</translation>
+    </message>
+</context>
+<context>
+    <name>DigiByteApplication</name>
+    <message>
+        <source>A fatal error occurred. %1 can no longer continue safely and will quit.</source>
+        <translation type="unfinished">Neriparebla eraro okazis. %1 ne plu sekure povas daŭri kaj ĝi ĉesiĝos.</translation>
+    </message>
+    </context>
+<context>
+    <name>QObject</name>
+    <message>
+        <source>Error: %1</source>
+        <translation type="unfinished">Eraro: %1</translation>
+    </message>
+    <message>
+        <source>unknown</source>
+        <translation type="unfinished">nekonata</translation>
+    </message>
+    <message>
+        <source>Amount</source>
+        <translation type="unfinished">Sumo</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <translation type="unfinished">Neniu</translation>
+    </message>
+    <message>
+        <source>N/A</source>
+        <translation type="unfinished">neaplikebla</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n second(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n sekundo</numerusform>
+            <numerusform>%n sekundoj</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n minuto</numerusform>
+            <numerusform>%n minutoj</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n hour(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n horo</numerusform>
+            <numerusform>%n horoj</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n day(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n tago</numerusform>
+            <numerusform>%n tagoj</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n week(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n semajno</numerusform>
+            <numerusform>%n semajnoj</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>%1 and %2</source>
+        <translation type="unfinished">%1 kaj %2</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n year(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n jaro</numerusform>
+            <numerusform>%n jaroj</numerusform>
+        </translation>
+    </message>
     </context>
 <context>
     <name>DigiByteGUI</name>
@@ -396,31 +476,37 @@
     <message>
         <source>Date: %1
 </source>
-        <translation>Dato: %1
+        <translation type="unfinished">Dato: %1
 </translation>
     </message>
     <message>
         <source>Amount: %1
 </source>
-        <translation>Sumo: %1
+        <translation type="unfinished">Sumo: %1
+</translation>
+    </message>
+    <message>
+        <source>Wallet: %1
+</source>
+        <translation type="unfinished">Monujo: %1
 </translation>
     </message>
     <message>
         <source>Type: %1
 </source>
-        <translation>Tipo: %1
+        <translation type="unfinished">Tipo: %1
 </translation>
     </message>
     <message>
         <source>Label: %1
 </source>
-        <translation>Etikedo: %1
+        <translation type="unfinished">Etikedo: %1
 </translation>
     </message>
     <message>
         <source>Address: %1
 </source>
-        <translation>Adreso: %1
+        <translation type="unfinished">Adreso: %1
 </translation>
     </message>
     <message>

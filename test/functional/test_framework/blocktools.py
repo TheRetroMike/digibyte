@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2015-2021 The DigiByte Core developers
+# Copyright (c) 2015-2022 The DigiByte Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Utilities for manipulating blocks and transactions."""
@@ -9,6 +9,7 @@ import time
 import unittest
 
 from .address import (
+    address_to_scriptpubkey,
     key_to_p2sh_p2wpkh,
     key_to_p2wpkh,
     script_to_p2sh_p2wsh,
@@ -22,6 +23,7 @@ from .messages import (
     CTxIn,
     CTxInWitness,
     CTxOut,
+    SEQUENCE_FINAL,
     hash256,
     ser_uint256,
     tx_from_hex,
@@ -43,29 +45,29 @@ from .script_util import (
 )
 from .util import assert_equal
 
-from .blockversion import (
-    VERSIONBITS_TOP_BITS,
-    BLOCK_VERSION,
-    VERSIONBITS_LAST_OLD_BLOCK_VERSION,
-)
-
 WITNESS_SCALE_FACTOR = 4
 MAX_BLOCK_SIGOPS = 20000
 MAX_BLOCK_SIGOPS_WEIGHT = MAX_BLOCK_SIGOPS * WITNESS_SCALE_FACTOR
 
-# Genesis block time (regtest)
+# Genesis block time (regtest) - DigiByte specific
 TIME_GENESIS_BLOCK = 1519460922
 
 MAX_FUTURE_BLOCK_TIME = 2 * 60 * 60
 
 # Coinbase transaction outputs can only be spent after this number of new blocks (network rule)
-COINBASE_MATURITY = 8
-COINBASE_MATURITY_2 = 100
+# DigiByte: Two maturity values
+COINBASE_MATURITY = 8      # Default for most operations
+COINBASE_MATURITY_2 = 100  # After certain height, for some operations
 
 # From BIP141
 WITNESS_COMMITMENT_HEADER = b"\xaa\x21\xa9\xed"
 
 NORMAL_GBT_REQUEST_PARAMS = {"rules": ["segwit"]}
+
+# Import DigiByte-specific block version constants
+from .blockversion import VERSIONBITS_LAST_OLD_BLOCK_VERSION
+MIN_BLOCKS_TO_KEEP = 288
+
 
 def create_block(hashprev=None, coinbase=None, ntime=None, *, version=None, tmpl=None, txlist=None):
     """Create a block (with regtest difficulty)."""
@@ -80,7 +82,13 @@ def create_block(hashprev=None, coinbase=None, ntime=None, *, version=None, tmpl
     else:
         block.nBits = 0x207fffff  # difficulty retargeting is disabled in REGTEST chainparams
     if coinbase is None:
-        coinbase = create_coinbase(height=tmpl['height'])
+        # If template provides coinbasevalue (subsidy + fees), use it
+        # Otherwise calculate subsidy ourselves
+        if tmpl and 'coinbasevalue' in tmpl:
+            # Use the value from template which includes fees
+            coinbase = create_coinbase(height=tmpl['height'], nValue=tmpl['coinbasevalue'] // COIN)
+        else:
+            coinbase = create_coinbase(height=tmpl['height'])
     block.vtx.append(coinbase)
     if txlist:
         for tx in txlist:
@@ -88,7 +96,6 @@ def create_block(hashprev=None, coinbase=None, ntime=None, *, version=None, tmpl
                 tx = tx_from_hex(tx)
             block.vtx.append(tx)
     block.hashMerkleRoot = block.calc_merkle_root()
-    # block.calc_scrypt()
     block.calc_sha256()
     return block
 
@@ -124,15 +131,60 @@ def script_BIP34_coinbase_height(height):
         return CScript([res, OP_1])
     return CScript([CScriptNum(height)])
 
-def get_coinbase_value(height): 
-    if height < 1440:
-        return 72000
-    elif height < 5760:
-        return 16000
-    else:
-        return 8000
 
-def create_coinbase(height, pubkey=None, extra_output_script=None, fees=0, nValue=None):
+def get_coinbase_value(height):
+    # DigiByte regtest reward schedule matching consensus rules
+    # These values must match src/validation.cpp GetBlockSubsidy()
+    
+    # Regtest consensus parameters (from chainparams.cpp regtest section)
+    nDiffChangeTarget = 334           # DigiShield activation
+    alwaysUpdateDiffChangeTarget = 200  # MultiShield activation  
+    workComputationChangeTarget = 400  # DigiSpeed activation (regtest)
+    patchBlockRewardDuration = 10      # For Period IV reductions (regtest)
+    patchBlockRewardDuration2 = 80     # For Period V reductions (regtest)
+    
+    if height < nDiffChangeTarget:  # < 334
+        if height < 1440:
+            return 72000  # Period I
+        elif height < 5760:
+            return 16000  # Period II  
+        else:
+            return 8000   # Period III
+    elif height < alwaysUpdateDiffChangeTarget:  # 334 <= height < 200 (impossible)
+        # Period IV - this range is impossible in regtest since 334 > 200
+        nSubsidy = 8000
+        blocks = height - nDiffChangeTarget
+        weeks = (blocks // patchBlockRewardDuration) + 1
+        # Decrease reward by 0.5% every 10 blocks (regtest)
+        for i in range(weeks):
+            nSubsidy -= (nSubsidy / 200)
+        return int(nSubsidy)
+    elif height < workComputationChangeTarget:  # 334 <= height < 400
+        # Period V - Complex decay formula
+        nSubsidy = 2459
+        blocks = height - alwaysUpdateDiffChangeTarget  # height - 200
+        weeks = (blocks // patchBlockRewardDuration2) + 1
+        # Decrease reward by 1% every 80 blocks (regtest)
+        for i in range(weeks):
+            nSubsidy -= (nSubsidy / 100)
+        return max(int(nSubsidy), 1)  # Minimum 1 DGB
+    else:  # height >= 400 (Period VI)
+        # Period VI - Monthly decay with 98884/100000 factor
+        nSubsidy = 2157 / 2  # = 1078.5
+        BLOCK_TIME_SECONDS = 15  # DigiByte block time
+        SECONDS_PER_MONTH = 30 * 24 * 60 * 60  # ~2592000
+        
+        blocks = height - workComputationChangeTarget
+        months = blocks * BLOCK_TIME_SECONDS // SECONDS_PER_MONTH
+        
+        for i in range(months):
+            nSubsidy *= 98884
+            nSubsidy /= 100000
+            
+        return max(int(nSubsidy), 1)  # Minimum 1 DGB
+
+
+def create_coinbase(height, pubkey=None, *, script_pubkey=None, extra_output_script=None, fees=0, nValue=None):
     """Create a coinbase transaction.
 
     If pubkey is passed in, the coinbase output will be a P2PK output;
@@ -140,17 +192,21 @@ def create_coinbase(height, pubkey=None, extra_output_script=None, fees=0, nValu
 
     If extra_output_script is given, make a 0-value output to that
     script. This is useful to pad block weight/sigops as needed. """
-    if nValue is None:
-        nValue = get_coinbase_value(height)
-
     coinbase = CTransaction()
-    coinbase.vin.append(CTxIn(COutPoint(0, 0xffffffff), script_BIP34_coinbase_height(height), 0xffffffff))
+    coinbase.vin.append(CTxIn(COutPoint(0, 0xffffffff), script_BIP34_coinbase_height(height), SEQUENCE_FINAL))
     coinbaseoutput = CTxOut()
-    coinbaseoutput.nValue = nValue * COIN
-    if nValue == get_coinbase_value(height):
-        coinbaseoutput.nValue += fees
+    if nValue is None:
+        # Calculate subsidy ourselves and add fees
+        nValue = get_coinbase_value(height)
+        coinbaseoutput.nValue = nValue * COIN + fees
+    else:
+        # nValue provided (e.g., from template) already includes fees
+        # and is in DGB units, so convert to satoshis
+        coinbaseoutput.nValue = nValue * COIN
     if pubkey is not None:
         coinbaseoutput.scriptPubKey = key_to_p2pk_script(pubkey)
+    elif script_pubkey is not None:
+        coinbaseoutput.scriptPubKey = script_pubkey
     else:
         coinbaseoutput.scriptPubKey = CScript([OP_TRUE])
     coinbase.vout = [coinbaseoutput]
@@ -170,34 +226,10 @@ def create_tx_with_script(prevtx, n, script_sig=b"", *, amount, script_pub_key=C
     """
     tx = CTransaction()
     assert n < len(prevtx.vout)
-    tx.vin.append(CTxIn(COutPoint(prevtx.sha256, n), script_sig, 0xffffffff))
+    tx.vin.append(CTxIn(COutPoint(prevtx.sha256, n), script_sig, SEQUENCE_FINAL))
     tx.vout.append(CTxOut(amount, script_pub_key))
     tx.calc_sha256()
     return tx
-
-def create_transaction(node, txid, to_address, *, amount):
-    """ Return signed transaction spending the first output of the
-        input txid. Note that the node must have a wallet that can
-        sign for the output that is being spent.
-    """
-    raw_tx = create_raw_transaction(node, txid, to_address, amount=amount)
-    tx = tx_from_hex(raw_tx)
-    return tx
-
-def create_raw_transaction(node, txid, to_address, *, amount):
-    """ Return raw signed transaction spending the first output of the
-        input txid. Note that the node must have a wallet that can sign
-        for the output that is being spent.
-    """
-    psbt = node.createpsbt(inputs=[{"txid": txid, "vout": 0}], outputs={to_address: amount})
-    for _ in range(2):
-        for w in node.listwallets():
-            wrpc = node.get_wallet_rpc(w)
-            signed_psbt = wrpc.walletprocesspsbt(psbt)
-            psbt = signed_psbt['psbt']
-    final_psbt = node.finalizepsbt(psbt)
-    assert_equal(final_psbt["complete"], True)
-    return final_psbt['hex']
 
 def get_legacy_sigopcount_block(block, accurate=True):
     count = 0
@@ -239,7 +271,7 @@ def create_witness_tx(node, use_p2wsh, utxo, pubkey, encode_p2sh, amount):
     else:
         addr = key_to_p2sh_p2wpkh(pubkey) if encode_p2sh else key_to_p2wpkh(pubkey)
     if not encode_p2sh:
-        assert_equal(node.getaddressinfo(addr)['scriptPubKey'], witness_script(use_p2wsh, pubkey))
+        assert_equal(address_to_scriptpubkey(addr).hex(), witness_script(use_p2wsh, pubkey))
     return node.createrawtransaction([utxo], {addr: amount})
 
 def send_to_witness(use_p2wsh, node, utxo, pubkey, encode_p2sh, amount, sign=True, insert_redeem_script=""):
@@ -253,7 +285,7 @@ def send_to_witness(use_p2wsh, node, utxo, pubkey, encode_p2sh, amount, sign=Tru
     if (sign):
         signed = node.signrawtransactionwithwallet(tx_to_witness)
         assert "errors" not in signed or len(["errors"]) == 0
-        return node.sendrawtransaction(signed["hex"])
+        return node.sendrawtransaction(signed["hex"], 0)
     else:
         if (insert_redeem_script):
             tx = tx_from_hex(tx_to_witness)

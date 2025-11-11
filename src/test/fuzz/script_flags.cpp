@@ -1,7 +1,7 @@
-// Copyright (c) 2009-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
+#include <consensus/amount.h>
 #include <pubkey.h>
 #include <script/interpreter.h>
 #include <streams.h>
@@ -10,12 +10,7 @@
 
 #include <test/fuzz/fuzz.h>
 
-void initialize_script_flags()
-{
-    static const ECCVerifyHandle verify_handle;
-}
-
-FUZZ_TARGET_INIT(script_flags, initialize_script_flags)
+FUZZ_TARGET(script_flags)
 {
     CDataStream ds(buffer, SER_NETWORK, INIT_PROTO_VERSION);
     try {

@@ -1,7 +1,6 @@
-// Copyright (c) 2019 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_CRYPTO_CHACHA_POLY_AEAD_H
 #define DIGIBYTE_CRYPTO_CHACHA_POLY_AEAD_H
 

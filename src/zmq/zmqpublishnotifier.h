@@ -1,14 +1,19 @@
-// Copyright (c) 2009-2019 The Bitcoin Core developers
-// Copyright (c) 2014-2019 The DigiByte Core developers
+// Copyright (c) 2015-2022 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_ZMQ_ZMQPUBLISHNOTIFIER_H
 #define DIGIBYTE_ZMQ_ZMQPUBLISHNOTIFIER_H
 
 #include <zmq/zmqabstractnotifier.h>
 
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+
+class CBlock;
 class CBlockIndex;
+class CTransaction;
 
 class CZMQAbstractPublishNotifier : public CZMQAbstractNotifier
 {
@@ -43,7 +48,12 @@ public:
 
 class CZMQPublishRawBlockNotifier : public CZMQAbstractPublishNotifier
 {
+private:
+    const std::function<bool(CBlock&, const CBlockIndex&)> m_get_block_by_index;
+
 public:
+    CZMQPublishRawBlockNotifier(std::function<bool(CBlock&, const CBlockIndex&)> get_block_by_index)
+        : m_get_block_by_index{std::move(get_block_by_index)} {}
     bool NotifyBlock(const CBlockIndex *pindex) override;
 };
 

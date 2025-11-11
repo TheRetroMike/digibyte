@@ -1,7 +1,6 @@
-// Copyright (c) 2019-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <consensus/validation.h>
 #include <core_memusage.h>
 #include <policy/policy.h>
@@ -14,12 +13,9 @@
 
 FUZZ_TARGET(tx_in)
 {
-    CDataStream ds(buffer, SER_NETWORK, INIT_PROTO_VERSION);
+    DataStream ds{buffer};
     CTxIn tx_in;
     try {
-        int version;
-        ds >> version;
-        ds.SetVersion(version);
         ds >> tx_in;
     } catch (const std::ios_base::failure&) {
         return;

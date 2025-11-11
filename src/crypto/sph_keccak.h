@@ -1,3 +1,5 @@
+/* Copyright (c) 2007-2010  Projet RNRT SAPHIR
+ * The above copyright notice and this permission notice shall be
 /* $Id: sph_keccak.h 216 2010-06-08 09:46:57Z tp $ */
 /**
  * Keccak interface. This is the interface for Keccak with the
@@ -6,7 +8,6 @@
  *
  * ==========================(LICENSE BEGIN)============================
  *
- * Copyright (c) 2007-2010  Projet RNRT SAPHIR
  * 
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -16,7 +17,6 @@
  * permit persons to whom the Software is furnished to do so, subject to
  * the following conditions:
  * 
- * The above copyright notice and this permission notice shall be
  * included in all copies or substantial portions of the Software.
  * 
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,

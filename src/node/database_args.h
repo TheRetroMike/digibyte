@@ -1,0 +1,14 @@
+// Copyright (c) 2014-2025 The DigiByte Core developers
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+#ifndef DIGIBYTE_NODE_DATABASE_ARGS_H
+#define DIGIBYTE_NODE_DATABASE_ARGS_H
+
+class ArgsManager;
+struct DBOptions;
+
+namespace node {
+void ReadDatabaseArgs(const ArgsManager& args, DBOptions& options);
+} // namespace node
+
+#endif // DIGIBYTE_NODE_DATABASE_ARGS_H

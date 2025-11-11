@@ -1,10 +1,9 @@
-// Copyright (c) 2012-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2012-2021 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <compressor.h>
-#include <script/standard.h>
+#include <script/script.h>
 #include <test/util/setup_common.h>
 
 #include <stdint.h>
@@ -20,7 +19,7 @@
 // amounts 1 .. 10000
 #define NUM_MULTIPLES_1DGB 10000
 
-// amounts 50 .. 21000000
+// amounts 50 .. 21000000000
 #define NUM_MULTIPLES_50DGB 420000
 
 BOOST_FIXTURE_TEST_SUITE(compress_tests, BasicTestingSetup)
@@ -45,7 +44,7 @@ BOOST_AUTO_TEST_CASE(compress_amounts)
     BOOST_CHECK(TestPair(         CENT,       0x7));
     BOOST_CHECK(TestPair(         COIN,       0x9));
     BOOST_CHECK(TestPair(      50*COIN,      0x32));
-    BOOST_CHECK(TestPair(21000000*COIN, 0x1406f40));
+    BOOST_CHECK(TestPair(21000000000*COIN, 0x4e3b29200));
 
     for (uint64_t i = 1; i <= NUM_MULTIPLES_UNIT; i++)
         BOOST_CHECK(TestEncode(i));

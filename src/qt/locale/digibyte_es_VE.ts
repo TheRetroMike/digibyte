@@ -1,4 +1,4 @@
-<TS language="es_VE" version="2.1">
+<TS version="2.1" language="es_VE">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -222,6 +222,149 @@
 </context>
 <context>
     <name>BanTableModel</name>
+    <message>
+        <source>IP/Netmask</source>
+        <translation type="unfinished">IP/Máscara de red</translation>
+    </message>
+    <message>
+        <source>Banned Until</source>
+        <translation type="unfinished">Prohibido hasta</translation>
+    </message>
+</context>
+<context>
+    <name>DigiByteApplication</name>
+    <message>
+        <source>Settings file %1 might be corrupt or invalid.</source>
+        <translation type="unfinished">El archivo de configuración %1 puede estar dañado o no ser válido.</translation>
+    </message>
+    <message>
+        <source>Runaway exception</source>
+        <translation type="unfinished">Excepción fuera de control</translation>
+    </message>
+    <message>
+        <source>A fatal error occurred. %1 can no longer continue safely and will quit.</source>
+        <translation type="unfinished">Se produjo un error fatal. %1 ya no puede continuar de manera segura y se cerrará.</translation>
+    </message>
+    <message>
+        <source>Internal error</source>
+        <translation type="unfinished">Error interno</translation>
+    </message>
+    <message>
+        <source>An internal error occurred. %1 will attempt to continue safely. This is an unexpected bug which can be reported as described below.</source>
+        <translation type="unfinished">Se produjo un error interno. %1 intentará continuar de manera segura. Este es un error inesperado que se puede reportar como se describe a continuación.</translation>
+    </message>
+</context>
+<context>
+    <name>QObject</name>
+    <message>
+        <source>Do you want to reset settings to default values, or to abort without making changes?</source>
+        <extracomment>Explanatory text shown on startup when the settings file cannot be read. Prompts user to make a choice between resetting or aborting.</extracomment>
+        <translation type="unfinished">¿Deseas restablecer los valores a la configuración predeterminada o abortar sin realizar los cambios?</translation>
+    </message>
+    <message>
+        <source>A fatal error occurred. Check that settings file is writable, or try running with -nosettings.</source>
+        <extracomment>Explanatory text shown on startup when the settings file could not be written. Prompts user to check that we have the ability to write to the file. Explains that the user has the option of running without a settings file.</extracomment>
+        <translation type="unfinished">Se produjo un error fatal. Comprueba que el archivo de configuración soporte escritura o intenta ejecutar el programa con -nosettings.</translation>
+    </message>
+    <message>
+        <source>%1 didn't yet exit safely…</source>
+        <translation type="unfinished">%1 aún no salió de forma segura...</translation>
+    </message>
+    <message>
+        <source>unknown</source>
+        <translation type="unfinished">desconocido</translation>
+    </message>
+    <message>
+        <source>Amount</source>
+        <translation type="unfinished">Importe</translation>
+    </message>
+    <message>
+        <source>Enter a DigiByte address (e.g. %1)</source>
+        <translation type="unfinished">Ingresar una dirección de DigiByte (por ejemplo, %1)</translation>
+    </message>
+    <message>
+        <source>Unroutable</source>
+        <translation type="unfinished">No enrutable</translation>
+    </message>
+    <message>
+        <source>Inbound</source>
+        <extracomment>An inbound connection from a peer. An inbound connection is a connection initiated by a peer.</extracomment>
+        <translation type="unfinished">Entrante</translation>
+    </message>
+    <message>
+        <source>Outbound</source>
+        <extracomment>An outbound connection to a peer. An outbound connection is a connection initiated by us.</extracomment>
+        <translation type="unfinished">Saliente</translation>
+    </message>
+    <message>
+        <source>Full Relay</source>
+        <extracomment>Peer connection type that relays all network information.</extracomment>
+        <translation type="unfinished">Retransmisión completa</translation>
+    </message>
+    <message>
+        <source>Block Relay</source>
+        <extracomment>Peer connection type that relays network information about blocks and not transactions or addresses.</extracomment>
+        <translation type="unfinished">Retransmisión de bloques</translation>
+    </message>
+    <message>
+        <source>Address Fetch</source>
+        <extracomment>Short-lived peer connection type that solicits known addresses from a peer.</extracomment>
+        <translation type="unfinished">Recuperación de dirección</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <translation type="unfinished">Ninguno</translation>
+    </message>
+    <message>
+        <source>N/A</source>
+        <translation type="unfinished">N/D</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n second(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n segundo</numerusform>
+            <numerusform>%n segundos</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n minuto</numerusform>
+            <numerusform>%n minutos</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n hour(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n hora</numerusform>
+            <numerusform>%n horas</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n day(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n día</numerusform>
+            <numerusform>%n días</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n week(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n semana</numerusform>
+            <numerusform>%n semanas</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>%1 and %2</source>
+        <translation type="unfinished">%1 y %2</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n year(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n año</numerusform>
+            <numerusform>%n años</numerusform>
+        </translation>
+    </message>
     </context>
 <context>
     <name>DigiByteGUI</name>

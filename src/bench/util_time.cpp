@@ -1,7 +1,6 @@
-// Copyright (c) 2019-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <bench/bench.h>
 
 #include <util/time.h>
@@ -32,11 +31,11 @@ static void BenchTimeMillis(benchmark::Bench& bench)
 static void BenchTimeMillisSys(benchmark::Bench& bench)
 {
     bench.run([&] {
-        (void)GetTimeMillis();
+        (void)TicksSinceEpoch<std::chrono::milliseconds>(SystemClock::now());
     });
 }
 
-BENCHMARK(BenchTimeDeprecated);
-BENCHMARK(BenchTimeMillis);
-BENCHMARK(BenchTimeMillisSys);
-BENCHMARK(BenchTimeMock);
+BENCHMARK(BenchTimeDeprecated, benchmark::PriorityLevel::HIGH);
+BENCHMARK(BenchTimeMillis, benchmark::PriorityLevel::HIGH);
+BENCHMARK(BenchTimeMillisSys, benchmark::PriorityLevel::HIGH);
+BENCHMARK(BenchTimeMock, benchmark::PriorityLevel::HIGH);

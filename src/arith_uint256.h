@@ -1,9 +1,8 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2019 The Bitcoin Core developers
-// Copyright (c) 2014-2019 The DigiByte Core developers
+// Copyright (c) 2009-2022 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_ARITH_UINT256_H
 #define DIGIBYTE_ARITH_UINT256_H
 
@@ -25,6 +24,7 @@ template<unsigned int BITS>
 class base_uint
 {
 protected:
+    static_assert(BITS / 32 > 0 && BITS % 32 == 0, "Template parameter BITS must be a positive multiple of 32.");
     static constexpr int WIDTH = BITS / 32;
     uint32_t pn[WIDTH];
 public:

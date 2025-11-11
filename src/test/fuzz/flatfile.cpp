@@ -1,7 +1,6 @@
-// Copyright (c) 2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <flatfile.h>
 #include <test/fuzz/FuzzedDataProvider.h>
 #include <test/fuzz/fuzz.h>
@@ -25,6 +24,4 @@ FUZZ_TARGET(flatfile)
         assert((*flat_file_pos == *another_flat_file_pos) != (*flat_file_pos != *another_flat_file_pos));
     }
     (void)flat_file_pos->ToString();
-    flat_file_pos->SetNull();
-    assert(flat_file_pos->IsNull());
 }

@@ -209,10 +209,11 @@
 
 # Onion / I2P Nodes
 
-# We should add these! Examples:
+# DigiByte Tor v3 onion nodes (port 12024)
+# Note: These should be updated with actual DigiByte onion addresses when available
 
-# 2g5qfdkn2vvcbqhzcyvyiitg4ceukybxklraxjnu7atlhd22gdwywaid.onion:8333
-# 2jmtxvyup3ijr7u6uvu7ijtnojx4g5wodvaedivbv74w4vzntxbrhvad.onion:8333
-# 72l3ucjkuscrbiiepoehuwqgknyzgo7zuix5ty4puwrkyhtmnsga.b32.i2p:0
-# c4gfnttsuwqomiygupdqqqyy5y5emnk5c73hrfvatri67prd7vyq.b32.i2p:0
-# etc.
+# DigiByte I2P nodes (port 0 for I2P)
+# Note: These should be updated with actual DigiByte I2P addresses when available
+
+# CJDNS nodes
+# Note: These should be updated with actual DigiByte CJDNS addresses when available

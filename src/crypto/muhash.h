@@ -1,7 +1,6 @@
-// Copyright (c) 2017-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_CRYPTO_MUHASH_H
 #define DIGIBYTE_CRYPTO_MUHASH_H
 
@@ -24,7 +23,7 @@ private:
 public:
     static constexpr size_t BYTE_SIZE = 384;
 
-#ifdef HAVE___INT128
+#ifdef __SIZEOF_INT128__
     typedef unsigned __int128 double_limb_t;
     typedef uint64_t limb_t;
     static constexpr int LIMBS = 48;

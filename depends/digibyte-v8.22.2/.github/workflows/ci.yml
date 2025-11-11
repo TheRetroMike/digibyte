@@ -1,0 +1,70 @@
+# Copyright (c) 2023 The DigiByte Core developers
+# Distributed under the MIT software license, see the accompanying
+# file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
+name: DigiByte CI
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.event_name != 'pull_request' && github.run_id || github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    branches: ["develop"]
+
+env:
+  CI_FAILFAST_TEST_LEAVE_DANGLING: 1 # GHA does not care about dangling processes and setting this variable avoids killing the CI script itself on error
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Python 3.10.9
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.10.9
+
+      - name: Cache pip
+        id: cache-pip
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/pip3
+          key: v1-${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: v1-${{ runner.os }}-pip-
+
+      - name: Install brew dependencies
+        run: brew install autoconf automake libtool pkg-config pandoc
+
+      - name: Install Python Packages
+        if: steps.cache-pip.outputs.cache-hit != 'true'
+        run: |
+          pip3 install pypandoc digibyte_scrypt pyzmq
+
+      - name: Build Dependencies
+        run: |
+          cd depends
+          make -j2 HOST=aarch64-apple-darwin24.2.0
+          cd ..
+
+      - name: Configure and Build
+        run: |
+          ./autogen.sh
+          CONFIG_SITE=$PWD/depends/aarch64-apple-darwin24.2.0/share/config.site ./configure --with-bdb --with-sqlite --with-gui=yes --with-zmq
+          make -j2
+
+      - name: Run Tests
+        run: make check
+
+      - name: Upload Test Suite Log
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-suite-log
+          path: src/test-suite.log

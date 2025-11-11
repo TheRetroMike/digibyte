@@ -1,8 +1,6 @@
-// Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <arith_uint256.h>
 #include <streams.h>
 #include <test/util/setup_common.h>
@@ -188,7 +186,7 @@ BOOST_AUTO_TEST_CASE( methods ) // GetHex SetHex begin() end() size() GetLow64 G
     BOOST_CHECK(GetSerializeSize(R1L, PROTOCOL_VERSION) == 32);
     BOOST_CHECK(GetSerializeSize(ZeroL, PROTOCOL_VERSION) == 32);
 
-    CDataStream ss(0, PROTOCOL_VERSION);
+    DataStream ss{};
     ss << R1L;
     BOOST_CHECK(ss.str() == std::string(R1Array,R1Array+32));
     ss >> TmpL;

@@ -1,8 +1,7 @@
-// Copyright (c) 2011-2020 The Bitcoin Core developers
-// Copyright (c) 2013-2021 The DigiByte Core developers
+// Copyright (c) 2011-2022 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <qt/overviewpage.h>
 #include <qt/forms/ui_overviewpage.h>
 
@@ -35,9 +34,9 @@ class TxViewDelegate : public QAbstractItemDelegate
 {
     Q_OBJECT
 public:
-    explicit TxViewDelegate(const PlatformStyle *_platformStyle, QObject *parent=nullptr):
-        QAbstractItemDelegate(parent), unit(DigiByteUnits::DGB),
-        platformStyle(_platformStyle)
+    explicit TxViewDelegate(const PlatformStyle* _platformStyle, QObject* parent = nullptr)
+        : QAbstractItemDelegate(parent), unit(DigiByteUnits::Unit::DGB),
+        platformStyle(_platformStyle), isDarkTheme(false)
     {
         connect(this, &TxViewDelegate::width_changed, this, &TxViewDelegate::sizeHintChanged);
     }
@@ -84,15 +83,13 @@ public:
 
         if(amount < 0)
         {
-            foreground = COLOR_NEGATIVE;
-        }
-        else if(!confirmed)
-        {
-            foreground = COLOR_UNCONFIRMED;
+            // Red for negative amounts
+            foreground = isDarkTheme ? QColor(255, 70, 70) : QColor(200, 0, 0);
         }
         else
         {
-            foreground = option.palette.color(QPalette::Text);
+            // Green for positive amounts
+            foreground = isDarkTheme ? QColor(100, 255, 100) : QColor(0, 150, 0);
         }
         painter->setPen(foreground);
         QString amountText = DigiByteUnits::formatWithUnit(unit, amount, true, DigiByteUnits::SeparatorStyle::ALWAYS);
@@ -104,7 +101,9 @@ public:
         QRect amount_bounding_rect;
         painter->drawText(amountRect, Qt::AlignRight | Qt::AlignVCenter, amountText, &amount_bounding_rect);
 
-        painter->setPen(option.palette.color(QPalette::Text));
+        // Use theme-aware color for date text
+        QColor dateColor = isDarkTheme ? QColor(255, 255, 255) : QColor(0, 51, 102);
+        painter->setPen(dateColor);
         QRect date_bounding_rect;
         painter->drawText(amountRect, Qt::AlignLeft | Qt::AlignVCenter, GUIUtil::dateTimeStr(date), &date_bounding_rect);
 
@@ -126,7 +125,8 @@ public:
         return {DECORATION_SIZE + 8 + minimum_text_width, DECORATION_SIZE};
     }
 
-    int unit;
+    DigiByteUnit unit{DigiByteUnit::DGB};
+    bool isDarkTheme;
 
 Q_SIGNALS:
     //! An intermediate signal for emitting from the `paint() const` member function.
@@ -148,8 +148,6 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
     txdelegate(new TxViewDelegate(platformStyle, this))
 {
     ui->setupUi(this);
-
-    m_balances.balance = -1;
 
     // use a SingleColorIcon for the "out of sync warning" icon
     QIcon icon = m_platform_style->SingleColorIcon(QStringLiteral(":/icons/warning"));
@@ -179,8 +177,10 @@ void OverviewPage::handleTransactionClicked(const QModelIndex &index)
 void OverviewPage::setPrivacy(bool privacy)
 {
     m_privacy = privacy;
-    if (m_balances.balance != -1) {
-        setBalance(m_balances);
+    clientModel->getOptionsModel()->setOption(OptionsModel::OptionID::MaskValues, privacy);
+    const auto& balances = walletModel->getCachedBalance();
+    if (balances.balance != -1) {
+        setBalance(balances);
     }
 
     ui->listTransactions->setVisible(!m_privacy);
@@ -198,8 +198,7 @@ OverviewPage::~OverviewPage()
 
 void OverviewPage::setBalance(const interfaces::WalletBalances& balances)
 {
-    int unit = walletModel->getOptionsModel()->getDisplayUnit();
-    m_balances = balances;
+    DigiByteUnit unit = walletModel->getOptionsModel()->getDisplayUnit();
     if (walletModel->wallet().isLegacy()) {
         if (walletModel->wallet().privateKeysDisabled()) {
             ui->labelBalance->setText(DigiByteUnits::formatWithPrivacy(unit, balances.watch_only_balance, DigiByteUnits::SeparatorStyle::ALWAYS, m_privacy));
@@ -265,10 +264,13 @@ void OverviewPage::setWalletModel(WalletModel *model)
     this->walletModel = model;
     if(model && model->getOptionsModel())
     {
+        // Check current theme and update delegate
+        QString currentTheme = model->getOptionsModel()->data(model->getOptionsModel()->index(OptionsModel::Theme), Qt::EditRole).toString();
+        txdelegate->isDarkTheme = (currentTheme == "dark");
+        
         // Set up transaction list
         filter.reset(new TransactionFilterProxy());
         filter->setSourceModel(model->getTransactionTableModel());
-        filter->setLimit(NUM_ITEMS);
         filter->setDynamicSortFilter(true);
         filter->setSortRole(Qt::EditRole);
         filter->setShowInactive(false);
@@ -277,15 +279,18 @@ void OverviewPage::setWalletModel(WalletModel *model)
         ui->listTransactions->setModel(filter.get());
         ui->listTransactions->setModelColumn(TransactionTableModel::ToAddress);
 
+        connect(filter.get(), &TransactionFilterProxy::rowsInserted, this, &OverviewPage::LimitTransactionRows);
+        connect(filter.get(), &TransactionFilterProxy::rowsRemoved, this, &OverviewPage::LimitTransactionRows);
+        connect(filter.get(), &TransactionFilterProxy::rowsMoved, this, &OverviewPage::LimitTransactionRows);
+        LimitTransactionRows();
         // Keep up to date with wallet
-        interfaces::Wallet& wallet = model->wallet();
-        interfaces::WalletBalances balances = wallet.getBalances();
-        setBalance(balances);
+        setBalance(model->getCachedBalance());
         connect(model, &WalletModel::balanceChanged, this, &OverviewPage::setBalance);
 
         connect(model->getOptionsModel(), &OptionsModel::displayUnitChanged, this, &OverviewPage::updateDisplayUnit);
 
-        updateWatchOnlyLabels(wallet.haveWatchOnly() && !model->wallet().privateKeysDisabled());
+        interfaces::Wallet& wallet = model->wallet();
+        updateWatchOnlyLabels(wallet.haveWatchOnly() && !wallet.privateKeysDisabled());
         connect(model, &WalletModel::notifyWatchonlyChanged, [this](bool showWatchOnly) {
             updateWatchOnlyLabels(showWatchOnly && !walletModel->wallet().privateKeysDisabled());
         });
@@ -306,16 +311,30 @@ void OverviewPage::changeEvent(QEvent* e)
     QWidget::changeEvent(e);
 }
 
+// Only show most recent NUM_ITEMS rows
+void OverviewPage::LimitTransactionRows()
+{
+    if (filter && ui->listTransactions && ui->listTransactions->model() && filter.get() == ui->listTransactions->model()) {
+        for (int i = 0; i < filter->rowCount(); ++i) {
+            ui->listTransactions->setRowHidden(i, i >= NUM_ITEMS);
+        }
+    }
+}
+
 void OverviewPage::updateDisplayUnit()
 {
-    if(walletModel && walletModel->getOptionsModel())
-    {
-        if (m_balances.balance != -1) {
-            setBalance(m_balances);
+    if (walletModel && walletModel->getOptionsModel()) {
+        const auto& balances = walletModel->getCachedBalance();
+        if (balances.balance != -1) {
+            setBalance(balances);
         }
 
         // Update txdelegate->unit with the current unit
         txdelegate->unit = walletModel->getOptionsModel()->getDisplayUnit();
+        
+        // Update theme too
+        QString currentTheme = walletModel->getOptionsModel()->data(walletModel->getOptionsModel()->index(OptionsModel::Theme), Qt::EditRole).toString();
+        txdelegate->isDarkTheme = (currentTheme == "dark");
 
         ui->listTransactions->update();
     }

@@ -7,7 +7,7 @@
 print-%: FORCE
 	@echo '$*'='$($*)'
 
-ACLOCAL_AMFLAGS = -I build-aux/m4
+# ACLOCAL_AMFLAGS = -I build-aux/m4
 SUBDIRS = src
 if ENABLE_MAN
 SUBDIRS += doc/man
@@ -24,6 +24,7 @@ endif
 
 DIGIBYTED_BIN=$(top_builddir)/src/$(DIGIBYTE_DAEMON_NAME)$(EXEEXT)
 DIGIBYTE_QT_BIN=$(top_builddir)/src/qt/$(DIGIBYTE_GUI_NAME)$(EXEEXT)
+DIGIBYTE_TEST_BIN=$(top_builddir)/src/test/$(DIGIBYTE_TEST_NAME)$(EXEEXT)
 DIGIBYTE_CLI_BIN=$(top_builddir)/src/$(DIGIBYTE_CLI_NAME)$(EXEEXT)
 DIGIBYTE_TX_BIN=$(top_builddir)/src/$(DIGIBYTE_TX_NAME)$(EXEEXT)
 DIGIBYTE_UTIL_BIN=$(top_builddir)/src/$(DIGIBYTE_UTIL_NAME)$(EXEEXT)
@@ -37,6 +38,7 @@ space := $(empty) $(empty)
 
 OSX_APP=DigiByte-Qt.app
 OSX_VOLNAME = $(subst $(space),-,$(PACKAGE_NAME))
+OSX_ZIP = $(OSX_VOLNAME).zip
 OSX_DMG = $(OSX_VOLNAME).dmg
 OSX_TEMP_ISO = $(OSX_DMG:.dmg=).temp.iso
 OSX_BACKGROUND_SVG=background.svg
@@ -51,7 +53,8 @@ DIST_CONTRIB = \
 	       $(top_srcdir)/test/sanitizer_suppressions/tsan \
 	       $(top_srcdir)/test/sanitizer_suppressions/ubsan \
 	       $(top_srcdir)/contrib/linearize/linearize-data.py \
-	       $(top_srcdir)/contrib/linearize/linearize-hashes.py
+	       $(top_srcdir)/contrib/linearize/linearize-hashes.py \
+	       $(top_srcdir)/contrib/signet/miner
 
 DIST_SHARE = \
   $(top_srcdir)/share/genbuild.sh \
@@ -59,8 +62,7 @@ DIST_SHARE = \
 
 BIN_CHECKS=$(top_srcdir)/contrib/devtools/symbol-check.py \
            $(top_srcdir)/contrib/devtools/security-check.py \
-           $(top_srcdir)/contrib/devtools/utils.py \
-           $(top_srcdir)/contrib/devtools/pixie.py
+           $(top_srcdir)/contrib/devtools/utils.py
 
 WINDOWS_PACKAGING = $(top_srcdir)/share/pixmaps/digibyte.ico \
   $(top_srcdir)/share/pixmaps/nsis-header.bmp \
@@ -69,7 +71,6 @@ WINDOWS_PACKAGING = $(top_srcdir)/share/pixmaps/digibyte.ico \
 
 OSX_PACKAGING = $(OSX_DEPLOY_SCRIPT) $(OSX_INSTALLER_ICONS) \
   $(top_srcdir)/contrib/macdeploy/$(OSX_BACKGROUND_SVG) \
-  $(top_srcdir)/contrib/macdeploy/detached-sig-apply.sh \
   $(top_srcdir)/contrib/macdeploy/detached-sig-create.sh
 
 COVERAGE_INFO = $(COV_TOOL_WRAPPER) baseline.info \
@@ -85,6 +86,7 @@ $(DIGIBYTE_WIN_INSTALLER): all-recursive
 	$(MKDIR_P) $(top_builddir)/release
 	STRIPPROG="$(STRIP)" $(INSTALL_STRIP_PROGRAM) $(DIGIBYTED_BIN) $(top_builddir)/release
 	STRIPPROG="$(STRIP)" $(INSTALL_STRIP_PROGRAM) $(DIGIBYTE_QT_BIN) $(top_builddir)/release
+	STRIPPROG="$(STRIP)" $(INSTALL_STRIP_PROGRAM) $(DIGIBYTE_TEST_BIN) $(top_builddir)/release
 	STRIPPROG="$(STRIP)" $(INSTALL_STRIP_PROGRAM) $(DIGIBYTE_CLI_BIN) $(top_builddir)/release
 	STRIPPROG="$(STRIP)" $(INSTALL_STRIP_PROGRAM) $(DIGIBYTE_TX_BIN) $(top_builddir)/release
 	STRIPPROG="$(STRIP)" $(INSTALL_STRIP_PROGRAM) $(DIGIBYTE_WALLET_BIN) $(top_builddir)/release
@@ -115,7 +117,7 @@ $(OSX_APP)/Contents/Resources/digibyte.icns: $(OSX_INSTALLER_ICONS)
 
 $(OSX_APP)/Contents/MacOS/DigiByte-Qt: all-recursive
 	$(MKDIR_P) $(@D)
-	STRIPPROG="$(STRIP)" $(INSTALL_STRIP_PROGRAM)  $(DIGIBYTE_QT_BIN) $@
+	$(INSTALL_PROGRAM) $(DIGIBYTE_QT_BIN) $@
 
 $(OSX_APP)/Contents/Resources/Base.lproj/InfoPlist.strings:
 	$(MKDIR_P) $(@D)
@@ -129,8 +131,11 @@ osx_volname:
 	echo $(OSX_VOLNAME) >$@
 
 if BUILD_DARWIN
+$(OSX_ZIP): $(OSX_APP_BUILT) $(OSX_PACKAGING)
+	$(PYTHON) $(OSX_DEPLOY_SCRIPT) $(OSX_APP) $(OSX_VOLNAME) -translations-dir=$(QT_TRANSLATION_DIR) -no-strip -zip
+
 $(OSX_DMG): $(OSX_APP_BUILT) $(OSX_PACKAGING) $(OSX_BACKGROUND_IMAGE)
-	$(PYTHON) $(OSX_DEPLOY_SCRIPT) $(OSX_APP) $(OSX_VOLNAME) -translations-dir=$(QT_TRANSLATION_DIR) -dmg
+	$(PYTHON) $(OSX_DEPLOY_SCRIPT) $(OSX_APP) $(OSX_VOLNAME) -translations-dir=$(QT_TRANSLATION_DIR) -no-strip -dmg
 
 $(OSX_BACKGROUND_IMAGE).png: contrib/macdeploy/$(OSX_BACKGROUND_SVG)
 	sed 's/PACKAGE_NAME/$(PACKAGE_NAME)/' < "$<" | $(RSVG_CONVERT) -f png -d 36 -p 36 -o $@
@@ -139,16 +144,14 @@ $(OSX_BACKGROUND_IMAGE)@2x.png: contrib/macdeploy/$(OSX_BACKGROUND_SVG)
 $(OSX_BACKGROUND_IMAGE): $(OSX_BACKGROUND_IMAGE).png $(OSX_BACKGROUND_IMAGE)@2x.png
 	tiffutil -cathidpicheck $^ -out $@
 
-deploydir: $(OSX_DMG)
+deploydir: $(OSX_ZIP)
 else !BUILD_DARWIN
 APP_DIST_DIR=$(top_builddir)/dist
-APP_DIST_EXTRAS=$(APP_DIST_DIR)/.background/$(OSX_BACKGROUND_IMAGE) $(APP_DIST_DIR)/.DS_Store $(APP_DIST_DIR)/Applications
+APP_DIST_EXTRAS=$(APP_DIST_DIR)/.background/$(OSX_BACKGROUND_IMAGE) $(APP_DIST_DIR)/Applications
 
-$(APP_DIST_DIR)/Applications:
-	@rm -f $@
-	@cd $(@D); $(LN_S) /Applications $(@F)
-
-$(APP_DIST_EXTRAS): $(APP_DIST_DIR)/$(OSX_APP)/Contents/MacOS/DigiByte-Qt
+$(OSX_ZIP): deploydir
+	if [ -n "$(SOURCE_DATE_EPOCH)" ]; then find $(APP_DIST_DIR) -exec touch -d @$(SOURCE_DATE_EPOCH) {} +; fi
+	cd $(APP_DIST_DIR) && find . | sort | $(ZIP) -X@ $@
 
 $(OSX_DMG): deploydir
 	$(XORRISOFS) -D -l -V "$(OSX_VOLNAME)" -no-pad -r -dir-mode 0755 -o $@ $(APP_DIST_DIR) -- $(if $(SOURCE_DATE_EPOCH),-volume_date all_file_dates =$(SOURCE_DATE_EPOCH))
@@ -160,15 +163,18 @@ $(APP_DIST_DIR)/.background/$(OSX_BACKGROUND_IMAGE): $(OSX_BACKGROUND_IMAGE_DPIF
 	$(MKDIR_P) $(@D)
 	$(TIFFCP) -c none $(OSX_BACKGROUND_IMAGE_DPIFILES) $@
 
-$(APP_DIST_DIR)/$(OSX_APP)/Contents/MacOS/DigiByte-Qt: $(OSX_APP_BUILT) $(OSX_PACKAGING)
-	INSTALLNAMETOOL=$(INSTALLNAMETOOL) OTOOL=$(OTOOL) STRIP=$(STRIP) $(PYTHON) $(OSX_DEPLOY_SCRIPT) $(OSX_APP) $(OSX_VOLNAME) -translations-dir=$(QT_TRANSLATION_DIR)
+$(APP_DIST_DIR)/Applications:
+	@rm -f $@
+	@cd $(@D); $(LN_S) /Applications Applications
 
-deploydir: $(APP_DIST_EXTRAS)
+$(APP_DIST_DIR)/$(OSX_APP)/Contents/MacOS/DigiByte-Qt: $(OSX_APP_BUILT) $(OSX_PACKAGING)
+	INSTALL_NAME_TOOL=$(INSTALL_NAME_TOOL) OTOOL=$(OTOOL) STRIP=$(STRIP) $(PYTHON) $(OSX_DEPLOY_SCRIPT) $(OSX_APP) $(OSX_VOLNAME) -translations-dir=$(QT_TRANSLATION_DIR) -no-strip
+
+deploydir: $(APP_DIST_DIR)/$(OSX_APP)/Contents/MacOS/DigiByte-Qt
 endif !BUILD_DARWIN
 
-deploy: $(OSX_DMG)
+deploy: $(OSX_ZIP)
 endif
-
 $(DIGIBYTE_QT_BIN): FORCE
 	$(MAKE) -C src qt/$(@F)
 
@@ -202,8 +208,8 @@ LCOV_FILTER_PATTERN = \
 	-p "src/leveldb/" \
 	-p "src/crc32c/" \
 	-p "src/bench/" \
-	-p "src/univalue" \
 	-p "src/crypto/ctaes" \
+	-p "src/minisketch" \
 	-p "src/secp256k1" \
 	-p "depends"
 
@@ -283,7 +289,7 @@ EXTRA_DIST += \
     test/fuzz
 
 EXTRA_DIST += \
-    test/util/digibyte-util-test.py \
+    test/util/test_runner.py \
     test/util/data/digibyte-util-test.json \
     test/util/data/blanktxv1.hex \
     test/util/data/blanktxv1.json \
@@ -333,12 +339,13 @@ EXTRA_DIST += \
     test/util/data/txcreatescript4.json \
     test/util/data/txcreatescript5.hex \
     test/util/data/txcreatescript6.hex \
+    test/util/data/txcreatesignsegwit1.hex \
     test/util/data/txcreatesignv1.hex \
     test/util/data/txcreatesignv1.json \
     test/util/data/txcreatesignv2.hex \
     test/util/rpcauth-test.py
 
-CLEANFILES = $(OSX_DMG) $(DIGIBYTE_WIN_INSTALLER)
+CLEANFILES = $(OSX_ZIP) $(OSX_DMG) $(DIGIBYTE_WIN_INSTALLER)
 
 DISTCHECK_CONFIGURE_FLAGS = --enable-man
 
@@ -360,18 +367,19 @@ clean-docs:
 clean-local: clean-docs
 	rm -rf coverage_percent.txt test_digibyte.coverage/ total.coverage/ fuzz.coverage/ test/tmp/ cache/ $(OSX_APP)
 	rm -rf test/functional/__pycache__ test/functional/test_framework/__pycache__ test/cache share/rpcauth/__pycache__
-	rm -rf osx_volname dist/ dpi36.background.tiff dpi72.background.tiff
+	rm -rf dpi36.background.tiff dpi72.background.tiff
+	rm -rf osx_volname dist/
 
 test-security-check:
 if TARGET_DARWIN
-	$(AM_V_at) CC='$(CC)' $(PYTHON) $(top_srcdir)/contrib/devtools/test-security-check.py TestSecurityChecks.test_MACHO
-	$(AM_V_at) CC='$(CC)' $(PYTHON) $(top_srcdir)/contrib/devtools/test-symbol-check.py TestSymbolChecks.test_MACHO
+	$(AM_V_at) CC='$(CC)' CFLAGS='$(CFLAGS)' CPPFLAGS='$(CPPFLAGS)' LDFLAGS='$(LDFLAGS)' $(PYTHON) $(top_srcdir)/contrib/devtools/test-security-check.py TestSecurityChecks.test_MACHO
+	$(AM_V_at) CC='$(CC)' CFLAGS='$(CFLAGS)' CPPFLAGS='$(CPPFLAGS)' LDFLAGS='$(LDFLAGS)' $(PYTHON) $(top_srcdir)/contrib/devtools/test-symbol-check.py TestSymbolChecks.test_MACHO
 endif
 if TARGET_WINDOWS
-	$(AM_V_at) CC='$(CC)' $(PYTHON) $(top_srcdir)/contrib/devtools/test-security-check.py TestSecurityChecks.test_PE
-	$(AM_V_at) CC='$(CC)' $(PYTHON) $(top_srcdir)/contrib/devtools/test-symbol-check.py TestSymbolChecks.test_PE
+	$(AM_V_at) CC='$(CC)' CFLAGS='$(CFLAGS)' CPPFLAGS='$(CPPFLAGS)' LDFLAGS='$(LDFLAGS)' $(PYTHON) $(top_srcdir)/contrib/devtools/test-security-check.py TestSecurityChecks.test_PE
+	$(AM_V_at) CC='$(CC)' CFLAGS='$(CFLAGS)' CPPFLAGS='$(CPPFLAGS)' LDFLAGS='$(LDFLAGS)' $(PYTHON) $(top_srcdir)/contrib/devtools/test-symbol-check.py TestSymbolChecks.test_PE
 endif
 if TARGET_LINUX
-	$(AM_V_at) CC='$(CC)' $(PYTHON) $(top_srcdir)/contrib/devtools/test-security-check.py TestSecurityChecks.test_ELF
-	$(AM_V_at) CC='$(CC)' CPPFILT='$(CPPFILT)' $(PYTHON) $(top_srcdir)/contrib/devtools/test-symbol-check.py TestSymbolChecks.test_ELF
+	$(AM_V_at) CC='$(CC)' CFLAGS='$(CFLAGS)' CPPFLAGS='$(CPPFLAGS)' LDFLAGS='$(LDFLAGS)' $(PYTHON) $(top_srcdir)/contrib/devtools/test-security-check.py TestSecurityChecks.test_ELF
+	$(AM_V_at) CC='$(CC)' CFLAGS='$(CFLAGS)' CPPFLAGS='$(CPPFLAGS)' LDFLAGS='$(LDFLAGS)' $(PYTHON) $(top_srcdir)/contrib/devtools/test-symbol-check.py TestSymbolChecks.test_ELF
 endif

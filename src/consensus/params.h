@@ -1,15 +1,17 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2009-2022 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_CONSENSUS_PARAMS_H
 #define DIGIBYTE_CONSENSUS_PARAMS_H
 
 #include <uint256.h>
+
+#include <chrono>
 #include <limits>
 #include <map>
+#include <vector>
 
 namespace Consensus {
 
@@ -38,18 +40,18 @@ enum DeploymentPos : uint16_t {
     // NOTE: Also add new deployments to VersionBitsDeploymentInfo in deploymentinfo.cpp
     MAX_VERSION_BITS_DEPLOYMENTS
 };
-constexpr bool ValidDeployment(DeploymentPos dep) { return DEPLOYMENT_TESTDUMMY <= dep && dep <= DEPLOYMENT_TAPROOT; }
+constexpr bool ValidDeployment(DeploymentPos dep) { return dep < MAX_VERSION_BITS_DEPLOYMENTS; }
 
 /**
  * Struct for each individual consensus rule change using BIP9.
  */
 struct BIP9Deployment {
     /** Bit position to select the particular bit in nVersion. */
-    int bit;
+    int bit{28};
     /** Start MedianTime for version bits miner confirmation. Can be a date in the past */
-    int64_t nStartTime;
+    int64_t nStartTime{NEVER_ACTIVE};
     /** Timeout/expiry MedianTime for the deployment attempt. */
-    int64_t nTimeout;
+    int64_t nTimeout{NEVER_ACTIVE};
     /** If lock in occurs, delay activation until at least this block
      *  height.  Note that activation will only occur on a retarget
      *  boundary.
@@ -77,8 +79,13 @@ struct BIP9Deployment {
 struct Params {
     uint256 hashGenesisBlock;
     int nSubsidyHalvingInterval;
-    /* Block hash that is excepted from BIP16 enforcement */
-    uint256 BIP16Exception;
+    /**
+     * Hashes of blocks that
+     * - are known to be consensus valid, and
+     * - buried in the chain, and
+     * - fail if the default script verify flags are applied.
+     */
+    std::map<uint256, uint32_t> script_flag_exceptions;
     /** Block height and hash at which BIP34 becomes active */
     int BIP34Height;
     uint256 BIP34Hash;
@@ -99,7 +106,6 @@ struct Params {
     /**
      * Block height at which Odocrypt got activated */
     int OdoHeight;
-
     /** Don't warn about unknown BIP 9 activations below this height.
      * This prevents us from warning about the CSV and segwit activations. */
     int MinBIP9WarningHeight;
@@ -120,7 +126,13 @@ struct Params {
     bool fRbfEnabled;
     int64_t nPowTargetSpacing;
     int64_t nPowTargetTimespan;
+    std::chrono::seconds PowTargetSpacing() const
+    {
+        return std::chrono::seconds{nPowTargetSpacing};
+    }
     int64_t DifficultyAdjustmentInterval() const { return nPowTargetTimespan / nPowTargetSpacing; }
+    
+    // DigiByte-specific difficulty adjustment parameters
     int64_t nTargetTimespan;
     int64_t nTargetSpacing;
     int64_t nInterval;
@@ -131,36 +143,35 @@ struct Params {
     int64_t patchBlockRewardDuration;
     int64_t patchBlockRewardDuration2;
 
-	int64_t nAveragingInterval;
+    int64_t nAveragingInterval;
     int64_t multiAlgoTargetSpacing;
-	int64_t multiAlgoTargetSpacingV4;
+    int64_t multiAlgoTargetSpacingV4;
     int64_t nAveragingTargetTimespan;
-	int64_t nAveragingTargetTimespanV4;
+    int64_t nAveragingTargetTimespanV4;
 
-	int64_t nMaxAdjustDown;
-	int64_t nMaxAdjustUp;
-	int64_t nMaxAdjustDownV3;
-	int64_t nMaxAdjustUpV3;
-	int64_t nMaxAdjustDownV4;
-	int64_t nMaxAdjustUpV4;
+    int64_t nMaxAdjustDown;
+    int64_t nMaxAdjustUp;
+    int64_t nMaxAdjustDownV3;
+    int64_t nMaxAdjustUpV3;
+    int64_t nMaxAdjustDownV4;
+    int64_t nMaxAdjustUpV4;
 
-	int64_t nMinActualTimespan;
-	int64_t nMaxActualTimespan;
-	int64_t nMinActualTimespanV3;
-	int64_t nMaxActualTimespanV3;
-	int64_t nMinActualTimespanV4;
-	int64_t nMaxActualTimespanV4;
+    int64_t nMinActualTimespan;
+    int64_t nMaxActualTimespan;
+    int64_t nMinActualTimespanV3;
+    int64_t nMaxActualTimespanV3;
+    int64_t nMinActualTimespanV4;
+    int64_t nMaxActualTimespanV4;
 
-	int64_t nLocalTargetAdjustment;
-	int64_t nLocalDifficultyAdjustment;
+    int64_t nLocalTargetAdjustment;
+    int64_t nLocalDifficultyAdjustment;
 
-	int64_t multiAlgoDiffChangeTarget;
-	int64_t alwaysUpdateDiffChangeTarget;
-	int64_t workComputationChangeTarget;
-	int64_t algoSwapChangeTarget;
+    int64_t multiAlgoDiffChangeTarget;
+    int64_t alwaysUpdateDiffChangeTarget;
+    int64_t workComputationChangeTarget;
+    int64_t algoSwapChangeTarget;
 
     uint32_t nOdoShapechangeInterval;
-
     /** The best chain should have at least this much work */
     uint256 nMinimumChainWork;
     /** By default assume that the signatures in ancestors of this block are valid */
@@ -174,7 +185,6 @@ struct Params {
     std::vector<uint8_t> signet_challenge;
 
     bool EnableRBF() const { return fRbfEnabled; }
-
     int DeploymentHeight(BuriedDeployment dep) const
     {
         switch (dep) {

@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg version="1.0" xmlns="http://www.w3.org/2000/svg" width="500" height="320" viewBox="0 0 500 320">
+    <!-- Custom DigiByte Core v8.26 DMG Background -->
+    <defs>
+        <style type="text/css"><![CDATA[
+            .title {
+                font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+                font-size: 32px;
+                font-weight: 300;
+                fill: #333;
+                text-anchor: middle;
+            }
+            .version {
+                font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+                font-size: 14px;
+                fill: #666;
+                text-anchor: middle;
+            }
+            .instruction {
+                font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+                font-size: 24px;
+                fill: #333;
+                text-anchor: middle;
+            }
+            .instruction-small {
+                font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+                font-size: 16px;
+                fill: #333;
+                text-anchor: middle;
+            }
+            .instruction-detail {
+                font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+                font-size: 11px;
+                fill: #666;
+                text-anchor: middle;
+            }
+            .arrow-text {
+                font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+                font-size: 18px;
+                fill: #333;
+            }
+        ]]></style>
+        
+        <!-- Background gradient -->
+        <linearGradient id="bg-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#f8f8f8;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#e8e8e8;stop-opacity:1" />
+        </linearGradient>
+        
+        <!-- Arrow marker -->
+        <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+                refX="10" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#333" />
+        </marker>
+    </defs>
+    
+    <!-- Background -->
+    <rect width="500" height="320" fill="url(#bg-gradient)"/>
+    
+    <!-- Title -->
+    <text x="250" y="40" class="title">DigiByte Core</text>
+    <text x="250" y="60" class="version">v8.26</text>
+    
+    <!-- Instructions -->
+    <text x="250" y="140" class="instruction">1</text>
+    <text x="250" y="165" class="arrow-text">Drag &amp; Drop</text>
+    
+    <!-- Arrow -->
+    <line x1="180" y1="180" x2="320" y2="180" 
+          stroke="#333" stroke-width="3" marker-end="url(#arrowhead)"/>
+    
+    <!-- Step 2 -->
+    <text x="250" y="220" class="instruction">2</text>
+    <text x="250" y="240" class="instruction-small">If prompted</text>
+    <text x="250" y="258" class="instruction-small">press "Replace"</text>
+    
+    <!-- Additional instructions -->
+    <text x="250" y="295" class="instruction-detail">If you receive "Unidentified Developer" warning when launching</text>
+    <text x="250" y="308" class="instruction-detail">Go to macOS Settings → Security &amp; Privacy and click "Open Anyway"</text>
+</svg>

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2019-2021 The DigiByte Core developers
+# Copyright (c) 2019-2022 The DigiByte Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -14,7 +14,6 @@ disconnected.
 """
 
 from decimal import Decimal
-import os
 import shutil
 
 from test_framework.test_framework import DigiByteTestFramework
@@ -23,8 +22,12 @@ from test_framework.util import (
 )
 
 class ReorgsRestoreTest(DigiByteTestFramework):
+    def add_options(self, parser):
+        self.add_wallet_options(parser)
+
     def set_test_params(self):
         self.num_nodes = 3
+        self.extra_args = [["-dandelion=0"]] * 3
 
     def skip_test_if_missing_module(self):
         self.skip_if_no_wallet()
@@ -55,8 +58,8 @@ class ReorgsRestoreTest(DigiByteTestFramework):
         outputs_2 = {}
 
         # Create a conflicted tx broadcast on node0 chain and conflicting tx broadcast on node1 chain. Both spend from txid_conflict_from
-        outputs_1[self.nodes[0].getnewaddress()] = Decimal("9.99899")
-        outputs_2[self.nodes[0].getnewaddress()] = Decimal("9.99899")
+        outputs_1[self.nodes[0].getnewaddress()] = Decimal("9.989")
+        outputs_2[self.nodes[0].getnewaddress()] = Decimal("9.989")
         conflicted = self.nodes[0].signrawtransactionwithwallet(self.nodes[0].createrawtransaction(inputs, outputs_1))
         conflicting = self.nodes[0].signrawtransactionwithwallet(self.nodes[0].createrawtransaction(inputs, outputs_2))
 
@@ -85,17 +88,17 @@ class ReorgsRestoreTest(DigiByteTestFramework):
 
         # Node0 wallet file is loaded on longest sync'ed node1
         self.stop_node(1)
-        self.nodes[0].backupwallet(os.path.join(self.nodes[0].datadir, 'wallet.bak'))
-        shutil.copyfile(os.path.join(self.nodes[0].datadir, 'wallet.bak'), os.path.join(self.nodes[1].datadir, self.chain, self.default_wallet_name, self.wallet_data_filename))
+        self.nodes[0].backupwallet(self.nodes[0].datadir_path / 'wallet.bak')
+        shutil.copyfile(self.nodes[0].datadir_path / 'wallet.bak', self.nodes[1].chain_path / self.default_wallet_name / self.wallet_data_filename)
         self.start_node(1)
         tx_after_reorg = self.nodes[1].gettransaction(txid)
         # Check that normal confirmed tx is confirmed again but with different blockhash
         assert_equal(tx_after_reorg["confirmations"], 2)
-        assert(tx_before_reorg["blockhash"] != tx_after_reorg["blockhash"])
+        assert tx_before_reorg["blockhash"] != tx_after_reorg["blockhash"]
         conflicted_after_reorg = self.nodes[1].gettransaction(conflicted_txid)
         # Check that conflicted tx is confirmed again with blockhash different than previously conflicting tx
         assert_equal(conflicted_after_reorg["confirmations"], 1)
-        assert(conflicting["blockhash"] != conflicted_after_reorg["blockhash"])
+        assert conflicting["blockhash"] != conflicted_after_reorg["blockhash"]
 
 if __name__ == '__main__':
     ReorgsRestoreTest().main()

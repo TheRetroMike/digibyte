@@ -1,12 +1,13 @@
-// Copyright (c) 2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
+#include <chainparams.h>
 #include <primitives/block.h>
 #include <test/fuzz/FuzzedDataProvider.h>
 #include <test/fuzz/fuzz.h>
 #include <test/fuzz/util.h>
 #include <uint256.h>
+#include <util/chaintype.h>
 
 #include <cassert>
 #include <cstdint>
@@ -14,7 +15,12 @@
 #include <string>
 #include <vector>
 
-FUZZ_TARGET(block_header)
+void initialize_block_header()
+{
+    SelectParams(ChainType::REGTEST);
+}
+
+FUZZ_TARGET(block_header, .init = initialize_block_header)
 {
     FuzzedDataProvider fuzzed_data_provider(buffer.data(), buffer.size());
     const std::optional<CBlockHeader> block_header = ConsumeDeserializable<CBlockHeader>(fuzzed_data_provider);
@@ -29,13 +35,12 @@ FUZZ_TARGET(block_header)
         assert(block_header->IsNull() == (block_header->nBits == 0));
     }
     {
-        const Consensus::Params& consensus_params = Params().GetConsensus();
         CBlockHeader mut_block_header = *block_header;
         mut_block_header.SetNull();
         assert(mut_block_header.IsNull());
         CBlock block{*block_header};
         assert(block.GetBlockHeader().GetHash() == block_header->GetHash());
-        (void)block.ToString(consensus_params);
+        (void)block.ToString(Params().GetConsensus());
         block.SetNull();
         assert(block.GetBlockHeader().GetHash() == mut_block_header.GetHash());
     }

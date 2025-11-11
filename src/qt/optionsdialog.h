@@ -1,14 +1,14 @@
 // Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_QT_OPTIONSDIALOG_H
 #define DIGIBYTE_QT_OPTIONSDIALOG_H
 
 #include <QDialog>
 #include <QValidator>
 
+class ClientModel;
 class OptionsModel;
 class QValidatedLineEdit;
 
@@ -46,6 +46,7 @@ public:
         TAB_NETWORK,
     };
 
+    void setClientModel(ClientModel* client_model);
     void setModel(OptionsModel *model);
     void setMapper();
     void setCurrentTab(OptionsDialog::Tab tab);
@@ -69,11 +70,13 @@ private Q_SLOTS:
 
 Q_SIGNALS:
     void proxyIpChecks(QValidatedLineEdit *pUiProxyIp, uint16_t nProxyPort);
+    void quitOnReset();
 
 private:
     Ui::OptionsDialog *ui;
-    OptionsModel *model;
-    QDataWidgetMapper *mapper;
+    ClientModel* m_client_model{nullptr};
+    OptionsModel* model{nullptr};
+    QDataWidgetMapper* mapper{nullptr};
 };
 
 #endif // DIGIBYTE_QT_OPTIONSDIALOG_H

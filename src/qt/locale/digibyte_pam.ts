@@ -1,4 +1,4 @@
-<TS language="pam" version="2.1">
+<TS version="2.1" language="pam">
 <context>
     <name>AddressBookPage</name>
     <message>

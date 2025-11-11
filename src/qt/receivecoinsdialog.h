@@ -1,8 +1,7 @@
-// Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2009-2021 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_QT_RECEIVECOINSDIALOG_H
 #define DIGIBYTE_QT_RECEIVECOINSDIALOG_H
 
@@ -52,7 +51,7 @@ public Q_SLOTS:
 
 private:
     Ui::ReceiveCoinsDialog *ui;
-    WalletModel *model;
+    WalletModel* model{nullptr};
     QMenu *contextMenu;
     QAction* copyLabelAction;
     QAction* copyMessageAction;

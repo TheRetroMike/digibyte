@@ -1,8 +1,7 @@
-// Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2011-2022 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #if defined(HAVE_CONFIG_H)
 #include <config/digibyte-config.h>
 #endif
@@ -14,11 +13,12 @@
 #include <qt/optionsmodel.h>
 
 #include <chainparams.h>
+#include <util/chaintype.h>
+#include <common/args.h>
 #include <interfaces/node.h>
 #include <key_io.h>
-#include <node/ui_interface.h>
+#include <node/interface_ui.h>
 #include <policy/policy.h>
-#include <util/system.h>
 #include <wallet/wallet.h>
 
 #include <cstdlib>
@@ -52,7 +52,7 @@ static QString ipcServerName()
     // Append a simple hash of the datadir
     // Note that gArgs.GetDataDirNet() returns a different path
     // for -testnet versus main net
-    QString ddir(GUIUtil::boostPathToQString(gArgs.GetDataDirNet()));
+    QString ddir(GUIUtil::PathToQString(gArgs.GetDataDirNet()));
     name.append(QString::number(qHash(ddir)));
 
     return name;
@@ -79,8 +79,7 @@ void PaymentServer::ipcParseCommandLine(int argc, char* argv[])
     for (int i = 1; i < argc; i++)
     {
         QString arg(argv[i]);
-        if (arg.startsWith("-"))
-            continue;
+        if (arg.startsWith("-")) continue;
 
         // If the digibyte: URI contains a payment request, we are not able to detect the
         // network as that would require fetching and parsing the payment request.
@@ -94,14 +93,14 @@ void PaymentServer::ipcParseCommandLine(int argc, char* argv[])
             SendCoinsRecipient r;
             if (GUIUtil::parseDigiByteURI(arg, &r) && !r.address.isEmpty())
             {
-                auto tempChainParams = CreateChainParams(gArgs, CBaseChainParams::MAIN);
+                auto tempChainParams = CreateChainParams(gArgs, ChainType::MAIN);
 
                 if (IsValidDestinationString(r.address.toStdString(), *tempChainParams)) {
-                    SelectParams(CBaseChainParams::MAIN);
+                    SelectParams(ChainType::MAIN);
                 } else {
-                    tempChainParams = CreateChainParams(gArgs, CBaseChainParams::TESTNET);
+                    tempChainParams = CreateChainParams(gArgs, ChainType::TESTNET);
                     if (IsValidDestinationString(r.address.toStdString(), *tempChainParams)) {
-                        SelectParams(CBaseChainParams::TESTNET);
+                        SelectParams(ChainType::TESTNET);
                     }
                 }
             }
@@ -148,11 +147,8 @@ bool PaymentServer::ipcSendCommandLine()
     return fResult;
 }
 
-PaymentServer::PaymentServer(QObject* parent, bool startLocalServer) :
-    QObject(parent),
-    saveURIs(true),
-    uriServer(nullptr),
-    optionsModel(nullptr)
+PaymentServer::PaymentServer(QObject* parent, bool startLocalServer)
+    : QObject(parent), saveURIs(true), uriServer(nullptr), optionsModel(nullptr)
 {
     // Install global event filter to catch QFileOpenEvents
     // on Mac: sent when you click digibyte: links
@@ -180,9 +176,7 @@ PaymentServer::PaymentServer(QObject* parent, bool startLocalServer) :
     }
 }
 
-PaymentServer::~PaymentServer()
-{
-}
+PaymentServer::~PaymentServer() = default;
 
 //
 // OSX-specific way of handling digibyte: URIs

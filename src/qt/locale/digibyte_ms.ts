@@ -1,4 +1,4 @@
-<TS language="ms" version="2.1">
+<TS version="2.1" language="ms">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -36,7 +36,7 @@
     </message>
     <message>
         <source>Export the data in the current tab to a file</source>
-        <translation>
+        <translation type="unfinished">
 Alihkan fail data ke dalam tab semasa</translation>
     </message>
     <message>
@@ -422,7 +422,7 @@ Alihkan fail data ke dalam tab semasa</translation>
     </message>
     <message>
         <source>Request payments (generates QR codes and digibyte: URIs)</source>
-        <translation>Request payments (generates QR codes and digibyte: URIs)
+        <translation type="unfinished">Request payments (generates QR codes and digibyte: URIs)
 </translation>
     </message>
     <message>

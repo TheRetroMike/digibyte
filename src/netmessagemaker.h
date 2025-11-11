@@ -1,9 +1,7 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_NETMESSAGEMAKER_H
 #define DIGIBYTE_NETMESSAGEMAKER_H
 
@@ -20,7 +18,7 @@ public:
     {
         CSerializedNetMsg msg;
         msg.m_type = std::move(msg_type);
-        CVectorWriter{ SER_NETWORK, nFlags | nVersion, msg.data, 0, std::forward<Args>(args)... };
+        CVectorWriter{nFlags | nVersion, msg.data, 0, std::forward<Args>(args)...};
         return msg;
     }
 

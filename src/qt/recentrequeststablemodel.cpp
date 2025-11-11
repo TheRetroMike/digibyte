@@ -1,8 +1,7 @@
-// Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2009-2022 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <qt/recentrequeststablemodel.h>
 
 #include <qt/digibyteunits.h>
@@ -35,10 +34,7 @@ RecentRequestsTableModel::RecentRequestsTableModel(WalletModel *parent) :
     connect(walletModel->getOptionsModel(), &OptionsModel::displayUnitChanged, this, &RecentRequestsTableModel::updateDisplayUnit);
 }
 
-RecentRequestsTableModel::~RecentRequestsTableModel()
-{
-    /* Intentionally left empty */
-}
+RecentRequestsTableModel::~RecentRequestsTableModel() = default;
 
 int RecentRequestsTableModel::rowCount(const QModelIndex &parent) const
 {
@@ -179,7 +175,7 @@ void RecentRequestsTableModel::addNewRequest(const SendCoinsRecipient &recipient
     newEntry.date = QDateTime::currentDateTime();
     newEntry.recipient = recipient;
 
-    CDataStream ss(SER_DISK, CLIENT_VERSION);
+    DataStream ss{};
     ss << newEntry;
 
     if (!walletModel->wallet().setAddressReceiveRequest(DecodeDestination(recipient.address.toStdString()), ToString(newEntry.id), ss.str()))
@@ -192,7 +188,7 @@ void RecentRequestsTableModel::addNewRequest(const SendCoinsRecipient &recipient
 void RecentRequestsTableModel::addNewRequest(const std::string &recipient)
 {
     std::vector<uint8_t> data(recipient.begin(), recipient.end());
-    CDataStream ss(data, SER_DISK, CLIENT_VERSION);
+    DataStream ss{data};
 
     RecentRequestEntry entry;
     ss >> entry;
@@ -235,7 +231,7 @@ bool RecentRequestEntryLessThan::operator()(const RecentRequestEntry& left, cons
     switch(column)
     {
     case RecentRequestsTableModel::Date:
-        return pLeft->date.toTime_t() < pRight->date.toTime_t();
+        return pLeft->date.toSecsSinceEpoch() < pRight->date.toSecsSinceEpoch();
     case RecentRequestsTableModel::Label:
         return pLeft->recipient.label < pRight->recipient.label;
     case RecentRequestsTableModel::Message:

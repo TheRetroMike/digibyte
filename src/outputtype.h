@@ -1,17 +1,16 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_OUTPUTTYPE_H
 #define DIGIBYTE_OUTPUTTYPE_H
 
-#include <attributes.h>
+#include <addresstype.h>
 #include <script/signingprovider.h>
-#include <script/standard.h>
 
 #include <array>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -20,6 +19,7 @@ enum class OutputType {
     P2SH_SEGWIT,
     BECH32,
     BECH32M,
+    UNKNOWN,
 };
 
 static constexpr auto OUTPUT_TYPES = std::array{
@@ -29,7 +29,7 @@ static constexpr auto OUTPUT_TYPES = std::array{
     OutputType::BECH32M,
 };
 
-[[nodiscard]] bool ParseOutputType(const std::string& str, OutputType& output_type);
+std::optional<OutputType> ParseOutputType(const std::string& str);
 const std::string& FormatOutputType(OutputType type);
 
 /**

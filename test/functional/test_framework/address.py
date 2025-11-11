@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2016-2021 The DigiByte Core developers
+# Copyright (c) 2016-2022 The DigiByte Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Encode and decode DigiByte addresses.
@@ -20,11 +20,20 @@ from .script import (
     sha256,
     taproot_construct,
 )
-from .segwit_addr import encode_segwit_address
 from .util import assert_equal
+from test_framework.script_util import (
+    keyhash_to_p2pkh_script,
+    program_to_witness_script,
+    scripthash_to_p2sh_script,
+)
+from test_framework.segwit_addr import (
+    decode_segwit_address,
+    encode_segwit_address,
+)
+
 
 ADDRESS_BCRT1_UNSPENDABLE = 'dgbrt1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqn5txr0'
-ADDRESS_BCRT1_UNSPENDABLE_DESCRIPTOR = 'addr(dgbrt1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqn5txr0)#s2wufnt8'
+ADDRESS_BCRT1_UNSPENDABLE_DESCRIPTOR = 'addr(dgbrt1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqn5txr0)#s2wufnt8'  # DigiByte checksum
 # Coins sent to this address can be spent with a witness stack of just OP_TRUE
 ADDRESS_BCRT1_P2WSH_OP_TRUE = 'dgbrt1qft5p2uhsdcdc3l2ua4ap5qqfg4pjaqlp250x7us7a8qqhrxrxfsqjt28qf'
 
@@ -35,10 +44,10 @@ class AddressType(enum.Enum):
     legacy = 'legacy'  # P2PKH
 
 
-chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+b58chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 
 
-def create_deterministic_address_bcrt1_p2tr_op_true():
+def create_deterministic_address_bcrt1_p2tr_op_true():  # DigiByte: Uses dgbrt1 prefix
     """
     Generates a deterministic bech32m address (segwit v1 output) that
     can be spent with a witness stack of OP_TRUE and the control block
@@ -47,25 +56,23 @@ def create_deterministic_address_bcrt1_p2tr_op_true():
     Returns a tuple with the generated address and the internal key.
     """
     internal_key = (1).to_bytes(32, 'big')
-    scriptPubKey = taproot_construct(internal_key, [(None, CScript([OP_TRUE]))]).scriptPubKey
-    address = encode_segwit_address("dgbrt", 1, scriptPubKey[2:])
-    assert_equal(address, 'dgbrt1p9yfmy5h72durp7zrhlw9lf7jpwjgvwdg0jr0lqmmjtgg83266lqsmy2l3q')
+    address = output_key_to_p2tr(taproot_construct(internal_key, [(None, CScript([OP_TRUE]))]).output_pubkey)
+    # DigiByte: Address should now be dgbrt1 directly
+    assert address.startswith('dgbrt1')
     return (address, internal_key)
 
 
 def byte_to_base58(b, version):
     result = ''
-    str = b.hex()
-    str = chr(version).encode('latin-1').hex() + str
-    checksum = hash256(bytes.fromhex(str)).hex()
-    str += checksum[:8]
-    value = int('0x' + str, 0)
+    b = bytes([version]) + b  # prepend version
+    b += hash256(b)[:4]       # append checksum
+    value = int.from_bytes(b, 'big')
     while value > 0:
-        result = chars[value % 58] + result
+        result = b58chars[value % 58] + result
         value //= 58
-    while (str[:2] == '00'):
-        result = chars[0] + result
-        str = str[2:]
+    while b[0] == 0:
+        result = b58chars[0] + result
+        b = b[1:]
     return result
 
 
@@ -78,8 +85,8 @@ def base58_to_byte(s):
     n = 0
     for c in s:
         n *= 58
-        assert c in chars
-        digit = chars.index(c)
+        assert c in b58chars
+        digit = b58chars.index(c)
         n += digit
     h = '%x' % n
     if len(h) % 2:
@@ -87,26 +94,26 @@ def base58_to_byte(s):
     res = n.to_bytes((n.bit_length() + 7) // 8, 'big')
     pad = 0
     for c in s:
-        if c == chars[0]:
+        if c == b58chars[0]:
             pad += 1
         else:
             break
     res = b'\x00' * pad + res
 
-    # Assert if the checksum is invalid
-    assert_equal(hash256(res[:-4])[:4], res[-4:])
+    if hash256(res[:-4])[:4] != res[-4:]:
+        raise ValueError('Invalid Base58Check checksum')
 
     return res[1:-4], int(res[0])
 
 
 def keyhash_to_p2pkh(hash, main=False):
     assert len(hash) == 20
-    version = 30 if main else 126
+    version = 30 if main else 126  # DigiByte mainnet P2PKH is 30, testnet is 126
     return byte_to_base58(hash, version)
 
 def scripthash_to_p2sh(hash, main=False):
     assert len(hash) == 20
-    version = 63 if main else 140
+    version = 63 if main else 140  # DigiByte mainnet P2SH is 63, testnet is 140
     return byte_to_base58(hash, version)
 
 def key_to_p2pkh(key, main=False):
@@ -128,7 +135,7 @@ def program_to_witness(version, program, main=False):
     assert 0 <= version <= 16
     assert 2 <= len(program) <= 40
     assert version > 0 or len(program) in [20, 32]
-    return encode_segwit_address("dgb" if main else "dgbrt", version, program)
+    return encode_segwit_address("dgb" if main else "dgbrt", version, program)  # DigiByte prefixes
 
 def script_to_p2wsh(script, main=False):
     script = check_script(script)
@@ -143,6 +150,10 @@ def script_to_p2sh_p2wsh(script, main=False):
     p2shscript = CScript([OP_0, sha256(script)])
     return script_to_p2sh(p2shscript, main)
 
+def output_key_to_p2tr(key, main=False):
+    assert len(key) == 32
+    return program_to_witness(1, key, main)
+
 def check_key(key):
     if (type(key) is str):
         key = bytes.fromhex(key)  # Assuming this is hex string
@@ -156,6 +167,36 @@ def check_script(script):
     if (type(script) is bytes or type(script) is CScript):
         return script
     assert False
+
+
+def bech32_to_bytes(address):
+    hrp = address.split('1')[0]
+    # DigiByte: Updated to use DigiByte HRPs
+    if hrp not in ['dgb', 'dgbt', 'dgbrt']:
+        return (None, None)
+    version, payload = decode_segwit_address(hrp, address)
+    if version is None:
+        return (None, None)
+    return version, bytearray(payload)
+
+
+def address_to_scriptpubkey(address):
+    """Converts a given address to the corresponding output script (scriptPubKey)."""
+    version, payload = bech32_to_bytes(address)
+    if version is not None:
+        return program_to_witness_script(version, payload) # testnet segwit scriptpubkey
+    payload, version = base58_to_byte(address)
+    if version == 111:  # bitcoin testnet pubkey hash
+        return keyhash_to_p2pkh_script(payload)
+    elif version == 196:  # bitcoin testnet script hash
+        return scripthash_to_p2sh_script(payload)
+    elif version == 126:  # digibyte testnet/regtest pubkey hash  
+        return keyhash_to_p2pkh_script(payload)
+    elif version == 140:  # digibyte testnet/regtest script hash
+        return scripthash_to_p2sh_script(payload)
+    # TODO: also support other address formats
+    else:
+        assert False
 
 
 class TestFrameworkScript(unittest.TestCase):
@@ -175,3 +216,18 @@ class TestFrameworkScript(unittest.TestCase):
         check_base58(bytes.fromhex('0041c1eaf111802559bad61b60d62b1f897c63928a'), 0)
         check_base58(bytes.fromhex('000041c1eaf111802559bad61b60d62b1f897c63928a'), 0)
         check_base58(bytes.fromhex('00000041c1eaf111802559bad61b60d62b1f897c63928a'), 0)
+
+
+    def test_bech32_decode(self):
+        def check_bech32_decode(payload, version):
+            hrp = "dgbt"  # DigiByte testnet
+            self.assertEqual(bech32_to_bytes(encode_segwit_address(hrp, version, payload)), (version, payload))
+
+        check_bech32_decode(bytes.fromhex('36e3e2a33f328de12e4b43c515a75fba2632ecc3'), 0)
+        check_bech32_decode(bytes.fromhex('823e9790fc1d1782321140d4f4aa61aabd5e045b'), 0)
+        check_bech32_decode(bytes.fromhex('79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'), 1)
+        check_bech32_decode(bytes.fromhex('39cf8ebd95134f431c39db0220770bd127f5dd3cc103c988b7dcd577ae34e354'), 1)
+        check_bech32_decode(bytes.fromhex('708244006d27c757f6f1fc6f853b6ec26268b727866f7ce632886e34eb5839a3'), 1)
+        check_bech32_decode(bytes.fromhex('616211ab00dffe0adcb6ce258d6d3fd8cbd901e2'), 0)
+        check_bech32_decode(bytes.fromhex('b6a7c98b482d7fb21c9fa8e65692a0890410ff22'), 0)
+        check_bech32_decode(bytes.fromhex('f0c2109cb1008cfa7b5a09cc56f7267cd8e50929'), 0)

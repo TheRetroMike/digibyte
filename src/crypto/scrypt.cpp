@@ -1,13 +1,14 @@
+/* Copyright 2009 Colin Percival, 2011 ArtForz, 2012-2013 pooler
+ * 1. Redistributions of source code must retain the above copyright
+ * 2. Redistributions in binary form must reproduce the above copyright
+ */
 /*
- * Copyright 2009 Colin Percival, 2011 ArtForz, 2012-2013 pooler
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
- * 1. Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
  *
@@ -43,7 +44,9 @@
 #endif
 #endif
 
-static inline void be32enc(void *pp, uint32_t x)
+// Scrypt-specific endian function to avoid conflicts with system headers
+// This works with potentially unaligned pointers and is portable across all platforms
+static inline void scrypt_be32enc(void *pp, uint32_t x)
 {
 	uint8_t *p = (uint8_t *)pp;
 	p[3] = x & 0xff;
@@ -77,7 +80,7 @@ PBKDF2_SHA256(const uint8_t *passwd, size_t passwdlen, const uint8_t *salt,
 	/* Iterate through the blocks. */
 	for (i = 0; i * 32 < dkLen; i++) {
 		/* Generate INT(i + 1). */
-		be32enc(ivec, (uint32_t)(i + 1));
+		scrypt_be32enc(ivec, (uint32_t)(i + 1));
 
 		/* Compute U_1 = PRF(P, S || INT(i)). */
 		memcpy(&hctx, &PShctx, sizeof(CHMAC_SHA256));
@@ -189,7 +192,7 @@ void scrypt_1024_1_1_256_sp_generic(const char *input, char *output, char *scrat
 	PBKDF2_SHA256((const uint8_t *)input, 80, (const uint8_t *)input, 80, 1, B, 128);
 
 	for (k = 0; k < 32; k++)
-		X[k] = le32dec(&B[4 * k]);
+		X[k] = scrypt_le32dec(&B[4 * k]);
 
 	for (i = 0; i < 1024; i++) {
 		memcpy(&V[i * 32], X, 128);
@@ -205,7 +208,7 @@ void scrypt_1024_1_1_256_sp_generic(const char *input, char *output, char *scrat
 	}
 
 	for (k = 0; k < 32; k++)
-		le32enc(&B[4 * k], X[k]);
+		scrypt_le32enc(&B[4 * k], X[k]);
 
 	PBKDF2_SHA256((const uint8_t *)input, 80, B, 128, 1, (uint8_t *)output, 32);
 }

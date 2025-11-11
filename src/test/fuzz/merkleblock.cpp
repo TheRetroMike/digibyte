@@ -1,7 +1,6 @@
-// Copyright (c) 2020-2021 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <merkleblock.h>
 #include <test/fuzz/FuzzedDataProvider.h>
 #include <test/fuzz/fuzz.h>
@@ -34,7 +33,7 @@ FUZZ_TARGET(merkleblock)
                 if (fuzzed_data_provider.ConsumeBool()) {
                     merkle_block = CMerkleBlock{*opt_block, bloom_filter};
                 } else if (fuzzed_data_provider.ConsumeBool()) {
-                    while (fuzzed_data_provider.ConsumeBool()) {
+                    LIMITED_WHILE(fuzzed_data_provider.ConsumeBool(), 10000) {
                         txids.insert(ConsumeUInt256(fuzzed_data_provider));
                     }
                     merkle_block = CMerkleBlock{*opt_block, txids};

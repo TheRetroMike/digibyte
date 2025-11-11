@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-# Copyright (c) 2016-2021 The DigiByte Core developers
+# Copyright (c) 2016-2022 The DigiByte Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Test Hierarchical Deterministic wallet function."""
 
-import os
 import shutil
 
-from test_framework.blocktools import COINBASE_MATURITY_2
+from test_framework.blocktools import COINBASE_MATURITY, COINBASE_MATURITY_2
 from test_framework.test_framework import DigiByteTestFramework
 from test_framework.util import (
     assert_equal,
@@ -16,10 +15,18 @@ from test_framework.util import (
 
 
 class WalletHDTest(DigiByteTestFramework):
+    def add_options(self, parser):
+        self.add_wallet_options(parser)
+
     def set_test_params(self):
         self.setup_clean_chain = True
         self.num_nodes = 2
         self.extra_args = [[], ['-keypool=0']]
+        # whitelist peers to speed up tx relay / mempool sync
+        for args in self.extra_args:
+            args.append("-whitelist=noban@127.0.0.1")
+            args.append("-dandelion=0")
+
         self.supports_cli = False
 
     def skip_test_if_missing_module(self):
@@ -34,7 +41,7 @@ class WalletHDTest(DigiByteTestFramework):
         change_addr = self.nodes[1].getrawchangeaddress()
         change_addrV = self.nodes[1].getaddressinfo(change_addr)
         if self.options.descriptors:
-            assert_equal(change_addrV["hdkeypath"], "m/84'/1'/0'/1/0")
+            assert_equal(change_addrV["hdkeypath"], "m/84h/1h/0h/1/0")
         else:
             assert_equal(change_addrV["hdkeypath"], "m/0'/1'/0'")  #first internal child key
 
@@ -44,8 +51,8 @@ class WalletHDTest(DigiByteTestFramework):
         self.nodes[1].importprivkey(non_hd_key)
 
         # This should be enough to keep the master key and the non-HD key
-        self.nodes[1].backupwallet(os.path.join(self.nodes[1].datadir, "hd.bak"))
-        #self.nodes[1].dumpwallet(os.path.join(self.nodes[1].datadir, "hd.dump"))
+        self.nodes[1].backupwallet(self.nodes[1].datadir_path / "hd.bak")
+        #self.nodes[1].dumpwallet(self.nodes[1].datadir_path / "hd.dump")
 
         # Derive some HD addresses and remember the last
         # Also send funds to each add
@@ -56,7 +63,7 @@ class WalletHDTest(DigiByteTestFramework):
             hd_add = self.nodes[1].getnewaddress()
             hd_info = self.nodes[1].getaddressinfo(hd_add)
             if self.options.descriptors:
-                assert_equal(hd_info["hdkeypath"], "m/84'/1'/0'/0/" + str(i))
+                assert_equal(hd_info["hdkeypath"], "m/84h/1h/0h/0/" + str(i))
             else:
                 assert_equal(hd_info["hdkeypath"], "m/0'/0'/" + str(i) + "'")
             assert_equal(hd_info["hdmasterfingerprint"], hd_fingerprint)
@@ -69,7 +76,7 @@ class WalletHDTest(DigiByteTestFramework):
         change_addr = self.nodes[1].getrawchangeaddress()
         change_addrV = self.nodes[1].getaddressinfo(change_addr)
         if self.options.descriptors:
-            assert_equal(change_addrV["hdkeypath"], "m/84'/1'/0'/1/1")
+            assert_equal(change_addrV["hdkeypath"], "m/84h/1h/0h/1/1")
         else:
             assert_equal(change_addrV["hdkeypath"], "m/0'/1'/1'")  #second internal child key
 
@@ -80,11 +87,11 @@ class WalletHDTest(DigiByteTestFramework):
         self.stop_node(1)
         # we need to delete the complete chain directory
         # otherwise node1 would auto-recover all funds in flag the keypool keys as used
-        shutil.rmtree(os.path.join(self.nodes[1].datadir, self.chain, "blocks"))
-        shutil.rmtree(os.path.join(self.nodes[1].datadir, self.chain, "chainstate"))
+        shutil.rmtree(self.nodes[1].blocks_path)
+        shutil.rmtree(self.nodes[1].chain_path / "chainstate")
         shutil.copyfile(
-            os.path.join(self.nodes[1].datadir, "hd.bak"),
-            os.path.join(self.nodes[1].datadir, self.chain, 'wallets', self.default_wallet_name, self.wallet_data_filename),
+            self.nodes[1].datadir_path / "hd.bak",
+            self.nodes[1].wallets_path / self.default_wallet_name / self.wallet_data_filename
         )
         self.start_node(1)
 
@@ -94,7 +101,7 @@ class WalletHDTest(DigiByteTestFramework):
             hd_add_2 = self.nodes[1].getnewaddress()
             hd_info_2 = self.nodes[1].getaddressinfo(hd_add_2)
             if self.options.descriptors:
-                assert_equal(hd_info_2["hdkeypath"], "m/84'/1'/0'/0/" + str(i))
+                assert_equal(hd_info_2["hdkeypath"], "m/84h/1h/0h/0/" + str(i))
             else:
                 assert_equal(hd_info_2["hdkeypath"], "m/0'/0'/" + str(i) + "'")
             assert_equal(hd_info_2["hdmasterfingerprint"], hd_fingerprint)
@@ -108,11 +115,11 @@ class WalletHDTest(DigiByteTestFramework):
 
         # Try a RPC based rescan
         self.stop_node(1)
-        shutil.rmtree(os.path.join(self.nodes[1].datadir, self.chain, "blocks"))
-        shutil.rmtree(os.path.join(self.nodes[1].datadir, self.chain, "chainstate"))
+        shutil.rmtree(self.nodes[1].blocks_path)
+        shutil.rmtree(self.nodes[1].chain_path / "chainstate")
         shutil.copyfile(
-            os.path.join(self.nodes[1].datadir, "hd.bak"),
-            os.path.join(self.nodes[1].datadir, self.chain, "wallets", self.default_wallet_name, self.wallet_data_filename),
+            self.nodes[1].datadir_path / "hd.bak",
+            self.nodes[1].wallets_path / self.default_wallet_name / self.wallet_data_filename
         )
         self.start_node(1, extra_args=self.extra_args[1])
         self.connect_nodes(0, 1)
@@ -136,7 +143,7 @@ class WalletHDTest(DigiByteTestFramework):
                 keypath = self.nodes[1].getaddressinfo(out['scriptPubKey']['address'])['hdkeypath']
 
         if self.options.descriptors:
-            assert_equal(keypath[0:14], "m/84'/1'/0'/1/")
+            assert_equal(keypath[0:14], "m/84h/1h/0h/1/")
         else:
             assert_equal(keypath[0:7], "m/0'/1'")
 
@@ -173,8 +180,8 @@ class WalletHDTest(DigiByteTestFramework):
             # Sethdseed parameter validity
             assert_raises_rpc_error(-1, 'sethdseed', self.nodes[0].sethdseed, False, new_seed, 0)
             assert_raises_rpc_error(-5, "Invalid private key", self.nodes[1].sethdseed, False, "not_wif")
-            assert_raises_rpc_error(-1, "JSON value is not a boolean as expected", self.nodes[1].sethdseed, "Not_bool")
-            assert_raises_rpc_error(-1, "JSON value is not a string as expected", self.nodes[1].sethdseed, False, True)
+            assert_raises_rpc_error(-3, "JSON value of type string is not of expected type bool", self.nodes[1].sethdseed, "Not_bool")
+            assert_raises_rpc_error(-3, "JSON value of type bool is not of expected type string", self.nodes[1].sethdseed, False, True)
             assert_raises_rpc_error(-5, "Already have this key", self.nodes[1].sethdseed, False, new_seed)
             assert_raises_rpc_error(-5, "Already have this key", self.nodes[1].sethdseed, False, self.nodes[1].dumpprivkey(self.nodes[1].getnewaddress()))
 

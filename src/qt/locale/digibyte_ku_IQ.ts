@@ -1,4 +1,4 @@
-<TS language="ku_IQ" version="2.1">
+<TS version="2.1" language="ku_IQ">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -196,6 +196,10 @@
     </context>
 <context>
     <name>QRImageWidget</name>
+    <message>
+        <source>Resulting URI too long, try to reduce the text for label / message.</source>
+        <translation type="unfinished">ئەنجامی URL زۆر درێژە، هەوڵ بدە دەقەکە کەم بکەیتەوە بۆ پێناسە / نامە.</translation>
+    </message>
     </context>
 <context>
     <name>RPCConsole</name>

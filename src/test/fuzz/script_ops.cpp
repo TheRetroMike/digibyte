@@ -1,7 +1,6 @@
-// Copyright (c) 2020-2021 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <script/script.h>
 #include <test/fuzz/FuzzedDataProvider.h>
 #include <test/fuzz/fuzz.h>
@@ -15,7 +14,7 @@ FUZZ_TARGET(script_ops)
 {
     FuzzedDataProvider fuzzed_data_provider(buffer.data(), buffer.size());
     CScript script_mut = ConsumeScript(fuzzed_data_provider);
-    while (fuzzed_data_provider.remaining_bytes() > 0) {
+    LIMITED_WHILE(fuzzed_data_provider.remaining_bytes() > 0, 1000000) {
         CallOneOf(
             fuzzed_data_provider,
             [&] {

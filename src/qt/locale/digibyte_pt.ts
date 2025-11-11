@@ -1,4 +1,4 @@
-<TS language="pt" version="2.1">
+<TS version="2.1" language="pt">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -3358,8 +3358,8 @@ Nota: como a taxa é calculada por byte, uma taxa de "100 satoshis por kB" por u
         <source>No wallet has been loaded.
 Go to File &gt; Open Wallet to load a wallet.
 - OR -</source>
-        <translation>Nenhuma carteira foi carregada
-Ir para o arquivo &gt; Abrir carteira para carregar a carteira
+        <translation type="unfinished">Nenhuma carteira foi carregada.
+Vá ao menu Ficheiro &gt; Abrir carteira para carregar uma carteira
 - OU -</translation>
     </message>
     <message>

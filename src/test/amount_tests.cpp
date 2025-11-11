@@ -1,9 +1,8 @@
-// Copyright (c) 2016-2020 The Bitcoin Core developers
-// Copyright (c) 2016-2020 The DigiByte Core developers
+// Copyright (c) 2016-2021 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
-#include <amount.h>
+#include <consensus/amount.h>
 #include <policy/feerate.h>
 
 #include <limits>
@@ -49,7 +48,7 @@ BOOST_AUTO_TEST_CASE(GetFeeTest)
     BOOST_CHECK_EQUAL(feeRate.GetFee(9e3), CAmount(-9e3));
 
     feeRate = CFeeRate(123);
-    // Truncates the result, if not integer
+    // Rounds up the result, if not integer
     BOOST_CHECK_EQUAL(feeRate.GetFee(0), CAmount(0));
     BOOST_CHECK_EQUAL(feeRate.GetFee(8), CAmount(1)); // Special case: returns 1 instead of 0
     BOOST_CHECK_EQUAL(feeRate.GetFee(9), CAmount(2));

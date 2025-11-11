@@ -1,4 +1,4 @@
-<TS language="de" version="2.1">
+<TS version="2.1" language="de">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -72,7 +72,7 @@
     <message>
         <source>These are your DigiByte addresses for receiving payments. Use the 'Create new receiving address' button in the receive tab to create new addresses.
 Signing is only possible with addresses of the type 'legacy'.</source>
-        <translation>Dies sind Ihre DigiByte-Adressen für den Empfang von Zahlungen. Verwenden Sie die 'Neue Empfangsadresse erstellen' Taste auf der Registerkarte "Empfangen", um neue Adressen zu erstellen.
+        <translation type="unfinished">Dies sind Ihre DigiByte-Adressen für den Empfang von Zahlungen. Verwenden Sie die 'Neue Empfangsadresse erstellen' Taste auf der Registerkarte "Empfangen", um neue Adressen zu erstellen.
 Das Signieren ist nur mit Adressen vom Typ 'Legacy' möglich.</translation>
     </message>
     <message>
@@ -3394,8 +3394,8 @@ Hinweis: Eine Gebühr von "100 Satoshis pro kB" bei einer Größe der Transaktio
         <source>No wallet has been loaded.
 Go to File &gt; Open Wallet to load a wallet.
 - OR -</source>
-        <translation>Es wurde keine Brieftasche geladen.
-Gehen Sie zu Datei &gt; Öffnen Sie die Brieftasche, um eine Brieftasche zu laden.
+        <translation type="unfinished">Es wurde keine Wallet geladen.
+Gehen Sie zu Datei &gt; Wallet Öffnen, um eine Wallet zu laden.
 - ODER-</translation>
     </message>
     <message>

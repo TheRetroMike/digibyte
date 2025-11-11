@@ -1,20 +1,16 @@
-// Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <scheduler.h>
 
-#include <random.h>
+#include <sync.h>
 #include <util/time.h>
 
-#include <assert.h>
+#include <cassert>
 #include <functional>
 #include <utility>
 
-CScheduler::CScheduler()
-{
-}
+CScheduler::CScheduler() = default;
 
 CScheduler::~CScheduler()
 {
@@ -42,7 +38,7 @@ void CScheduler::serviceQueue()
             // the time of the first item on the queue:
 
             while (!shouldStop() && !taskQueue.empty()) {
-                std::chrono::system_clock::time_point timeToWaitFor = taskQueue.begin()->first;
+                std::chrono::steady_clock::time_point timeToWaitFor = taskQueue.begin()->first;
                 if (newTaskScheduled.wait_until(lock, timeToWaitFor) == std::cv_status::timeout) {
                     break; // Exit loop after timeout, it means we reached the time of the event
                 }
@@ -71,7 +67,7 @@ void CScheduler::serviceQueue()
     newTaskScheduled.notify_one();
 }
 
-void CScheduler::schedule(CScheduler::Function f, std::chrono::system_clock::time_point t)
+void CScheduler::schedule(CScheduler::Function f, std::chrono::steady_clock::time_point t)
 {
     {
         LOCK(newTaskMutex);
@@ -88,7 +84,7 @@ void CScheduler::MockForward(std::chrono::seconds delta_seconds)
         LOCK(newTaskMutex);
 
         // use temp_queue to maintain updated schedule
-        std::multimap<std::chrono::system_clock::time_point, Function> temp_queue;
+        std::multimap<std::chrono::steady_clock::time_point, Function> temp_queue;
 
         for (const auto& element : taskQueue) {
             temp_queue.emplace_hint(temp_queue.cend(), element.first - delta_seconds, element.second);
@@ -110,11 +106,11 @@ static void Repeat(CScheduler& s, CScheduler::Function f, std::chrono::milliseco
 
 void CScheduler::scheduleEvery(CScheduler::Function f, std::chrono::milliseconds delta)
 {
-    scheduleFromNow([=] { Repeat(*this, f, delta); }, delta);
+    scheduleFromNow([this, f, delta] { Repeat(*this, f, delta); }, delta);
 }
 
-size_t CScheduler::getQueueInfo(std::chrono::system_clock::time_point& first,
-                                std::chrono::system_clock::time_point& last) const
+size_t CScheduler::getQueueInfo(std::chrono::steady_clock::time_point& first,
+                                std::chrono::steady_clock::time_point& last) const
 {
     LOCK(newTaskMutex);
     size_t result = taskQueue.size();
@@ -135,21 +131,21 @@ bool CScheduler::AreThreadsServicingQueue() const
 void SingleThreadedSchedulerClient::MaybeScheduleProcessQueue()
 {
     {
-        LOCK(m_cs_callbacks_pending);
+        LOCK(m_callbacks_mutex);
         // Try to avoid scheduling too many copies here, but if we
         // accidentally have two ProcessQueue's scheduled at once its
         // not a big deal.
         if (m_are_callbacks_running) return;
         if (m_callbacks_pending.empty()) return;
     }
-    m_pscheduler->schedule(std::bind(&SingleThreadedSchedulerClient::ProcessQueue, this), std::chrono::system_clock::now());
+    m_scheduler.schedule([this] { this->ProcessQueue(); }, std::chrono::steady_clock::now());
 }
 
 void SingleThreadedSchedulerClient::ProcessQueue()
 {
     std::function<void()> callback;
     {
-        LOCK(m_cs_callbacks_pending);
+        LOCK(m_callbacks_mutex);
         if (m_are_callbacks_running) return;
         if (m_callbacks_pending.empty()) return;
         m_are_callbacks_running = true;
@@ -166,7 +162,7 @@ void SingleThreadedSchedulerClient::ProcessQueue()
         ~RAIICallbacksRunning()
         {
             {
-                LOCK(instance->m_cs_callbacks_pending);
+                LOCK(instance->m_callbacks_mutex);
                 instance->m_are_callbacks_running = false;
             }
             instance->MaybeScheduleProcessQueue();
@@ -178,10 +174,8 @@ void SingleThreadedSchedulerClient::ProcessQueue()
 
 void SingleThreadedSchedulerClient::AddToProcessQueue(std::function<void()> func)
 {
-    assert(m_pscheduler);
-
     {
-        LOCK(m_cs_callbacks_pending);
+        LOCK(m_callbacks_mutex);
         m_callbacks_pending.emplace_back(std::move(func));
     }
     MaybeScheduleProcessQueue();
@@ -189,17 +183,17 @@ void SingleThreadedSchedulerClient::AddToProcessQueue(std::function<void()> func
 
 void SingleThreadedSchedulerClient::EmptyQueue()
 {
-    assert(!m_pscheduler->AreThreadsServicingQueue());
+    assert(!m_scheduler.AreThreadsServicingQueue());
     bool should_continue = true;
     while (should_continue) {
         ProcessQueue();
-        LOCK(m_cs_callbacks_pending);
+        LOCK(m_callbacks_mutex);
         should_continue = !m_callbacks_pending.empty();
     }
 }
 
 size_t SingleThreadedSchedulerClient::CallbacksPending()
 {
-    LOCK(m_cs_callbacks_pending);
+    LOCK(m_callbacks_mutex);
     return m_callbacks_pending.size();
 }

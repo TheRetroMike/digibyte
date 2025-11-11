@@ -1,4 +1,4 @@
-<TS language="hi" version="2.1">
+<TS version="2.1" language="hi">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -767,6 +767,10 @@
     </context>
 <context>
     <name>WalletFrame</name>
+    <message>
+        <source>Create a new wallet</source>
+        <translation type="unfinished">एक नया वॉलेट बनाएं |</translation>
+    </message>
     </context>
 <context>
     <name>WalletModel</name>

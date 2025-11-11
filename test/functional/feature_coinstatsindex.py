@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2020 The Bitcoin Core developers
+# Copyright (c) 2020-2022 The DigiByte Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Test coinstatsindex across nodes.
@@ -13,15 +13,11 @@ from decimal import Decimal
 
 from test_framework.blocktools import (
     COINBASE_MATURITY,
-    COINBASE_MATURITY_2,
     create_block,
     create_coinbase,
 )
 from test_framework.messages import (
     COIN,
-    COutPoint,
-    CTransaction,
-    CTxIn,
     CTxOut,
 )
 from test_framework.script import (
@@ -33,8 +29,12 @@ from test_framework.test_framework import DigiByteTestFramework
 from test_framework.util import (
     assert_equal,
     assert_raises_rpc_error,
-    try_rpc,
 )
+from test_framework.wallet import (
+    MiniWallet,
+    getnewdestination,
+)
+
 
 class CoinStatsIndexTest(DigiByteTestFramework):
     def set_test_params(self):
@@ -42,18 +42,17 @@ class CoinStatsIndexTest(DigiByteTestFramework):
         self.num_nodes = 2
         self.supports_cli = False
         self.extra_args = [
-            [],
-            ["-coinstatsindex"]
+            ["-dandelion=0", "-minrelaytxfee=0.00000001"],
+            ["-coinstatsindex", "-dandelion=0", "-minrelaytxfee=0.00000001"]
         ]
 
-    def skip_test_if_missing_module(self):
-        self.skip_if_no_wallet()
-
     def run_test(self):
+        self.wallet = MiniWallet(self.nodes[0])
         self._test_coin_stats_index()
         self._test_use_index_option()
         self._test_reorg_index()
         self._test_index_rejects_hash_serialized()
+        self._test_init_index_after_reorg()
 
     def block_sanity_check(self, block_info):
         block_subsidy = 72000
@@ -62,6 +61,9 @@ class CoinStatsIndexTest(DigiByteTestFramework):
             block_info['new_outputs_ex_coinbase'] + block_info['coinbase'] + block_info['unspendable']
         )
 
+    def sync_index_node(self):
+        self.wait_until(lambda: self.nodes[1].getindexinfo()['coinstatsindex']['synced'] is True)
+
     def _test_coin_stats_index(self):
         node = self.nodes[0]
         index_node = self.nodes[1]
@@ -69,21 +71,16 @@ class CoinStatsIndexTest(DigiByteTestFramework):
         index_hash_options = ['none', 'muhash']
 
         # Generate a normal transaction and mine it
-        self.generate(node, COINBASE_MATURITY_2 + 1)
-        address = self.nodes[0].get_deterministic_priv_key().address
-        node.sendtoaddress(address=address, amount=10, subtractfeefromamount=True)
+        self.generate(self.wallet, COINBASE_MATURITY + 1)
+        self.wallet.send_self_transfer(from_node=node)
         self.generate(node, 1)
 
-        self.sync_blocks(timeout=120)
-
         self.log.info("Test that gettxoutsetinfo() output is consistent with or without coinstatsindex option")
-        self.wait_until(lambda: not try_rpc(-32603, "Unable to read UTXO set", node.gettxoutsetinfo))
         res0 = node.gettxoutsetinfo('none')
 
         # The fields 'disk_size' and 'transactions' do not exist on the index
         del res0['disk_size'], res0['transactions']
 
-        self.wait_until(lambda: not try_rpc(-32603, "Unable to read UTXO set", index_node.gettxoutsetinfo, 'muhash'))
         for hash_option in index_hash_options:
             res1 = index_node.gettxoutsetinfo(hash_option)
             # The fields 'block_info' and 'total_unspendable_amount' only exist on the index
@@ -98,10 +95,9 @@ class CoinStatsIndexTest(DigiByteTestFramework):
         # Generate a new tip
         self.generate(node, 5)
 
-        self.wait_until(lambda: not try_rpc(-32603, "Unable to read UTXO set", index_node.gettxoutsetinfo, 'muhash'))
         for hash_option in index_hash_options:
             # Fetch old stats by height
-            res2 = index_node.gettxoutsetinfo(hash_option, 102)
+            res2 = index_node.gettxoutsetinfo(hash_option, 10)
             del res2['block_info'], res2['total_unspendable_amount']
             res2.pop('muhash', None)
             assert_equal(res0, res2)
@@ -113,7 +109,7 @@ class CoinStatsIndexTest(DigiByteTestFramework):
             assert_equal(res0, res3)
 
             # It does not work without coinstatsindex
-            assert_raises_rpc_error(-8, "Querying specific block heights requires coinstatsindex", node.gettxoutsetinfo, hash_option, 102)
+            assert_raises_rpc_error(-8, "Querying specific block heights requires coinstatsindex", node.gettxoutsetinfo, hash_option, 10)
 
         self.log.info("Test gettxoutsetinfo() with index and verbose flag")
 
@@ -136,70 +132,63 @@ class CoinStatsIndexTest(DigiByteTestFramework):
             self.block_sanity_check(res4['block_info'])
 
             # Test an older block height that included a normal tx
-            res5 = index_node.gettxoutsetinfo(hash_option, 102)
+            res5 = index_node.gettxoutsetinfo(hash_option, 10)
             assert_equal(res5['total_unspendable_amount'], 72000)
             assert_equal(res5['block_info'], {
-                'unspendable': 0,
-                'prevout_spent': 72000,
-                'new_outputs_ex_coinbase': Decimal('71999.977800'),
-                'coinbase': Decimal('72000.022200'),
+                'unspendable': Decimal('0E-8'),
+                'prevout_spent': Decimal('72000.00000000'),
+                'new_outputs_ex_coinbase': Decimal('71999.99688000'),  # DigiByte: Corrected fees
+                'coinbase': Decimal('72000.00312000'),  # DigiByte: Corrected fees
                 'unspendables': {
-                    'genesis_block': 0,
-                    'bip30': 0,
-                    'scripts': 0,
-                    'unclaimed_rewards': 0
+                    'genesis_block': Decimal('0E-8'),
+                    'bip30': Decimal('0E-8'),
+                    'scripts': Decimal('0E-8'),
+                    'unclaimed_rewards': Decimal('0E-8'),
                 }
             })
             self.block_sanity_check(res5['block_info'])
 
         # Generate and send a normal tx with two outputs
-        tx1_inputs = []
-        tx1_outputs = {self.nodes[0].getnewaddress(): 21, self.nodes[0].getnewaddress(): 42}
-        raw_tx1 = self.nodes[0].createrawtransaction(tx1_inputs, tx1_outputs)
-        funded_tx1 = self.nodes[0].fundrawtransaction(raw_tx1)
-        signed_tx1 = self.nodes[0].signrawtransactionwithwallet(funded_tx1['hex'])
-        tx1_txid = self.nodes[0].sendrawtransaction(signed_tx1['hex'])
+        tx1 = self.wallet.send_to(
+            from_node=node,
+            scriptPubKey=self.wallet.get_scriptPubKey(),
+            amount=21 * COIN,
+        )
 
-        # Find the right position of the 21 BTC output
-        tx1_final = self.nodes[0].gettransaction(tx1_txid)
-        for output in tx1_final['details']:
-            if output['amount'] == Decimal('21.00000000') and output['category'] == 'receive':
-                n = output['vout']
+        # Find the right position of the 21 DGB output
+        tx1_out_21 = self.wallet.get_utxo(txid=tx1["txid"], vout=tx1["sent_vout"])
 
         # Generate and send another tx with an OP_RETURN output (which is unspendable)
-        tx2 = CTransaction()
-        tx2.vin.append(CTxIn(COutPoint(int(tx1_txid, 16), n), b''))
-        tx2.vout.append(CTxOut(int(20.99 * COIN), CScript([OP_RETURN] + [OP_FALSE]*30)))
-        tx2_hex = self.nodes[0].signrawtransactionwithwallet(tx2.serialize().hex())['hex']
-        self.nodes[0].sendrawtransaction(tx2_hex)
+        tx2 = self.wallet.create_self_transfer(utxo_to_spend=tx1_out_21)['tx']
+        tx2_val = '20.99'
+        tx2.vout = [CTxOut(int(Decimal(tx2_val) * COIN), CScript([OP_RETURN] + [OP_FALSE] * 30))]
+        tx2_hex = tx2.serialize().hex()
+        self.nodes[0].sendrawtransaction(tx2_hex, 0, tx2_val)
 
         # Include both txs in a block
         self.generate(self.nodes[0], 1)
-        self.sync_all()
 
-        self.wait_until(lambda: not try_rpc(-32603, "Unable to read UTXO set", index_node.gettxoutsetinfo, 'muhash'))
         for hash_option in index_hash_options:
             # Check all amounts were registered correctly
-            res6 = index_node.gettxoutsetinfo(hash_option, 108)
-            assert_equal(res6['total_unspendable_amount'], Decimal('72020.98999999'))
+            res6 = index_node.gettxoutsetinfo(hash_option, 16)
+            assert_equal(res6['total_unspendable_amount'], Decimal('72020.99000000'))
             assert_equal(res6['block_info'], {
-                'unspendable': Decimal('20.98999999'),
-                'prevout_spent': Decimal('72011.00000000'),
-                'new_outputs_ex_coinbase': Decimal('71989.98280000'),  # Updated value
-                'coinbase': Decimal('72000.02720001'),  # Updated value
+                'unspendable': Decimal('20.99000000'),
+                'prevout_spent': Decimal('72021.00000000'),  # DigiByte: Decimal format consistency
+                'new_outputs_ex_coinbase': Decimal('71999.99900000'),  # DigiByte: Adjusted for actual fees
+                'coinbase': Decimal('72000.01100000'),  # DigiByte: Adjusted for actual fees
                 'unspendables': {
-                    'genesis_block': 0,
-                    'bip30': 0,
-                    'scripts': Decimal('20.98999999'),
-                    'unclaimed_rewards': 0
+                    'genesis_block': Decimal('0E-8'),  # DigiByte: Decimal format consistency
+                    'bip30': Decimal('0E-8'),  # DigiByte: Decimal format consistency
+                    'scripts': Decimal('20.99000000'),
+                    'unclaimed_rewards': Decimal('0E-8'),  # DigiByte: Decimal format consistency
                 }
             })
-
             self.block_sanity_check(res6['block_info'])
 
         # Create a coinbase that does not claim full subsidy and also
         # has two outputs
-        cb = create_coinbase(109, nValue=35)
+        cb = create_coinbase(17, nValue=35)
         cb.vout.append(CTxOut(5 * COIN, CScript([OP_FALSE])))
         cb.rehash()
 
@@ -211,12 +200,11 @@ class CoinStatsIndexTest(DigiByteTestFramework):
         self.nodes[0].submitblock(block.serialize().hex())
         self.sync_all()
 
-        self.wait_until(lambda: not try_rpc(-32603, "Unable to read UTXO set", index_node.gettxoutsetinfo, 'muhash'))
         for hash_option in index_hash_options:
-            res7 = index_node.gettxoutsetinfo(hash_option, 109)
-            assert_equal(res7['total_unspendable_amount'], Decimal('143980.98999999'))
+            res7 = index_node.gettxoutsetinfo(hash_option, 17)
+            assert_equal(res7['total_unspendable_amount'], Decimal('143980.99000000'))
             assert_equal(res7['block_info'], {
-                'unspendable': 72000 - 40,
+                'unspendable': 71960,
                 'prevout_spent': 0,
                 'new_outputs_ex_coinbase': 0,
                 'coinbase': 40,
@@ -224,7 +212,7 @@ class CoinStatsIndexTest(DigiByteTestFramework):
                     'genesis_block': 0,
                     'bip30': 0,
                     'scripts': 0,
-                    'unclaimed_rewards': 72000 - 40
+                    'unclaimed_rewards': 71960
                 }
             })
             self.block_sanity_check(res7['block_info'])
@@ -237,15 +225,28 @@ class CoinStatsIndexTest(DigiByteTestFramework):
         assert_equal(res8, res9)
 
         self.generate(index_node, 1, sync_fun=self.no_op)
-        self.wait_until(lambda: not try_rpc(-32603, "Unable to read UTXO set", index_node.gettxoutsetinfo, 'muhash'))
         res10 = index_node.gettxoutsetinfo('muhash')
-        assert(res8['txouts'] < res10['txouts'])
+        assert res8['txouts'] < res10['txouts']
+
+        self.log.info("Test that the index works with -reindex")
+
+        self.restart_node(1, extra_args=["-coinstatsindex", "-reindex"])
+        self.sync_index_node()
+        res11 = index_node.gettxoutsetinfo('muhash')
+        assert_equal(res11, res10)
+
+        self.log.info("Test that the index works with -reindex-chainstate")
+
+        self.restart_node(1, extra_args=["-coinstatsindex", "-reindex-chainstate"])
+        self.sync_index_node()
+        res12 = index_node.gettxoutsetinfo('muhash')
+        assert_equal(res12, res10)
 
     def _test_use_index_option(self):
         self.log.info("Test use_index option for nodes running the index")
 
         self.connect_nodes(0, 1)
-        self.nodes[0].waitforblockheight(110)
+        self.nodes[0].waitforblockheight(18)
         res = self.nodes[0].gettxoutsetinfo('muhash')
         option_res = self.nodes[1].gettxoutsetinfo(hash_type='muhash', hash_or_height=None, use_index=False)
         del res['disk_size'], option_res['disk_size']
@@ -256,60 +257,67 @@ class CoinStatsIndexTest(DigiByteTestFramework):
 
         # Generate two block, let the index catch up, then invalidate the blocks
         index_node = self.nodes[1]
-        reorg_blocks = self.generatetoaddress(index_node, 2, index_node.getnewaddress())
+        reorg_blocks = self.generatetoaddress(index_node, 2, getnewdestination()[2])
         reorg_block = reorg_blocks[1]
-        self.wait_until(lambda: not try_rpc(-32603, "Unable to read UTXO set", index_node.gettxoutsetinfo, 'muhash'))
+        self.sync_index_node()
         res_invalid = index_node.gettxoutsetinfo('muhash')
         index_node.invalidateblock(reorg_blocks[0])
-        assert_equal(index_node.gettxoutsetinfo('muhash')['height'], 110)
+        assert_equal(index_node.gettxoutsetinfo('muhash')['height'], 18)
 
         # Add two new blocks
         block = self.generate(index_node, 2, sync_fun=self.no_op)[1]
-        self.wait_until(lambda: not try_rpc(-32603, "Unable to read UTXO set", index_node.gettxoutsetinfo, 'muhash'))
         res = index_node.gettxoutsetinfo(hash_type='muhash', hash_or_height=None, use_index=False)
 
         # Test that the result of the reorged block is not returned for its old block height
-        res2 = index_node.gettxoutsetinfo(hash_type='muhash', hash_or_height=112)
+        res2 = index_node.gettxoutsetinfo(hash_type='muhash', hash_or_height=20)
         assert_equal(res["bestblock"], block)
         assert_equal(res["muhash"], res2["muhash"])
-        assert(res["muhash"] != res_invalid["muhash"])
+        assert res["muhash"] != res_invalid["muhash"]
 
         # Test that requesting reorged out block by hash is still returning correct results
         res_invalid2 = index_node.gettxoutsetinfo(hash_type='muhash', hash_or_height=reorg_block)
         assert_equal(res_invalid2["muhash"], res_invalid["muhash"])
-        assert(res["muhash"] != res_invalid2["muhash"])
+        assert res["muhash"] != res_invalid2["muhash"]
 
         # Add another block, so we don't depend on reconsiderblock remembering which
         # blocks were touched by invalidateblock
         self.generate(index_node, 1)
-        self.sync_all()
 
         # Ensure that removing and re-adding blocks yields consistent results
-        block = index_node.getblockhash(99)
+        block = index_node.getblockhash(17)
         index_node.invalidateblock(block)
-        self.wait_until(lambda: not try_rpc(-32603, "Unable to read UTXO set", index_node.gettxoutsetinfo, 'muhash'))
         index_node.reconsiderblock(block)
-        self.wait_until(lambda: not try_rpc(-32603, "Unable to read UTXO set", index_node.gettxoutsetinfo, 'muhash'))
-        res3 = index_node.gettxoutsetinfo(hash_type='muhash', hash_or_height=112)
+        res3 = index_node.gettxoutsetinfo(hash_type='muhash', hash_or_height=20)
         assert_equal(res2, res3)
-
-        self.log.info("Test that a node aware of stale blocks syncs them as well")
-        node = self.nodes[0]
-        # Ensure the node is aware of a stale block prior to restart
-        node.getblock(reorg_block)
-
-        self.restart_node(0, ["-coinstatsindex"])
-        self.wait_until(lambda: not try_rpc(-32603, "Unable to read UTXO set", node.gettxoutsetinfo, 'muhash'))
-        assert_raises_rpc_error(-32603, "Unable to read UTXO set", node.gettxoutsetinfo, 'muhash', reorg_block)
 
     def _test_index_rejects_hash_serialized(self):
         self.log.info("Test that the rpc raises if the legacy hash is passed with the index")
 
-        msg = "hash_serialized_2 hash type cannot be queried for a specific block"
-        assert_raises_rpc_error(-8, msg, self.nodes[1].gettxoutsetinfo, hash_type='hash_serialized_2', hash_or_height=111)
+        msg = "hash_serialized_3 hash type cannot be queried for a specific block"
+        assert_raises_rpc_error(-8, msg, self.nodes[1].gettxoutsetinfo, hash_type='hash_serialized_3', hash_or_height=19)
 
         for use_index in {True, False, None}:
-            assert_raises_rpc_error(-8, msg, self.nodes[1].gettxoutsetinfo, hash_type='hash_serialized_2', hash_or_height=111, use_index=use_index)
+            assert_raises_rpc_error(-8, msg, self.nodes[1].gettxoutsetinfo, hash_type='hash_serialized_3', hash_or_height=19, use_index=use_index)
+
+    def _test_init_index_after_reorg(self):
+        self.log.info("Test a reorg while the index is deactivated")
+        index_node = self.nodes[1]
+        block = self.nodes[0].getbestblockhash()
+        self.generate(index_node, 2, sync_fun=self.no_op)
+        self.sync_index_node()
+
+        # Restart without index
+        self.restart_node(1, extra_args=[])
+        self.connect_nodes(0, 1)
+        index_node.invalidateblock(block)
+        self.generatetoaddress(index_node, 5, getnewdestination()[2])
+        res = index_node.gettxoutsetinfo(hash_type='muhash', hash_or_height=None, use_index=False)
+
+        # Restart with index that still has its best block on the old chain
+        self.restart_node(1, extra_args=self.extra_args[1])
+        self.sync_index_node()
+        res1 = index_node.gettxoutsetinfo(hash_type='muhash', hash_or_height=None, use_index=True)
+        assert_equal(res["muhash"], res1["muhash"])
 
 
 if __name__ == '__main__':

@@ -1,9 +1,8 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2009-2022 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <primitives/block.h>
 #include <crypto/common.h>
 #include <crypto/hashgroestl.h>
@@ -14,12 +13,13 @@
 #include <consensus/consensus.h>
 #include <chainparams.h>
 #include <hash.h>
+#include <streams.h>
 #include <tinyformat.h>
 #include <arith_uint256.h>
 
 uint256 CBlockHeader::GetHash() const
 {
-    return SerializeHash(*this);
+    return (CHashWriter{PROTOCOL_VERSION} << *this).GetHash();
 }
 
 int CBlockHeader::GetAlgo() const
@@ -62,15 +62,29 @@ uint256 CBlockHeader::GetPoWAlgoHash(const Consensus::Params& params) const
         case ALGO_SCRYPT:
         {
             uint256 thash;
-            scrypt_1024_1_1_256(BEGIN(nVersion), BEGIN(thash));
+            DataStream ss{};
+            ss << *this;
+            scrypt_1024_1_1_256(reinterpret_cast<const char*>(ss.data()), reinterpret_cast<char*>(thash.data()));
             return thash;
         }
         case ALGO_GROESTL:
-            return HashGroestl(BEGIN(nVersion), END(nNonce));
+        {
+            DataStream ss{};
+            ss << *this;
+            return HashGroestl(ss.begin(), ss.end());
+        }
         case ALGO_SKEIN:
-            return HashSkein(BEGIN(nVersion), END(nNonce));
+        {
+            DataStream ss{};
+            ss << *this;
+            return HashSkein(ss.begin(), ss.end());
+        }
         case ALGO_QUBIT:
-            return HashQubit(BEGIN(nVersion), END(nNonce));
+        {
+            DataStream ss{};
+            ss << *this;
+            return HashQubit(ss.begin(), ss.end());
+        }
         //case ALGO_EQUIHASH:
             //return HashEquihash(BEGIN(nVersion), END(nNonce));
         //case ALGO_ETHASH:
@@ -78,7 +92,9 @@ uint256 CBlockHeader::GetPoWAlgoHash(const Consensus::Params& params) const
         case ALGO_ODO:
         {
             uint32_t key = OdoKey(params, nTime);
-            return HashOdo(BEGIN(nVersion), END(nNonce), key);
+            DataStream ss{};
+            ss << *this;
+            return HashOdo(ss.begin(), ss.end(), key);
         }
         case ALGO_UNKNOWN:
             // This block will be rejected anyway, but returning an always-invalid

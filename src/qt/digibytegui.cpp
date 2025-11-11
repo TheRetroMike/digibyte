@@ -1,8 +1,7 @@
-// Copyright (c) 2011-2020 The Bitcoin Core developers
-// Copyright (c) 2013-2021 The DigiByte Core developers
+// Copyright (c) 2011-2022 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <qt/digibytegui.h>
 
 #include <qt/digibyteunits.h>
@@ -27,26 +26,30 @@
 #include <qt/walletview.h>
 #endif // ENABLE_WALLET
 
-#ifdef Q_OS_MAC
+#ifdef Q_OS_MACOS
 #include <qt/macdockiconhandler.h>
 #endif
 
-#include <functional>
 #include <chain.h>
 #include <chainparams.h>
+#include <common/system.h>
 #include <interfaces/handler.h>
 #include <interfaces/node.h>
-#include <node/ui_interface.h>
-#include <util/system.h>
+#include <node/interface_ui.h>
 #include <util/translation.h>
 #include <validation.h>
 
+#include <functional>
+
 #include <QAction>
+#include <QActionGroup>
 #include <QApplication>
 #include <QComboBox>
 #include <QCursor>
 #include <QDateTime>
 #include <QDragEnterEvent>
+#include <QInputDialog>
+#include <QKeySequence>
 #include <QListWidget>
 #include <QMenu>
 #include <QMenuBar>
@@ -68,7 +71,7 @@
 
 
 const std::string DigiByteGUI::DEFAULT_UIPLATFORM =
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MACOS)
         "macosx"
 #elif defined(Q_OS_WIN)
         "windows"
@@ -91,6 +94,9 @@ DigiByteGUI::DigiByteGUI(interfaces::Node& node, const PlatformStyle *_platformS
     }
 
     setContextMenuPolicy(Qt::PreventContextMenu);
+    
+    // Set minimum window width to prevent toolbar text truncation
+    setMinimumWidth(900);
 
 #ifdef ENABLE_WALLET
     enableWallet = WalletModel::isWalletEnabled();
@@ -106,11 +112,11 @@ DigiByteGUI::DigiByteGUI(interfaces::Node& node, const PlatformStyle *_platformS
     {
         /** Create wallet frame and make it the central widget */
         walletFrame = new WalletFrame(_platformStyle, this);
-        connect(walletFrame, &WalletFrame::createWalletButtonClicked, [this] {
-            auto activity = new CreateWalletActivity(getWalletController(), this);
-            connect(activity, &CreateWalletActivity::finished, activity, &QObject::deleteLater);
-            activity->create();
+        connect(walletFrame, &WalletFrame::createWalletButtonClicked, this, &DigiByteGUI::createWallet);
+        connect(walletFrame, &WalletFrame::message, [this](const QString& title, const QString& message, unsigned int style) {
+            this->message(title, message, style);
         });
+        connect(walletFrame, &WalletFrame::currentWalletSet, [this] { updateWalletStatus(); });
         setCentralWidget(walletFrame);
     } else
 #endif // ENABLE_WALLET
@@ -168,7 +174,9 @@ DigiByteGUI::DigiByteGUI(interfaces::Node& node, const PlatformStyle *_platformS
         frameBlocksLayout->addWidget(unitDisplayControl);
         frameBlocksLayout->addStretch();
         frameBlocksLayout->addWidget(labelWalletEncryptionIcon);
+        labelWalletEncryptionIcon->hide();
         frameBlocksLayout->addWidget(labelWalletHDStatusIcon);
+        labelWalletHDStatusIcon->hide();
     }
     frameBlocksLayout->addWidget(labelProxyIcon);
     frameBlocksLayout->addStretch();
@@ -213,7 +221,7 @@ DigiByteGUI::DigiByteGUI(interfaces::Node& node, const PlatformStyle *_platformS
     connect(labelBlocksIcon, &GUIUtil::ClickableLabel::clicked, this, &DigiByteGUI::showModalOverlay);
     connect(progressBar, &GUIUtil::ClickableProgressBar::clicked, this, &DigiByteGUI::showModalOverlay);
 
-#ifdef Q_OS_MAC
+#ifdef Q_OS_MACOS
     m_app_nap_inhibitor = new CAppNapInhibitor;
 #endif
 
@@ -229,9 +237,8 @@ DigiByteGUI::~DigiByteGUI()
     settings.setValue("MainWindowGeometry", saveGeometry());
     if(trayIcon) // Hide tray icon, as deleting will let it linger until quit (on Ubuntu)
         trayIcon->hide();
-#ifdef Q_OS_MAC
+#ifdef Q_OS_MACOS
     delete m_app_nap_inhibitor;
-    delete appMenuBar;
     MacDockIconHandler::cleanup();
 #endif
 
@@ -247,37 +254,50 @@ void DigiByteGUI::createActions()
     overviewAction->setStatusTip(tr("Show general overview of wallet"));
     overviewAction->setToolTip(overviewAction->statusTip());
     overviewAction->setCheckable(true);
-    overviewAction->setShortcut(QKeySequence(Qt::ALT + Qt::Key_1));
+    overviewAction->setShortcut(QKeySequence(QStringLiteral("Alt+1")));
     tabGroup->addAction(overviewAction);
 
     sendCoinsAction = new QAction(platformStyle->SingleColorIcon(":/icons/send"), tr("&Send"), this);
     sendCoinsAction->setStatusTip(tr("Send coins to a DigiByte address"));
     sendCoinsAction->setToolTip(sendCoinsAction->statusTip());
     sendCoinsAction->setCheckable(true);
-    sendCoinsAction->setShortcut(QKeySequence(Qt::ALT + Qt::Key_2));
+    sendCoinsAction->setShortcut(QKeySequence(QStringLiteral("Alt+2")));
     tabGroup->addAction(sendCoinsAction);
-
-    sendCoinsMenuAction = new QAction(sendCoinsAction->text(), this);
-    sendCoinsMenuAction->setStatusTip(sendCoinsAction->statusTip());
-    sendCoinsMenuAction->setToolTip(sendCoinsMenuAction->statusTip());
 
     receiveCoinsAction = new QAction(platformStyle->SingleColorIcon(":/icons/receiving_addresses"), tr("&Receive"), this);
     receiveCoinsAction->setStatusTip(tr("Request payments (generates QR codes and digibyte: URIs)"));
     receiveCoinsAction->setToolTip(receiveCoinsAction->statusTip());
     receiveCoinsAction->setCheckable(true);
-    receiveCoinsAction->setShortcut(QKeySequence(Qt::ALT + Qt::Key_3));
+    receiveCoinsAction->setShortcut(QKeySequence(QStringLiteral("Alt+3")));
     tabGroup->addAction(receiveCoinsAction);
-
-    receiveCoinsMenuAction = new QAction(receiveCoinsAction->text(), this);
-    receiveCoinsMenuAction->setStatusTip(receiveCoinsAction->statusTip());
-    receiveCoinsMenuAction->setToolTip(receiveCoinsMenuAction->statusTip());
 
     historyAction = new QAction(platformStyle->SingleColorIcon(":/icons/history"), tr("&Transactions"), this);
     historyAction->setStatusTip(tr("Browse transaction history"));
     historyAction->setToolTip(historyAction->statusTip());
     historyAction->setCheckable(true);
-    historyAction->setShortcut(QKeySequence(Qt::ALT + Qt::Key_4));
+    historyAction->setShortcut(QKeySequence(QStringLiteral("Alt+4")));
     tabGroup->addAction(historyAction);
+
+    digiDollarAction = new QAction(tr("DigiDollar"), this);
+    digiDollarAction->setStatusTip(tr("DigiDollar - Coming Soon"));
+    digiDollarAction->setToolTip(digiDollarAction->statusTip());
+    digiDollarAction->setCheckable(true);
+    tabGroup->addAction(digiDollarAction);
+
+    // Commenting out Mint and Redeem tabs as they are not functional yet
+    /*
+    mintAction = new QAction(tr("Mint"), this);
+    mintAction->setStatusTip(tr("Mint - Coming Soon"));
+    mintAction->setToolTip(mintAction->statusTip());
+    mintAction->setCheckable(true);
+    tabGroup->addAction(mintAction);
+
+    redeemAction = new QAction(tr("Redeem"), this);
+    redeemAction->setStatusTip(tr("Redeem - Coming Soon"));
+    redeemAction->setToolTip(redeemAction->statusTip());
+    redeemAction->setCheckable(true);
+    tabGroup->addAction(redeemAction);
+    */
 
 #ifdef ENABLE_WALLET
     // These showNormalIfMinimized are needed because Send Coins and Receive Coins
@@ -286,19 +306,47 @@ void DigiByteGUI::createActions()
     connect(overviewAction, &QAction::triggered, this, &DigiByteGUI::gotoOverviewPage);
     connect(sendCoinsAction, &QAction::triggered, [this]{ showNormalIfMinimized(); });
     connect(sendCoinsAction, &QAction::triggered, [this]{ gotoSendCoinsPage(); });
-    connect(sendCoinsMenuAction, &QAction::triggered, [this]{ showNormalIfMinimized(); });
-    connect(sendCoinsMenuAction, &QAction::triggered, [this]{ gotoSendCoinsPage(); });
     connect(receiveCoinsAction, &QAction::triggered, [this]{ showNormalIfMinimized(); });
     connect(receiveCoinsAction, &QAction::triggered, this, &DigiByteGUI::gotoReceiveCoinsPage);
-    connect(receiveCoinsMenuAction, &QAction::triggered, [this]{ showNormalIfMinimized(); });
-    connect(receiveCoinsMenuAction, &QAction::triggered, this, &DigiByteGUI::gotoReceiveCoinsPage);
     connect(historyAction, &QAction::triggered, [this]{ showNormalIfMinimized(); });
     connect(historyAction, &QAction::triggered, this, &DigiByteGUI::gotoHistoryPage);
+    
+    // Coming Soon actions
+    connect(digiDollarAction, &QAction::triggered, [this]{ 
+        showNormalIfMinimized(); 
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle(tr("Coming Soon"));
+        msgBox.setTextFormat(Qt::RichText);
+        msgBox.setText(tr("DigiDollar functionality will be available in a future release.<br><br>Learn more at <a href='https://digibyte.io/digidollar'>DigiByte.io/DigiDollar</a>"));
+        msgBox.exec();
+        overviewAction->setChecked(true);
+    });
+    // Commenting out Mint and Redeem connect statements
+    /*
+    connect(mintAction, &QAction::triggered, [this]{ 
+        showNormalIfMinimized(); 
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle(tr("Coming Soon"));
+        msgBox.setTextFormat(Qt::RichText);
+        msgBox.setText(tr("DigiDollar mint functionality will be available in a future release.<br><br>Learn more at <a href='https://digibyte.io/digidollar'>DigiByte.io/DigiDollar</a>"));
+        msgBox.exec();
+        overviewAction->setChecked(true);
+    });
+    connect(redeemAction, &QAction::triggered, [this]{ 
+        showNormalIfMinimized(); 
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle(tr("Coming Soon"));
+        msgBox.setTextFormat(Qt::RichText);
+        msgBox.setText(tr("DigiDollar redeem functionality will be available in a future release.<br><br>Learn more at <a href='https://digibyte.io/digidollar'>DigiByte.io/DigiDollar</a>"));
+        msgBox.exec();
+        overviewAction->setChecked(true);
+    });
+    */
 #endif // ENABLE_WALLET
 
     quitAction = new QAction(tr("E&xit"), this);
     quitAction->setStatusTip(tr("Quit application"));
-    quitAction->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_Q));
+    quitAction->setShortcut(QKeySequence(tr("Ctrl+Q")));
     quitAction->setMenuRole(QAction::QuitRole);
     aboutAction = new QAction(tr("&About %1").arg(PACKAGE_NAME), this);
     aboutAction->setStatusTip(tr("Show information about %1").arg(PACKAGE_NAME));
@@ -311,8 +359,6 @@ void DigiByteGUI::createActions()
     optionsAction->setStatusTip(tr("Modify configuration options for %1").arg(PACKAGE_NAME));
     optionsAction->setMenuRole(QAction::PreferencesRole);
     optionsAction->setEnabled(false);
-    toggleHideAction = new QAction(tr("&Show / Hide"), this);
-    toggleHideAction->setStatusTip(tr("Show or hide the main Window"));
 
     encryptWalletAction = new QAction(tr("&Encrypt Wallet…"), this);
     encryptWalletAction->setStatusTip(tr("Encrypt the private keys that belong to your wallet"));
@@ -327,7 +373,7 @@ void DigiByteGUI::createActions()
     verifyMessageAction->setStatusTip(tr("Verify messages to ensure they were signed with specified DigiByte addresses"));
     m_load_psbt_action = new QAction(tr("&Load PSBT from file…"), this);
     m_load_psbt_action->setStatusTip(tr("Load Partially Signed DigiByte Transaction"));
-    m_load_psbt_clipboard_action = new QAction(tr("Load PSBT from clipboard…"), this);
+    m_load_psbt_clipboard_action = new QAction(tr("Load PSBT from &clipboard…"), this);
     m_load_psbt_clipboard_action->setStatusTip(tr("Load Partially Signed DigiByte Transaction from clipboard"));
 
     openRPCConsoleAction = new QAction(tr("Node window"), this);
@@ -356,23 +402,32 @@ void DigiByteGUI::createActions()
     m_create_wallet_action->setEnabled(false);
     m_create_wallet_action->setStatusTip(tr("Create a new wallet"));
 
+    //: Name of the menu item that restores wallet from a backup file.
+    m_restore_wallet_action = new QAction(tr("Restore Wallet…"), this);
+    m_restore_wallet_action->setEnabled(false);
+    //: Status tip for Restore Wallet menu item
+    m_restore_wallet_action->setStatusTip(tr("Restore a wallet from a backup file"));
+
     m_close_all_wallets_action = new QAction(tr("Close All Wallets…"), this);
     m_close_all_wallets_action->setStatusTip(tr("Close all wallets"));
+
+    m_migrate_wallet_action = new QAction(tr("Migrate Wallet"), this);
+    m_migrate_wallet_action->setEnabled(false);
+    m_migrate_wallet_action->setStatusTip(tr("Migrate a wallet"));
 
     showHelpMessageAction = new QAction(tr("&Command-line options"), this);
     showHelpMessageAction->setMenuRole(QAction::NoRole);
     showHelpMessageAction->setStatusTip(tr("Show the %1 help message to get a list with possible DigiByte command-line options").arg(PACKAGE_NAME));
 
     m_mask_values_action = new QAction(tr("&Mask values"), this);
-    m_mask_values_action->setShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_M));
+    m_mask_values_action->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_M));
     m_mask_values_action->setStatusTip(tr("Mask the values in the Overview tab"));
     m_mask_values_action->setCheckable(true);
 
-    connect(quitAction, &QAction::triggered, qApp, QApplication::quit);
+    connect(quitAction, &QAction::triggered, this, &DigiByteGUI::quitRequested);
     connect(aboutAction, &QAction::triggered, this, &DigiByteGUI::aboutClicked);
     connect(aboutQtAction, &QAction::triggered, qApp, QApplication::aboutQt);
     connect(optionsAction, &QAction::triggered, this, &DigiByteGUI::optionsClicked);
-    connect(toggleHideAction, &QAction::triggered, this, &DigiByteGUI::toggleHidden);
     connect(showHelpMessageAction, &QAction::triggered, this, &DigiByteGUI::showHelpMessageClicked);
     connect(openRPCConsoleAction, &QAction::triggered, this, &DigiByteGUI::showDebugWindow);
     // prevents an open debug window from becoming stuck/unusable on client shutdown
@@ -412,8 +467,8 @@ void DigiByteGUI::createActions()
 
                 connect(action, &QAction::triggered, [this, path] {
                     auto activity = new OpenWalletActivity(m_wallet_controller, this);
-                    connect(activity, &OpenWalletActivity::opened, this, &DigiByteGUI::setCurrentWallet);
-                    connect(activity, &OpenWalletActivity::finished, activity, &QObject::deleteLater);
+                    connect(activity, &OpenWalletActivity::opened, this, &DigiByteGUI::setCurrentWallet, Qt::QueuedConnection);
+                    connect(activity, &OpenWalletActivity::opened, rpcConsole, &RPCConsole::setCurrentWallet, Qt::QueuedConnection);
                     activity->open(path);
                 });
             }
@@ -422,35 +477,56 @@ void DigiByteGUI::createActions()
                 action->setEnabled(false);
             }
         });
+        connect(m_restore_wallet_action, &QAction::triggered, [this] {
+            //: Name of the wallet data file format.
+            QString name_data_file = tr("Wallet Data");
+
+            //: The title for Restore Wallet File Windows
+            QString title_windows = tr("Load Wallet Backup");
+
+            QString backup_file = GUIUtil::getOpenFileName(this, title_windows, QString(), name_data_file + QLatin1String(" (*.dat)"), nullptr);
+            if (backup_file.isEmpty()) return;
+
+            bool wallet_name_ok;
+            /*: Title of pop-up window shown when the user is attempting to
+                restore a wallet. */
+            QString title = tr("Restore Wallet");
+            //: Label of the input field where the name of the wallet is entered.
+            QString label = tr("Wallet Name");
+            QString wallet_name = QInputDialog::getText(this, title, label, QLineEdit::Normal, "", &wallet_name_ok);
+            if (!wallet_name_ok || wallet_name.isEmpty()) return;
+
+            auto activity = new RestoreWalletActivity(m_wallet_controller, this);
+            connect(activity, &RestoreWalletActivity::restored, this, &DigiByteGUI::setCurrentWallet, Qt::QueuedConnection);
+            connect(activity, &RestoreWalletActivity::restored, rpcConsole, &RPCConsole::setCurrentWallet, Qt::QueuedConnection);
+
+            auto backup_file_path = fs::PathFromString(backup_file.toStdString());
+            activity->restore(backup_file_path, wallet_name.toStdString());
+        });
         connect(m_close_wallet_action, &QAction::triggered, [this] {
             m_wallet_controller->closeWallet(walletFrame->currentWalletModel(), this);
         });
-        connect(m_create_wallet_action, &QAction::triggered, [this] {
-            auto activity = new CreateWalletActivity(m_wallet_controller, this);
-            connect(activity, &CreateWalletActivity::created, this, &DigiByteGUI::setCurrentWallet);
-            connect(activity, &CreateWalletActivity::finished, activity, &QObject::deleteLater);
-            activity->create();
-        });
+        connect(m_create_wallet_action, &QAction::triggered, this, &DigiByteGUI::createWallet);
         connect(m_close_all_wallets_action, &QAction::triggered, [this] {
             m_wallet_controller->closeAllWallets(this);
         });
+        connect(m_migrate_wallet_action, &QAction::triggered, [this] {
+            auto activity = new MigrateWalletActivity(m_wallet_controller, this);
+            connect(activity, &MigrateWalletActivity::migrated, this, &DigiByteGUI::setCurrentWallet);
+            activity->migrate(walletFrame->currentWalletModel());
+        });
         connect(m_mask_values_action, &QAction::toggled, this, &DigiByteGUI::setPrivacy);
+        connect(m_mask_values_action, &QAction::toggled, this, &DigiByteGUI::enableHistoryAction);
     }
 #endif // ENABLE_WALLET
 
-    connect(new QShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_C), this), &QShortcut::activated, this, &DigiByteGUI::showDebugWindowActivateConsole);
-    connect(new QShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_D), this), &QShortcut::activated, this, &DigiByteGUI::showDebugWindow);
+    connect(new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_C), this), &QShortcut::activated, this, &DigiByteGUI::showDebugWindowActivateConsole);
+    connect(new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_D), this), &QShortcut::activated, this, &DigiByteGUI::showDebugWindow);
 }
 
 void DigiByteGUI::createMenuBar()
 {
-#ifdef Q_OS_MAC
-    // Create a decoupled menu bar on Mac which stays even if the window is closed
-    appMenuBar = new QMenuBar();
-#else
-    // Get the main window's menu bar on other platforms
     appMenuBar = menuBar();
-#endif
 
     // Configure the menus
     QMenu *file = appMenuBar->addMenu(tr("&File"));
@@ -460,9 +536,12 @@ void DigiByteGUI::createMenuBar()
         file->addAction(m_open_wallet_action);
         file->addAction(m_close_wallet_action);
         file->addAction(m_close_all_wallets_action);
+        file->addAction(m_migrate_wallet_action);
+        file->addSeparator();
+        file->addAction(backupWalletAction);
+        file->addAction(m_restore_wallet_action);
         file->addSeparator();
         file->addAction(openAction);
-        file->addAction(backupWalletAction);
         file->addAction(signMessageAction);
         file->addAction(verifyMessageAction);
         file->addAction(m_load_psbt_action);
@@ -484,16 +563,16 @@ void DigiByteGUI::createMenuBar()
 
     QMenu* window_menu = appMenuBar->addMenu(tr("&Window"));
 
-    QAction* minimize_action = window_menu->addAction(tr("Minimize"));
-    minimize_action->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_M));
+    QAction* minimize_action = window_menu->addAction(tr("&Minimize"));
+    minimize_action->setShortcut(QKeySequence(tr("Ctrl+M")));
     connect(minimize_action, &QAction::triggered, [] {
         QApplication::activeWindow()->showMinimized();
     });
-    connect(qApp, &QApplication::focusWindowChanged, [minimize_action] (QWindow* window) {
+    connect(qApp, &QApplication::focusWindowChanged, this, [minimize_action] (QWindow* window) {
         minimize_action->setEnabled(window != nullptr && (window->flags() & Qt::Dialog) != Qt::Dialog && window->windowState() != Qt::WindowMinimized);
     });
 
-#ifdef Q_OS_MAC
+#ifdef Q_OS_MACOS
     QAction* zoom_action = window_menu->addAction(tr("Zoom"));
     connect(zoom_action, &QAction::triggered, [] {
         QWindow* window = qApp->focusWindow();
@@ -504,13 +583,13 @@ void DigiByteGUI::createMenuBar()
         }
     });
 
-    connect(qApp, &QApplication::focusWindowChanged, [zoom_action] (QWindow* window) {
+    connect(qApp, &QApplication::focusWindowChanged, this, [zoom_action] (QWindow* window) {
         zoom_action->setEnabled(window != nullptr);
     });
 #endif
 
     if (walletFrame) {
-#ifdef Q_OS_MAC
+#ifdef Q_OS_MACOS
         window_menu->addSeparator();
         QAction* main_window_action = window_menu->addAction(tr("Main Window"));
         connect(main_window_action, &QAction::triggered, [this] {
@@ -547,22 +626,49 @@ void DigiByteGUI::createToolBars()
         appToolBar = toolbar;
         toolbar->setMovable(false);
         toolbar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        toolbar->setMinimumHeight(40);
         toolbar->addAction(overviewAction);
         toolbar->addAction(sendCoinsAction);
         toolbar->addAction(receiveCoinsAction);
         toolbar->addAction(historyAction);
+        
+        // Add separator after Transactions to section off DigiDollar group
+        toolbar->addSeparator();
+        
+        toolbar->addAction(digiDollarAction);
+        // Commenting out Mint and Redeem tabs from toolbar
+        // toolbar->addAction(mintAction);
+        // toolbar->addAction(redeemAction);
+        
         overviewAction->setChecked(true);
 
 #ifdef ENABLE_WALLET
         QWidget *spacer = new QWidget();
         spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         toolbar->addWidget(spacer);
+        
+        // Add separator before Console to close off DigiDollar group
+        toolbar->addSeparator();
+        
+        // Add Console button on the right
+        QAction* consoleAction = new QAction(tr("Console"), this);
+        consoleAction->setStatusTip(tr("Open the DigiByte debug console"));
+        connect(consoleAction, &QAction::triggered, [this]{ showDebugWindow(); });
+        toolbar->addAction(consoleAction);
+        
+        // Add Settings button on the right
+        QAction* settingsAction = new QAction(tr("Settings"), this);
+        settingsAction->setStatusTip(tr("Modify configuration options for DigiByte"));
+        connect(settingsAction, &QAction::triggered, [this]{ optionsClicked(); });
+        toolbar->addAction(settingsAction);
 
         m_wallet_selector = new QComboBox();
+        m_wallet_selector->setObjectName("m_wallet_selector");
         m_wallet_selector->setSizeAdjustPolicy(QComboBox::AdjustToContents);
         connect(m_wallet_selector, qOverload<int>(&QComboBox::currentIndexChanged), this, &DigiByteGUI::setCurrentWalletBySelectorIndex);
 
         m_wallet_selector_label = new QLabel();
+        m_wallet_selector_label->setObjectName("m_wallet_selector_label");
         m_wallet_selector_label->setText(tr("Wallet:") + " ");
         m_wallet_selector_label->setBuddy(m_wallet_selector);
 
@@ -592,8 +698,8 @@ void DigiByteGUI::setClientModel(ClientModel *_clientModel, interfaces::BlockAnd
         connect(_clientModel, &ClientModel::numConnectionsChanged, this, &DigiByteGUI::setNumConnections);
         connect(_clientModel, &ClientModel::networkActiveChanged, this, &DigiByteGUI::setNetworkActive);
 
-        modalOverlay->setKnownBestHeight(tip_info->header_height, QDateTime::fromTime_t(tip_info->header_time));
-        setNumBlocks(tip_info->block_height, QDateTime::fromTime_t(tip_info->block_time), tip_info->verification_progress, false, SynchronizationState::INIT_DOWNLOAD);
+        modalOverlay->setKnownBestHeight(tip_info->header_height, QDateTime::fromSecsSinceEpoch(tip_info->header_time), /*presync=*/false);
+        setNumBlocks(tip_info->block_height, QDateTime::fromSecsSinceEpoch(tip_info->block_time), tip_info->verification_progress, SyncType::BLOCK_SYNC, SynchronizationState::INIT_DOWNLOAD);
         connect(_clientModel, &ClientModel::numBlocksChanged, this, &DigiByteGUI::setNumBlocks);
 
         // Receive and report messages from client model
@@ -624,10 +730,11 @@ void DigiByteGUI::setClientModel(ClientModel *_clientModel, interfaces::BlockAnd
             // initialize the disable state of the tray icon with the current value in the model.
             trayIcon->setVisible(optionsModel->getShowTrayIcon());
         }
+
+        m_mask_values_action->setChecked(_clientModel->getOptionsModel()->getOption(OptionsModel::OptionID::MaskValues).toBool());
     } else {
-        // Disable possibility to show main window via action
-        toggleHideAction->setEnabled(false);
-        if(trayIconMenu)
+        // Shutdown requested, disable menus
+        if (trayIconMenu)
         {
             // Disable context menu on tray icon
             trayIconMenu->clear();
@@ -641,11 +748,19 @@ void DigiByteGUI::setClientModel(ClientModel *_clientModel, interfaces::BlockAnd
         }
 #endif // ENABLE_WALLET
         unitDisplayControl->setOptionsModel(nullptr);
+        // Disable top bar menu actions
+        appMenuBar->clear();
     }
 }
 
 #ifdef ENABLE_WALLET
-void DigiByteGUI::setWalletController(WalletController* wallet_controller)
+void DigiByteGUI::enableHistoryAction(bool privacy)
+{
+    historyAction->setEnabled(!privacy);
+    if (historyAction->isChecked()) gotoOverviewPage();
+}
+
+void DigiByteGUI::setWalletController(WalletController* wallet_controller, bool show_loading_minimized)
 {
     assert(!m_wallet_controller);
     assert(wallet_controller);
@@ -655,13 +770,17 @@ void DigiByteGUI::setWalletController(WalletController* wallet_controller)
     m_create_wallet_action->setEnabled(true);
     m_open_wallet_action->setEnabled(true);
     m_open_wallet_action->setMenu(m_open_wallet_menu);
+    m_restore_wallet_action->setEnabled(true);
 
     GUIUtil::ExceptionSafeConnect(wallet_controller, &WalletController::walletAdded, this, &DigiByteGUI::addWallet);
     connect(wallet_controller, &WalletController::walletRemoved, this, &DigiByteGUI::removeWallet);
+    connect(wallet_controller, &WalletController::destroyed, this, [this] {
+        // wallet_controller gets destroyed manually, but it leaves our member copy dangling
+        m_wallet_controller = nullptr;
+    });
 
-    for (WalletModel* wallet_model : m_wallet_controller->getOpenWallets()) {
-        addWallet(wallet_model);
-    }
+    auto activity = new LoadWalletsActivity(m_wallet_controller, this);
+    activity->load(show_loading_minimized);
 }
 
 WalletController* DigiByteGUI::getWalletController()
@@ -671,10 +790,10 @@ WalletController* DigiByteGUI::getWalletController()
 
 void DigiByteGUI::addWallet(WalletModel* walletModel)
 {
-    if (!walletFrame) return;
+    if (!walletFrame || !m_wallet_controller) return;
 
-    WalletView* wallet_view = new WalletView(platformStyle, walletFrame);
-    if (!walletFrame->addWallet(walletModel, wallet_view)) return;
+    WalletView* wallet_view = new WalletView(walletModel, platformStyle, walletFrame);
+    if (!walletFrame->addView(wallet_view)) return;
 
     rpcConsole->addWallet(walletModel);
     if (m_wallet_selector->count() == 0) {
@@ -683,8 +802,6 @@ void DigiByteGUI::addWallet(WalletModel* walletModel)
         m_wallet_selector_label_action->setVisible(true);
         m_wallet_selector_action->setVisible(true);
     }
-    const QString display_name = walletModel->getDisplayName();
-    m_wallet_selector->addItem(display_name, QVariant::fromValue(walletModel));
 
     connect(wallet_view, &WalletView::outOfSyncWarningClicked, this, &DigiByteGUI::showModalOverlay);
     connect(wallet_view, &WalletView::transactionClicked, this, &DigiByteGUI::gotoHistoryPage);
@@ -694,9 +811,12 @@ void DigiByteGUI::addWallet(WalletModel* walletModel)
     });
     connect(wallet_view, &WalletView::encryptionStatusChanged, this, &DigiByteGUI::updateWalletStatus);
     connect(wallet_view, &WalletView::incomingTransaction, this, &DigiByteGUI::incomingTransaction);
-    connect(wallet_view, &WalletView::hdEnabledStatusChanged, this, &DigiByteGUI::updateWalletStatus);
     connect(this, &DigiByteGUI::setPrivacy, wallet_view, &WalletView::setPrivacy);
-    wallet_view->setPrivacy(isPrivacyModeActivated());
+    const bool privacy = isPrivacyModeActivated();
+    wallet_view->setPrivacy(privacy);
+    enableHistoryAction(privacy);
+    const QString display_name = walletModel->getDisplayName();
+    m_wallet_selector->addItem(display_name, QVariant::fromValue(walletModel));
 }
 
 void DigiByteGUI::removeWallet(WalletModel* walletModel)
@@ -722,7 +842,7 @@ void DigiByteGUI::removeWallet(WalletModel* walletModel)
 
 void DigiByteGUI::setCurrentWallet(WalletModel* wallet_model)
 {
-    if (!walletFrame) return;
+    if (!walletFrame || !m_wallet_controller) return;
     walletFrame->setCurrentWallet(wallet_model);
     for (int index = 0; index < m_wallet_selector->count(); ++index) {
         if (m_wallet_selector->itemData(index).value<WalletModel*>() == wallet_model) {
@@ -731,6 +851,7 @@ void DigiByteGUI::setCurrentWallet(WalletModel* wallet_model)
         }
     }
     updateWindowTitle();
+    m_migrate_wallet_action->setEnabled(wallet_model->wallet().isLegacy());
 }
 
 void DigiByteGUI::setCurrentWalletBySelectorIndex(int index)
@@ -752,10 +873,11 @@ void DigiByteGUI::setWalletActionsEnabled(bool enabled)
 {
     overviewAction->setEnabled(enabled);
     sendCoinsAction->setEnabled(enabled);
-    sendCoinsMenuAction->setEnabled(enabled);
     receiveCoinsAction->setEnabled(enabled);
-    receiveCoinsMenuAction->setEnabled(enabled);
     historyAction->setEnabled(enabled);
+    digiDollarAction->setEnabled(enabled);
+    // mintAction->setEnabled(enabled);
+    // redeemAction->setEnabled(enabled);
     encryptWalletAction->setEnabled(enabled);
     backupWalletAction->setEnabled(enabled);
     changePassphraseAction->setEnabled(enabled);
@@ -766,13 +888,14 @@ void DigiByteGUI::setWalletActionsEnabled(bool enabled)
     openAction->setEnabled(enabled);
     m_close_wallet_action->setEnabled(enabled);
     m_close_all_wallets_action->setEnabled(enabled);
+    m_migrate_wallet_action->setEnabled(enabled);
 }
 
 void DigiByteGUI::createTrayIcon()
 {
     assert(QSystemTrayIcon::isSystemTrayAvailable());
 
-#ifndef Q_OS_MAC
+#ifndef Q_OS_MACOS
     if (QSystemTrayIcon::isSystemTrayAvailable()) {
         trayIcon = new QSystemTrayIcon(m_network_style->getTrayAndWindowIcon(), this);
         QString toolTip = tr("%1 client").arg(PACKAGE_NAME) + " " + m_network_style->getTitleAddText();
@@ -783,58 +906,86 @@ void DigiByteGUI::createTrayIcon()
 
 void DigiByteGUI::createTrayIconMenu()
 {
-#ifndef Q_OS_MAC
-    // return if trayIcon is unset (only on non-macOSes)
-    if (!trayIcon)
-        return;
+#ifndef Q_OS_MACOS
+    if (!trayIcon) return;
+#endif // Q_OS_MACOS
+
+    // Configuration of the tray icon (or Dock icon) menu.
+    QAction* show_hide_action{nullptr};
+#ifndef Q_OS_MACOS
+    // Note: On macOS, the Dock icon's menu already has Show / Hide action.
+    show_hide_action = trayIconMenu->addAction(QString(), this, &DigiByteGUI::toggleHidden);
+    trayIconMenu->addSeparator();
+#endif // Q_OS_MACOS
+
+    QAction* send_action{nullptr};
+    QAction* receive_action{nullptr};
+    QAction* sign_action{nullptr};
+    QAction* verify_action{nullptr};
+    if (enableWallet) {
+        send_action = trayIconMenu->addAction(sendCoinsAction->text(), sendCoinsAction, &QAction::trigger);
+        receive_action = trayIconMenu->addAction(receiveCoinsAction->text(), receiveCoinsAction, &QAction::trigger);
+        trayIconMenu->addSeparator();
+        sign_action = trayIconMenu->addAction(signMessageAction->text(), signMessageAction, &QAction::trigger);
+        verify_action = trayIconMenu->addAction(verifyMessageAction->text(), verifyMessageAction, &QAction::trigger);
+        trayIconMenu->addSeparator();
+    }
+    QAction* options_action = trayIconMenu->addAction(optionsAction->text(), optionsAction, &QAction::trigger);
+    options_action->setMenuRole(QAction::PreferencesRole);
+    QAction* node_window_action = trayIconMenu->addAction(openRPCConsoleAction->text(), openRPCConsoleAction, &QAction::trigger);
+    QAction* quit_action{nullptr};
+#ifndef Q_OS_MACOS
+    // Note: On macOS, the Dock icon's menu already has Quit action.
+    trayIconMenu->addSeparator();
+    quit_action = trayIconMenu->addAction(quitAction->text(), quitAction, &QAction::trigger);
 
     trayIcon->setContextMenu(trayIconMenu.get());
-    connect(trayIcon, &QSystemTrayIcon::activated, this, &DigiByteGUI::trayIconActivated);
+    connect(trayIcon, &QSystemTrayIcon::activated, [this](QSystemTrayIcon::ActivationReason reason) {
+        if (reason == QSystemTrayIcon::Trigger) {
+            // Click on system tray icon triggers show/hide of the main window
+            toggleHidden();
+        }
+    });
 #else
     // Note: On macOS, the Dock icon is used to provide the tray's functionality.
-    MacDockIconHandler *dockIconHandler = MacDockIconHandler::instance();
-    connect(dockIconHandler, &MacDockIconHandler::dockIconClicked, this, &DigiByteGUI::macosDockIconActivated);
+    MacDockIconHandler* dockIconHandler = MacDockIconHandler::instance();
+    connect(dockIconHandler, &MacDockIconHandler::dockIconClicked, [this] {
+        if (m_node.shutdownRequested()) return; // nothing to show, node is shutting down.
+        show();
+        activateWindow();
+    });
     trayIconMenu->setAsDockMenu();
-#endif
+#endif // Q_OS_MACOS
 
-    // Configuration of the tray icon (or Dock icon) menu
-#ifndef Q_OS_MAC
-    // Note: On macOS, the Dock icon's menu already has Show / Hide action.
-    trayIconMenu->addAction(toggleHideAction);
-    trayIconMenu->addSeparator();
-#endif
-    if (enableWallet) {
-        trayIconMenu->addAction(sendCoinsMenuAction);
-        trayIconMenu->addAction(receiveCoinsMenuAction);
-        trayIconMenu->addSeparator();
-        trayIconMenu->addAction(signMessageAction);
-        trayIconMenu->addAction(verifyMessageAction);
-        trayIconMenu->addSeparator();
-    }
-    trayIconMenu->addAction(optionsAction);
-    trayIconMenu->addAction(openRPCConsoleAction);
-#ifndef Q_OS_MAC // This is built-in on macOS
-    trayIconMenu->addSeparator();
-    trayIconMenu->addAction(quitAction);
-#endif
-}
+    connect(
+        // Using QSystemTrayIcon::Context is not reliable.
+        // See https://bugreports.qt.io/browse/QTBUG-91697
+        trayIconMenu.get(), &QMenu::aboutToShow,
+        [this, show_hide_action, send_action, receive_action, sign_action, verify_action, options_action, node_window_action, quit_action] {
+            if (m_node.shutdownRequested()) return; // nothing to do, node is shutting down.
 
-#ifndef Q_OS_MAC
-void DigiByteGUI::trayIconActivated(QSystemTrayIcon::ActivationReason reason)
-{
-    if(reason == QSystemTrayIcon::Trigger)
-    {
-        // Click on system tray icon triggers show/hide of the main window
-        toggleHidden();
-    }
+            if (show_hide_action) show_hide_action->setText(
+                (!isHidden() && !isMinimized() && !GUIUtil::isObscured(this)) ?
+                    tr("&Hide") :
+                    tr("S&how"));
+            if (QApplication::activeModalWidget()) {
+                for (QAction* a : trayIconMenu.get()->actions()) {
+                    a->setEnabled(false);
+                }
+            } else {
+                if (show_hide_action) show_hide_action->setEnabled(true);
+                if (enableWallet) {
+                    send_action->setEnabled(sendCoinsAction->isEnabled());
+                    receive_action->setEnabled(receiveCoinsAction->isEnabled());
+                    sign_action->setEnabled(signMessageAction->isEnabled());
+                    verify_action->setEnabled(verifyMessageAction->isEnabled());
+                }
+                options_action->setEnabled(optionsAction->isEnabled());
+                node_window_action->setEnabled(openRPCConsoleAction->isEnabled());
+                if (quit_action) quit_action->setEnabled(true);
+            }
+        });
 }
-#else
-void DigiByteGUI::macosDockIconActivated()
-{
-    show();
-    activateWindow();
-}
-#endif
 
 void DigiByteGUI::optionsClicked()
 {
@@ -846,8 +997,8 @@ void DigiByteGUI::aboutClicked()
     if(!clientModel)
         return;
 
-    HelpMessageDialog dlg(this, true);
-    dlg.exec();
+    auto dlg = new HelpMessageDialog(this, /*about=*/true);
+    GUIUtil::ShowModalDialogAsynchronously(dlg);
 }
 
 void DigiByteGUI::showDebugWindow()
@@ -870,7 +1021,7 @@ void DigiByteGUI::showHelpMessageClicked()
 #ifdef ENABLE_WALLET
 void DigiByteGUI::openClicked()
 {
-    OpenURIDialog dlg(this);
+    OpenURIDialog dlg(platformStyle, this);
     if(dlg.exec())
     {
         Q_EMIT receivedURI(dlg.getURI());
@@ -983,21 +1134,30 @@ void DigiByteGUI::updateHeadersSyncProgressLabel()
         progressBarLabel->setText(tr("Syncing Headers (%1%)…").arg(QString::number(100.0 / (headersTipHeight+estHeadersLeft)*headersTipHeight, 'f', 1)));
 }
 
+void DigiByteGUI::updateHeadersPresyncProgressLabel(int64_t height, const QDateTime& blockDate)
+{
+    int estHeadersLeft = blockDate.secsTo(QDateTime::currentDateTime()) / Params().GetConsensus().nPowTargetSpacing;
+    if (estHeadersLeft > HEADER_HEIGHT_DELTA_SYNC)
+        progressBarLabel->setText(tr("Pre-syncing Headers (%1%)…").arg(QString::number(100.0 / (height+estHeadersLeft)*height, 'f', 1)));
+}
+
 void DigiByteGUI::openOptionsDialogWithTab(OptionsDialog::Tab tab)
 {
     if (!clientModel || !clientModel->getOptionsModel())
         return;
 
-    OptionsDialog dlg(this, enableWallet);
-    dlg.setCurrentTab(tab);
-    dlg.setModel(clientModel->getOptionsModel());
-    dlg.exec();
+    auto dlg = new OptionsDialog(this, enableWallet);
+    connect(dlg, &OptionsDialog::quitOnReset, this, &DigiByteGUI::quitRequested);
+    dlg->setCurrentTab(tab);
+    dlg->setClientModel(clientModel);
+    dlg->setModel(clientModel->getOptionsModel());
+    GUIUtil::ShowModalDialogAsynchronously(dlg);
 }
 
-void DigiByteGUI::setNumBlocks(int count, const QDateTime& blockDate, double nVerificationProgress, bool header, SynchronizationState sync_state)
+void DigiByteGUI::setNumBlocks(int count, const QDateTime& blockDate, double nVerificationProgress, SyncType synctype, SynchronizationState sync_state)
 {
 // Disabling macOS App Nap on initial sync, disk and reindex operations.
-#ifdef Q_OS_MAC
+#ifdef Q_OS_MACOS
     if (sync_state == SynchronizationState::POST_INIT) {
         m_app_nap_inhibitor->enableAppNap();
     } else {
@@ -1007,8 +1167,8 @@ void DigiByteGUI::setNumBlocks(int count, const QDateTime& blockDate, double nVe
 
     if (modalOverlay)
     {
-        if (header)
-            modalOverlay->setKnownBestHeight(count, blockDate);
+        if (synctype != SyncType::BLOCK_SYNC)
+            modalOverlay->setKnownBestHeight(count, blockDate, synctype == SyncType::HEADER_PRESYNC);
         else
             modalOverlay->tipUpdate(count, blockDate, nVerificationProgress);
     }
@@ -1019,10 +1179,13 @@ void DigiByteGUI::setNumBlocks(int count, const QDateTime& blockDate, double nVe
     statusBar()->clearMessage();
 
     // Acquire current block source
-    enum BlockSource blockSource = clientModel->getBlockSource();
+    BlockSource blockSource{clientModel->getBlockSource()};
     switch (blockSource) {
         case BlockSource::NETWORK:
-            if (header) {
+            if (synctype == SyncType::HEADER_PRESYNC) {
+                updateHeadersPresyncProgressLabel(count, blockDate);
+                return;
+            } else if (synctype == SyncType::HEADER_SYNC) {
                 updateHeadersSyncProgressLabel();
                 return;
             }
@@ -1030,17 +1193,14 @@ void DigiByteGUI::setNumBlocks(int count, const QDateTime& blockDate, double nVe
             updateHeadersSyncProgressLabel();
             break;
         case BlockSource::DISK:
-            if (header) {
+            if (synctype != SyncType::BLOCK_SYNC) {
                 progressBarLabel->setText(tr("Indexing blocks on disk…"));
             } else {
                 progressBarLabel->setText(tr("Processing blocks on disk…"));
             }
             break;
-        case BlockSource::REINDEX:
-            progressBarLabel->setText(tr("Reindexing blocks on disk…"));
-            break;
         case BlockSource::NONE:
-            if (header) {
+            if (synctype != SyncType::BLOCK_SYNC) {
                 return;
             }
             progressBarLabel->setText(tr("Connecting to peers…"));
@@ -1110,6 +1270,21 @@ void DigiByteGUI::setNumBlocks(int count, const QDateTime& blockDate, double nVe
     labelBlocksIcon->setToolTip(tooltip);
     progressBarLabel->setToolTip(tooltip);
     progressBar->setToolTip(tooltip);
+}
+
+void DigiByteGUI::createWallet()
+{
+#ifdef ENABLE_WALLET
+#ifndef USE_SQLITE
+    // Compiled without sqlite support (required for descriptor wallets)
+    message(tr("Error creating wallet"), tr("Cannot create new wallet, the software was compiled without sqlite support (required for descriptor wallets)"), CClientUIInterface::MSG_ERROR);
+    return;
+#endif // USE_SQLITE
+    auto activity = new CreateWalletActivity(getWalletController(), this);
+    connect(activity, &CreateWalletActivity::created, this, &DigiByteGUI::setCurrentWallet);
+    connect(activity, &CreateWalletActivity::created, rpcConsole, &RPCConsole::setCurrentWallet);
+    activity->create();
+#endif // ENABLE_WALLET
 }
 
 void DigiByteGUI::message(const QString& title, QString message, unsigned int style, bool* ret, const QString& detailed_message)
@@ -1183,7 +1358,7 @@ void DigiByteGUI::changeEvent(QEvent *e)
 
     QMainWindow::changeEvent(e);
 
-#ifndef Q_OS_MAC // Ignored on Mac
+#ifndef Q_OS_MACOS // Ignored on Mac
     if(e->type() == QEvent::WindowStateChange)
     {
         if(clientModel && clientModel->getOptionsModel() && clientModel->getOptionsModel()->getMinimizeToTray())
@@ -1206,7 +1381,7 @@ void DigiByteGUI::changeEvent(QEvent *e)
 
 void DigiByteGUI::closeEvent(QCloseEvent *event)
 {
-#ifndef Q_OS_MAC // Ignored on Mac
+#ifndef Q_OS_MACOS // Ignored on Mac
     if(clientModel && clientModel->getOptionsModel())
     {
         if(!clientModel->getOptionsModel()->getMinimizeOnClose())
@@ -1214,7 +1389,7 @@ void DigiByteGUI::closeEvent(QCloseEvent *event)
             // close rpcConsole in case it was open to make some space for the shutdown window
             rpcConsole->close();
 
-            QApplication::quit();
+            Q_EMIT quitRequested();
         }
         else
         {
@@ -1236,12 +1411,12 @@ void DigiByteGUI::showEvent(QShowEvent *event)
 }
 
 #ifdef ENABLE_WALLET
-void DigiByteGUI::incomingTransaction(const QString& date, int unit, const CAmount& amount, const QString& type, const QString& address, const QString& label, const QString& walletName)
+void DigiByteGUI::incomingTransaction(const QString& date, DigiByteUnit unit, const CAmount& amount, const QString& type, const QString& address, const QString& label, const QString& walletName)
 {
     // On new transaction, make an info balloon
     QString msg = tr("Date: %1\n").arg(date) +
                   tr("Amount: %1\n").arg(DigiByteUnits::formatWithUnit(unit, amount, true));
-    if (m_node.walletClient().getWallets().size() > 1 && !walletName.isEmpty()) {
+    if (m_node.walletLoader().getWallets().size() > 1 && !walletName.isEmpty()) {
         msg += tr("Wallet: %1\n").arg(walletName);
     }
     msg += tr("Type: %1\n").arg(type);
@@ -1303,14 +1478,18 @@ void DigiByteGUI::setHDStatus(bool privkeyDisabled, int hdEnabled)
     labelWalletHDStatusIcon->setThemedPixmap(privkeyDisabled ? QStringLiteral(":/icons/eye") : hdEnabled ? QStringLiteral(":/icons/hd_enabled") : QStringLiteral(":/icons/hd_disabled"), STATUSBAR_ICONSIZE, STATUSBAR_ICONSIZE);
     labelWalletHDStatusIcon->setToolTip(privkeyDisabled ? tr("Private key <b>disabled</b>") : hdEnabled ? tr("HD key generation is <b>enabled</b>") : tr("HD key generation is <b>disabled</b>"));
     labelWalletHDStatusIcon->show();
-    // eventually disable the QLabel to set its opacity to 50%
-    labelWalletHDStatusIcon->setEnabled(hdEnabled);
 }
 
 void DigiByteGUI::setEncryptionStatus(int status)
 {
     switch(status)
     {
+    case WalletModel::NoKeys:
+        labelWalletEncryptionIcon->hide();
+        encryptWalletAction->setChecked(false);
+        changePassphraseAction->setEnabled(false);
+        encryptWalletAction->setEnabled(false);
+        break;
     case WalletModel::Unencrypted:
         labelWalletEncryptionIcon->hide();
         encryptWalletAction->setChecked(false);
@@ -1338,9 +1517,7 @@ void DigiByteGUI::setEncryptionStatus(int status)
 
 void DigiByteGUI::updateWalletStatus()
 {
-    if (!walletFrame) {
-        return;
-    }
+    assert(walletFrame);
     WalletView * const walletView = walletFrame->currentWalletView();
     if (!walletView) {
         return;
@@ -1409,7 +1586,7 @@ void DigiByteGUI::detectShutdown()
     {
         if(rpcConsole)
             rpcConsole->hide();
-        qApp->quit();
+        Q_EMIT quitRequested();
     }
 }
 
@@ -1483,18 +1660,15 @@ bool DigiByteGUI::isPrivacyModeActivated() const
     return m_mask_values_action->isChecked();
 }
 
-UnitDisplayStatusBarControl::UnitDisplayStatusBarControl(const PlatformStyle *platformStyle)
-    : optionsModel(nullptr),
-      menu(nullptr),
-      m_platform_style{platformStyle}
+UnitDisplayStatusBarControl::UnitDisplayStatusBarControl(const PlatformStyle* platformStyle)
+    : m_platform_style{platformStyle}
 {
     createContextMenu();
     setToolTip(tr("Unit to show amounts in. Click to select another unit."));
-    QList<DigiByteUnits::Unit> units = DigiByteUnits::availableUnits();
+    QList<DigiByteUnit> units = DigiByteUnits::availableUnits();
     int max_width = 0;
     const QFontMetrics fm(font());
-    for (const DigiByteUnits::Unit unit : units)
-    {
+    for (const DigiByteUnit unit : units) {
         max_width = qMax(max_width, GUIUtil::TextWidth(fm, DigiByteUnits::longName(unit)));
     }
     setMinimumSize(max_width, 0);
@@ -1524,8 +1698,8 @@ void UnitDisplayStatusBarControl::changeEvent(QEvent* e)
 void UnitDisplayStatusBarControl::createContextMenu()
 {
     menu = new QMenu(this);
-    for (const DigiByteUnits::Unit u : DigiByteUnits::availableUnits()) {
-        menu->addAction(DigiByteUnits::longName(u))->setData(QVariant(u));
+    for (const DigiByteUnit u : DigiByteUnits::availableUnits()) {
+        menu->addAction(DigiByteUnits::longName(u))->setData(QVariant::fromValue(u));
     }
     connect(menu, &QMenu::triggered, this, &UnitDisplayStatusBarControl::onMenuSelection);
 }
@@ -1546,7 +1720,7 @@ void UnitDisplayStatusBarControl::setOptionsModel(OptionsModel *_optionsModel)
 }
 
 /** When Display Units are changed on OptionsModel it will refresh the display text of the control on the status bar */
-void UnitDisplayStatusBarControl::updateDisplayUnit(int newUnits)
+void UnitDisplayStatusBarControl::updateDisplayUnit(DigiByteUnit newUnits)
 {
     setText(DigiByteUnits::longName(newUnits));
 }

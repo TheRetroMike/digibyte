@@ -1,4 +1,4 @@
-<TS language="fi" version="2.1">
+<TS version="2.1" language="fi">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -72,7 +72,7 @@
     <message>
         <source>These are your DigiByte addresses for receiving payments. Use the 'Create new receiving address' button in the receive tab to create new addresses.
 Signing is only possible with addresses of the type 'legacy'.</source>
-        <translation>Nämä ovat DigiByte-osoitteesi maksujen vastaanottoa varten. Käytä painiketta "Luo uusi vastaanotto-osoite" vastaanottovälilehdessä luodaksesi uusia osoitteita.
+        <translation type="unfinished">Nämä ovat DigiByte-osoitteesi maksujen vastaanottoa varten. Käytä painiketta "Luo uusi vastaanotto-osoite" vastaanottovälilehdessä luodaksesi uusia osoitteita.
 Allekirjoitus on mahdollista vain 'legacy'-tyyppisillä osoitteilla.</translation>
     </message>
     <message>
@@ -3406,7 +3406,7 @@ Huom: Koska siirtomaksu lasketaan tavujen mukaan, niin määrittelemällä 500 t
         <source>No wallet has been loaded.
 Go to File &gt; Open Wallet to load a wallet.
 - OR -</source>
-        <translation>Lompakkoa ei ladattu.
+        <translation type="unfinished">Lompakkoa ei ladattu.
 Siirry osioon Tiedosto &gt; Avaa lompakko ladataksesi lompakon.
 - TAI -</translation>
     </message>

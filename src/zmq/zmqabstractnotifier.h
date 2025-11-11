@@ -1,12 +1,12 @@
-// Copyright (c) 2009-2019 The Bitcoin Core developers
-// Copyright (c) 2014-2019 The DigiByte Core developers
+// Copyright (c) 2015-2022 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef DIGIBYTE_ZMQ_ZMQABSTRACTNOTIFIER_H
 #define DIGIBYTE_ZMQ_ZMQABSTRACTNOTIFIER_H
 
-
+#include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
 
@@ -14,14 +14,14 @@ class CBlockIndex;
 class CTransaction;
 class CZMQAbstractNotifier;
 
-using CZMQNotifierFactory = std::unique_ptr<CZMQAbstractNotifier> (*)();
+using CZMQNotifierFactory = std::function<std::unique_ptr<CZMQAbstractNotifier>()>;
 
 class CZMQAbstractNotifier
 {
 public:
     static const int DEFAULT_ZMQ_SNDHWM {1000};
 
-    CZMQAbstractNotifier() : psocket(nullptr), outbound_message_high_water_mark(DEFAULT_ZMQ_SNDHWM) { }
+    CZMQAbstractNotifier() : outbound_message_high_water_mark(DEFAULT_ZMQ_SNDHWM) {}
     virtual ~CZMQAbstractNotifier();
 
     template <typename T>
@@ -58,7 +58,7 @@ public:
     virtual bool NotifyTransaction(const CTransaction &transaction);
 
 protected:
-    void *psocket;
+    void* psocket{nullptr};
     std::string type;
     std::string address;
     int outbound_message_high_water_mark; // aka SNDHWM

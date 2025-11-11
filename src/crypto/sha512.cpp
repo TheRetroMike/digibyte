@@ -1,8 +1,7 @@
-// Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The DigiByte Core developers
+// Copyright (c) 2014-2022 The Bitcoin Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <crypto/sha512.h>
 
 #include <crypto/common.h>
@@ -31,7 +30,7 @@ void inline Round(uint64_t a, uint64_t b, uint64_t c, uint64_t& d, uint64_t e, u
     h = t1 + t2;
 }
 
-/** Initialize SHA-256 state. */
+/** Initialize SHA-512 state. */
 void inline Initialize(uint64_t* s)
 {
     s[0] = 0x6a09e667f3bcc908ull;
@@ -132,8 +131,8 @@ void Transform(uint64_t* s, const unsigned char* chunk)
     Round(f, g, h, a, b, c, d, e, 0x431d67c49c100d4cull, w11 += sigma1(w9) + w4 + sigma0(w12));
     Round(e, f, g, h, a, b, c, d, 0x4cc5d4becb3e42b6ull, w12 += sigma1(w10) + w5 + sigma0(w13));
     Round(d, e, f, g, h, a, b, c, 0x597f299cfc657e2aull, w13 += sigma1(w11) + w6 + sigma0(w14));
-    Round(c, d, e, f, g, h, a, b, 0x5fcb6fab3ad6faecull, w14 + sigma1(w12) + w7 + sigma0(w15));
-    Round(b, c, d, e, f, g, h, a, 0x6c44198c4a475817ull, w15 + sigma1(w13) + w8 + sigma0(w0));
+    Round(c, d, e, f, g, h, a, b, 0x5fcb6fab3ad6faecull, w14 += sigma1(w12) + w7 + sigma0(w15));
+    Round(b, c, d, e, f, g, h, a, 0x6c44198c4a475817ull, w15 += sigma1(w13) + w8 + sigma0(w0));
 
     s[0] += a;
     s[1] += b;
@@ -152,7 +151,7 @@ void Transform(uint64_t* s, const unsigned char* chunk)
 
 ////// SHA-512
 
-CSHA512::CSHA512() : bytes(0)
+CSHA512::CSHA512()
 {
     sha512::Initialize(s);
 }

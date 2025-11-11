@@ -1,31 +1,103 @@
-<TS language="uz@Latn" version="2.1">
+<TS version="2.1" language="uz@Latn">
 <context>
     <name>AddressBookPage</name>
     <message>
+        <source>Right-click to edit address or label</source>
+        <translation type="unfinished">Manzil yoki yorliqni tahrirlash uchun oʻng tugmani bosing</translation>
+    </message>
+    <message>
         <source>Create a new address</source>
-        <translation>Yangi manzil yaratish</translation>
+        <translation type="unfinished">Yangi manzil yaratish</translation>
     </message>
     <message>
         <source>&amp;New</source>
-        <translation>&amp;Yangi</translation>
+        <translation type="unfinished">&amp;Yangi</translation>
+    </message>
+    <message>
+        <source>Copy the currently selected address to the system clipboard</source>
+        <translation type="unfinished">Tanlangan manzilni tizim buferiga nusxalash</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Nusxalash</translation>
+        <translation type="unfinished">&amp;Nusxalash</translation>
     </message>
     <message>
         <source>C&amp;lose</source>
-        <translation>Yo&amp;pish</translation>
+        <translation type="unfinished">Yo&amp;pish</translation>
+    </message>
+    <message>
+        <source>Delete the currently selected address from the list</source>
+        <translation type="unfinished">Ro'yxatdan hozir tanlangan manzilni o'chiring</translation>
+    </message>
+    <message>
+        <source>Enter address or label to search</source>
+        <translation type="unfinished">Qidirish uchun manzil yoki yorliqni kiriting</translation>
+    </message>
+    <message>
+        <source>Export the data in the current tab to a file</source>
+        <translation type="unfinished">Joriy yorliqdagi ma'lumotlarni faylga eksport qilish</translation>
+    </message>
+    <message>
+        <source>&amp;Export</source>
+        <translation type="unfinished">&amp;Eksport</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation>&amp;O'chirish</translation>
+        <translation type="unfinished">&amp;O'chirish</translation>
+    </message>
+    <message>
+        <source>Choose the address to send coins to</source>
+        <translation type="unfinished">Coin yuborish uchun manzilni tanlang</translation>
+    </message>
+    <message>
+        <source>Choose the address to receive coins with</source>
+        <translation type="unfinished">Coinlarni qabul qilish uchun manzilni tanlang</translation>
+    </message>
+    <message>
+        <source>C&amp;hoose</source>
+        <translation type="unfinished">&amp;Tanlash</translation>
+    </message>
+    <message>
+        <source>These are your DigiByte addresses for sending payments. Always check the amount and the receiving address before sending coins.</source>
+        <translation type="unfinished">Quyida to'lovlarni yuborish uchun DigiByte manzillaringiz. Coinlarni yuborishdan oldin har doim miqdor va qabul qilish manzilini tekshiring.</translation>
+    </message>
+    <message>
+        <source>These are your DigiByte addresses for receiving payments. Use the 'Create new receiving address' button in the receive tab to create new addresses.
+Signing is only possible with addresses of the type 'legacy'.</source>
+        <translation type="unfinished">Bular to'lovlarni qabul qilish uchun mo'ljallangan Bitkoin manzillar. Yangi manzillar yaratish uchun 'Yangi qabul qilish manzili yaratish' tugmasini ishlating.
+Kirish faqat 'legacy' turidagi manzillar uchun.</translation>
     </message>
     <message>
         <source>&amp;Copy Address</source>
-        <translation>&amp;Manzillarni nusxalash</translation>
+        <translation type="unfinished">&amp;Manzillarni nusxalash</translation>
     </message>
-    </context>
+    <message>
+        <source>Copy &amp;Label</source>
+        <translation type="unfinished">Nusxalash &amp;Yorliq</translation>
+    </message>
+    <message>
+        <source>&amp;Edit</source>
+        <translation type="unfinished">&amp;Tahrirlash</translation>
+    </message>
+    <message>
+        <source>Export Address List</source>
+        <translation type="unfinished">Manzillar ro'yxatini eksport qilish</translation>
+    </message>
+    <message>
+        <source>Comma separated file</source>
+        <extracomment>Expanded name of the CSV file format. See: https://en.wikipedia.org/wiki/Comma-separated_values.</extracomment>
+        <translation type="unfinished">Vergul yordamida ajratilgan fayl</translation>
+    </message>
+    <message>
+        <source>There was an error trying to save the address list to %1. Please try again.</source>
+        <extracomment>An error message. %1 is a stand-in argument for the name of the file we attempted to save to.</extracomment>
+        <translation type="unfinished">Manzillarni ro'yxatini %1 ga saqlashda xatolik yuzaga keldi. Iltimos, qayta urinib ko'ring</translation>
+    </message>
+    <message>
+        <source>Exporting Failed</source>
+        <translation type="unfinished">Eksport qilish amalga oshmadi</translation>
+    </message>
+</context>
 <context>
     <name>AddressTableModel</name>
     <message>

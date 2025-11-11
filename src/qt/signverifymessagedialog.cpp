@@ -1,8 +1,6 @@
-// Copyright (c) 2011-2020 The Bitcoin Core developers
-// Copyright (c) 2013-2021 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <qt/signverifymessagedialog.h>
 #include <qt/forms/ui_signverifymessagedialog.h>
 
@@ -22,7 +20,6 @@
 SignVerifyMessageDialog::SignVerifyMessageDialog(const PlatformStyle *_platformStyle, QWidget *parent) :
     QDialog(parent, GUIUtil::dialog_flags),
     ui(new Ui::SignVerifyMessageDialog),
-    model(nullptr),
     platformStyle(_platformStyle)
 {
     ui->setupUi(this);
@@ -92,7 +89,7 @@ void SignVerifyMessageDialog::on_addressBookButton_SM_clicked()
 {
     if (model && model->getAddressTableModel())
     {
-        model->refresh(/* pk_hash_only */ true);
+        model->refresh(/*pk_hash_only=*/true);
         AddressBookPage dlg(platformStyle, AddressBookPage::ForSelection, AddressBookPage::ReceivingTab, this);
         dlg.setModel(model->getAddressTableModel());
         if (dlg.exec())

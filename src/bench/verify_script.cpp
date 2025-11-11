@@ -1,15 +1,14 @@
 // Copyright (c) 2016-2020 The Bitcoin Core developers
-// Copyright (c) 2016-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <bench/bench.h>
 #include <key.h>
 #if defined(HAVE_CONSENSUS_LIB)
 #include <script/digibyteconsensus.h>
 #endif
 #include <script/script.h>
-#include <script/standard.h>
+#include <script/interpreter.h>
 #include <streams.h>
 #include <test/util/transaction_utils.h>
 
@@ -19,10 +18,9 @@
 // modified to measure performance of other types of scripts.
 static void VerifyScriptBench(benchmark::Bench& bench)
 {
-    const ECCVerifyHandle verify_handle;
     ECC_Start();
 
-    const int flags = SCRIPT_VERIFY_WITNESS | SCRIPT_VERIFY_P2SH;
+    const uint32_t flags{SCRIPT_VERIFY_WITNESS | SCRIPT_VERIFY_P2SH};
     const int witnessversion = 0;
 
     // Key pair.
@@ -97,5 +95,5 @@ static void VerifyNestedIfScript(benchmark::Bench& bench)
     });
 }
 
-BENCHMARK(VerifyScriptBench);
-BENCHMARK(VerifyNestedIfScript);
+BENCHMARK(VerifyScriptBench, benchmark::PriorityLevel::HIGH);
+BENCHMARK(VerifyNestedIfScript, benchmark::PriorityLevel::HIGH);

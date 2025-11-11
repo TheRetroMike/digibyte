@@ -1,4 +1,4 @@
-<TS language="zh_TW" version="2.1">
+<TS version="2.1" language="zh_TW">
 <context>
     <name>AddressBookPage</name>
     <message>
@@ -67,12 +67,12 @@
     </message>
     <message>
         <source>These are your DigiByte addresses for sending payments. Always check the amount and the receiving address before sending coins.</source>
-        <translation>這些是你要發送過去的 比特幣地址。在發送幣之前，務必要檢查金額和接收地址是否正確。</translation>
+        <translation>這些是你要發送過去的 极特币地址。在發送幣之前，務必要檢查金額和接收地址是否正確。</translation>
     </message>
     <message>
         <source>These are your DigiByte addresses for receiving payments. Use the 'Create new receiving address' button in the receive tab to create new addresses.
 Signing is only possible with addresses of the type 'legacy'.</source>
-        <translation>這些是您的比特幣接收地址。使用“接收”標籤中的“產生新的接收地址”按鈕產生新的地址。只能使用“傳統”類型的地址進行簽名。</translation>
+        <translation>這些是您的极特币接收地址。使用“接收”標籤中的“產生新的接收地址”按鈕產生新的地址。只能使用“傳統”類型的地址進行簽名。</translation>
     </message>
     <message>
         <source>&amp;Copy Address</source>
@@ -360,7 +360,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>Send coins to a DigiByte address</source>
-        <translation>發送幣給一個比特幣地址</translation>
+        <translation>發送幣給一個极特币地址</translation>
     </message>
     <message>
         <source>Backup wallet to another location</source>
@@ -396,11 +396,11 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>Sign messages with your DigiByte addresses to prove you own them</source>
-        <translation>用比特幣地址簽名訊息來證明位址是你的</translation>
+        <translation>用极特币地址簽名訊息來證明位址是你的</translation>
     </message>
     <message>
         <source>Verify messages to ensure they were signed with specified DigiByte addresses</source>
-        <translation>驗證訊息是用來確定訊息是用指定的比特幣地址簽名的</translation>
+        <translation>驗證訊息是用來確定訊息是用指定的极特币地址簽名的</translation>
     </message>
     <message>
         <source>&amp;File</source>
@@ -484,7 +484,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>Load Partially Signed DigiByte Transaction</source>
-        <translation>載入部分簽名的比特幣交易</translation>
+        <translation>載入部分簽名的极特币交易</translation>
     </message>
     <message>
         <source>Load PSBT from clipboard...</source>
@@ -492,7 +492,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>Load Partially Signed DigiByte Transaction from clipboard</source>
-        <translation>從剪貼簿載入部分簽名的比特幣交易</translation>
+        <translation>從剪貼簿載入部分簽名的极特币交易</translation>
     </message>
     <message>
         <source>Node window</source>
@@ -512,7 +512,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>Open a digibyte: URI</source>
-        <translation>打開一個比特幣：URI</translation>
+        <translation>打開一個极特币：URI</translation>
     </message>
     <message>
         <source>Open Wallet</source>
@@ -908,7 +908,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>The entered address "%1" is not a valid DigiByte address.</source>
-        <translation>輸入的地址 %1 並不是有效的比特幣地址。</translation>
+        <translation>輸入的地址 %1 並不是有效的极特币地址。</translation>
     </message>
     <message>
         <source>The entered address "%1" is already in the address book with label "%2".</source>
@@ -1099,7 +1099,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     <name>OpenURIDialog</name>
     <message>
         <source>Open digibyte URI</source>
-        <translation>打開比特幣URI</translation>
+        <translation>打開极特币URI</translation>
     </message>
     <message>
         <source>URI:</source>
@@ -1333,7 +1333,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>Connect to the DigiByte network through a separate SOCKS5 proxy for Tor onion services.</source>
-        <translation>通過用於Tor洋蔥服務個別的SOCKS5代理連接到比特幣網路。</translation>
+        <translation>通過用於Tor洋蔥服務個別的SOCKS5代理連接到极特币網路。</translation>
     </message>
     <message>
         <source>Use separate SOCKS&amp;5 proxy to reach peers via Tor onion services:</source>
@@ -1610,7 +1610,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>URI cannot be parsed! This can be caused by an invalid DigiByte address or malformed URI parameters.</source>
-        <translation>沒辦法解析 URI ！可能是因為無效比特幣地址，或是 URI 參數格式錯誤。</translation>
+        <translation>沒辦法解析 URI ！可能是因為無效极特币地址，或是 URI 參數格式錯誤。</translation>
     </message>
     <message>
         <source>Payment request file handling</source>
@@ -1652,7 +1652,7 @@ Signing is only possible with addresses of the type 'legacy'.</source>
     </message>
     <message>
         <source>Enter a DigiByte address (e.g. %1)</source>
-        <translation>輸入 比特幣地址 (比如說 %1)</translation>
+        <translation>輸入 极特币地址 (比如說 %1)</translation>
     </message>
     <message>
         <source>%1 d</source>
@@ -2390,7 +2390,7 @@ Note:  Since the fee is calculated on a per-byte basis, a fee of "100 satoshis p
     </message>
     <message>
         <source>When there is less transaction volume than space in the blocks, miners as well as relaying nodes may enforce a minimum fee. Paying only this minimum fee is just fine, but be aware that this can result in a never confirming transaction once there is more demand for digibyte transactions than the network can process.</source>
-        <translation>当交易量小于可用区块空间时，矿工和中继节点可能会执行最低手续费率限制。按照这个最低费率来支付手续费也是可以的，但请注意，一旦交易需求超出比特币网络能处理的限度，你的交易可能永远也无法确认。</translation>
+        <translation>当交易量小于可用区块空间时，矿工和中继节点可能会执行最低手续费率限制。按照这个最低费率来支付手续费也是可以的，但请注意，一旦交易需求超出极特币网络能处理的限度，你的交易可能永远也无法确认。</translation>
     </message>
     <message>
         <source>A too low fee might result in a never confirming transaction (read the tooltip)</source>
@@ -2578,7 +2578,7 @@ Note:  Since the fee is calculated on a per-byte basis, a fee of "100 satoshis p
     </message>
     <message>
         <source>Warning: Invalid DigiByte address</source>
-        <translation>警告: 比特幣地址無效</translation>
+        <translation>警告: 极特币地址無效</translation>
     </message>
     <message>
         <source>Warning: Unknown change address</source>
@@ -2617,7 +2617,7 @@ Note:  Since the fee is calculated on a per-byte basis, a fee of "100 satoshis p
     </message>
     <message>
         <source>The DigiByte address to send the payment to</source>
-        <translation>將支付發送到的比特幣地址給</translation>
+        <translation>將支付發送到的极特币地址給</translation>
     </message>
     <message>
         <source>Alt+A</source>
@@ -2703,11 +2703,11 @@ Note:  Since the fee is calculated on a per-byte basis, a fee of "100 satoshis p
     </message>
     <message>
         <source>You can sign messages/agreements with your addresses to prove you can receive digibytes sent to them. Be careful not to sign anything vague or random, as phishing attacks may try to trick you into signing your identity over to them. Only sign fully-detailed statements you agree to.</source>
-        <translation>您可以使用您的地址簽名訊息/協議，以證明您可以接收發送給他們的比特幣。但是請小心，不要簽名語意含糊不清，或隨機產生的內容，因為釣魚式詐騙可能會用騙你簽名的手法來冒充是你。只有簽名您同意的詳細內容。</translation>
+        <translation>您可以使用您的地址簽名訊息/協議，以證明您可以接收發送給他們的极特币。但是請小心，不要簽名語意含糊不清，或隨機產生的內容，因為釣魚式詐騙可能會用騙你簽名的手法來冒充是你。只有簽名您同意的詳細內容。</translation>
     </message>
     <message>
         <source>The DigiByte address to sign the message with</source>
-        <translation>用來簽名訊息的 比特幣地址</translation>
+        <translation>用來簽名訊息的 极特币地址</translation>
     </message>
     <message>
         <source>Choose previously used address</source>
@@ -2739,7 +2739,7 @@ Note:  Since the fee is calculated on a per-byte basis, a fee of "100 satoshis p
     </message>
     <message>
         <source>Sign the message to prove you own this DigiByte address</source>
-        <translation>簽名這個訊息來證明這個比特幣地址是你的</translation>
+        <translation>簽名這個訊息來證明這個极特币地址是你的</translation>
     </message>
     <message>
         <source>Sign &amp;Message</source>
@@ -2763,7 +2763,7 @@ Note:  Since the fee is calculated on a per-byte basis, a fee of "100 satoshis p
     </message>
     <message>
         <source>The DigiByte address the message was signed with</source>
-        <translation>簽名這個訊息的 比特幣地址</translation>
+        <translation>簽名這個訊息的 极特币地址</translation>
     </message>
     <message>
         <source>The signed message to verify</source>
@@ -2775,7 +2775,7 @@ Note:  Since the fee is calculated on a per-byte basis, a fee of "100 satoshis p
     </message>
     <message>
         <source>Verify the message to ensure it was signed with the specified DigiByte address</source>
-        <translation>驗證這個訊息來確定是用指定的比特幣地址簽名的</translation>
+        <translation>驗證這個訊息來確定是用指定的极特币地址簽名的</translation>
     </message>
     <message>
         <source>Verify &amp;Message</source>
@@ -3329,7 +3329,7 @@ Note:  Since the fee is calculated on a per-byte basis, a fee of "100 satoshis p
         <source>No wallet has been loaded.
 Go to File &gt; Open Wallet to load a wallet.
 - OR -</source>
-        <translation>尚未載入任何錢包。
+        <translation type="unfinished">尚未載入任何錢包。
 轉到檔案 &gt; 開啟錢包以載入錢包.
 - OR -</translation>
     </message>

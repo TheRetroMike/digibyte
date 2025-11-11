@@ -1,7 +1,6 @@
-// Copyright (c) 2019-2020 The DigiByte Core developers
+// Copyright (c) 2014-2025 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #include <boost/test/unit_test.hpp>
 
 BOOST_AUTO_TEST_SUITE(compilerbug_tests)
