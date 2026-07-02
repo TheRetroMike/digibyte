@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef DIGIBYTE_QT_TRANSACTIONRECORD_H
@@ -69,19 +69,24 @@ public:
         SendToOther,
         RecvWithAddress,
         RecvFromOther,
+        DDTimeLockCollateral,   // DigiDollar collateral locked in timelock
+        DDCollateralReturn,     // DigiDollar collateral returned from redemption
+        DDSend,                 // DigiDollar sent (0-value P2TR output)
+        DDRecv,                 // DigiDollar received (0-value P2TR output)
+        DDSendFee,              // DGB fee accompanying a DigiDollar transfer
     };
 
     /** Number of confirmation recommended for accepting a transaction */
     static const int RecommendedNumConfirmations = 6;
 
     TransactionRecord():
-            hash(), time(0), type(Other), debit(0), credit(0), idx(0)
+            hash(), time(0), type(Other), debit(0), credit(0), ddAmount(0), idx(0)
     {
     }
 
     TransactionRecord(uint256 _hash, qint64 _time):
             hash(_hash), time(_time), type(Other), debit(0),
-            credit(0), idx(0)
+            credit(0), ddAmount(0), idx(0)
     {
     }
 
@@ -89,7 +94,7 @@ public:
                 Type _type, const std::string &_address,
                 const CAmount& _debit, const CAmount& _credit):
             hash(_hash), time(_time), type(_type), address(_address), debit(_debit), credit(_credit),
-            idx(0)
+            ddAmount(0), idx(0)
     {
     }
 
@@ -106,6 +111,8 @@ public:
     std::string address;
     CAmount debit;
     CAmount credit;
+    //! Signed DigiDollar amount in cents for DigiDollar transfer rows.
+    CAmount ddAmount;
     /**@}*/
 
     /** Subtransaction index, for sort key */

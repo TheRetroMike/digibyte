@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <script/interpreter.h>
@@ -11,6 +11,8 @@
 #include <pubkey.h>
 #include <script/script.h>
 #include <uint256.h>
+#include <consensus/amount.h>
+#include <digidollar/digidollar.h>
 
 typedef std::vector<unsigned char> valtype;
 
@@ -428,6 +430,28 @@ static bool EvalChecksig(const valtype& sig, const valtype& pubkey, CScript::con
     assert(false);
 }
 
+// Oracle consensus price provider hook. Default-null; node init registers
+// the real implementation which delegates to OracleBundleManager. The
+// standalone libdigibyteconsensus.so build leaves this null, causing
+// OP_CHECKPRICE to fail closed — no hardcoded fallback of any kind.
+GetOracleConsensusPriceFn g_get_oracle_consensus_price = nullptr;
+
+static bool IsDigiDollarOpcode(opcodetype opcode)
+{
+    return opcode >= OP_DIGIDOLLAR && opcode <= OP_ORACLE;
+}
+
+static bool IsOpSuccessForFlags(opcodetype opcode, unsigned int flags)
+{
+    // DigiDollar opcodes are BIP342 OP_SUCCESSx before activation, exactly as
+    // old Taproot nodes see them. Once SCRIPT_VERIFY_DIGIDOLLAR is active they
+    // are removed from OP_SUCCESSx and evaluated by the stricter new rules.
+    if (IsDigiDollarOpcode(opcode) && (flags & SCRIPT_VERIFY_DIGIDOLLAR)) {
+        return false;
+    }
+    return IsOpSuccess(opcode);
+}
+
 bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& script, unsigned int flags, const BaseSignatureChecker& checker, SigVersion sigversion, ScriptExecutionData& execdata, ScriptError* serror)
 {
     static const CScriptNum bnZero(0);
@@ -621,6 +645,126 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                 {
                     if (flags & SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS)
                         return set_error(serror, SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS);
+                }
+                break;
+
+                // DigiDollar specific opcodes
+                case OP_DIGIDOLLAR:
+                {
+                    if (sigversion != SigVersion::TAPSCRIPT) {
+                        return set_error(serror, SCRIPT_ERR_BAD_OPCODE);
+                    }
+                    // Before activation, these bytes are still BIP342 OP_SUCCESSx.
+                    // ExecuteWitnessScript normally short-circuits before EvalScript;
+                    // keep direct EvalScript callers compatible too.
+                    if (!(flags & SCRIPT_VERIFY_DIGIDOLLAR)) {
+                        return set_success(serror);
+                    }
+
+                    // CRITICAL FIX: Read DD amount from SCRIPT (next element), not from stack
+                    // Script structure: OP_DIGIDOLLAR <amount> OP_EQUALVERIFY
+                    // The amount is embedded in the Tapscript, not provided via witness
+                    opcodetype opcodeAmount;
+                    std::vector<unsigned char> vchAmount;
+
+                    if (!script.GetOp(pc, opcodeAmount, vchAmount)) {
+                        return set_error(serror, SCRIPT_ERR_INVALID_DD_AMOUNT);
+                    }
+
+                    CScriptNum amount(0);
+                    try {
+                        amount = CScriptNum(vchAmount, fRequireMinimal);
+                    } catch (const scriptnum_error&) {
+                        return set_error(serror, SCRIPT_ERR_INVALID_DD_AMOUNT);
+                    }
+                    if (amount <= 0 || amount.GetInt64() > MAX_DIGIDOLLAR)
+                        return set_error(serror, SCRIPT_ERR_INVALID_DD_AMOUNT);
+
+                    // Amount is validated and positive — push true
+                    stack.push_back(vchTrue);
+                }
+                break;
+
+                case OP_DDVERIFY:
+                {
+                    if (sigversion != SigVersion::TAPSCRIPT) {
+                        return set_error(serror, SCRIPT_ERR_BAD_OPCODE);
+                    }
+                    if (!(flags & SCRIPT_VERIFY_DIGIDOLLAR)) {
+                        return set_success(serror);
+                    }
+
+                    // Verify DigiDollar conditions
+                    if (stack.size() < 1)
+                        return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+
+                    if (!CastToBool(stacktop(-1)))
+                        return set_error(serror, SCRIPT_ERR_DD_VERIFY);
+
+                    popstack(stack);
+                }
+                break;
+
+                case OP_CHECKPRICE:
+                {
+                    if (sigversion != SigVersion::TAPSCRIPT) {
+                        return set_error(serror, SCRIPT_ERR_BAD_OPCODE);
+                    }
+                    if (!(flags & SCRIPT_VERIFY_DIGIDOLLAR)) {
+                        return set_success(serror);
+                    }
+
+                    // DD-FINAL-005 / AR-0: OP_CHECKPRICE is RESERVED and deterministically
+                    // DISABLED. It previously consulted the live oracle price via
+                    // g_get_oracle_consensus_price -> OracleBundleManager::GetLatestPrice,
+                    // whose value depends on the validating node's most-recently-connected
+                    // block AND a wall-clock (GetTime) staleness window. That made the
+                    // opcode's TRUE/FALSE result NON-DETERMINISTIC across nodes (clock skew,
+                    // cache-age timing, operator vs non-operator, mid-reorg ordering), so any
+                    // block containing an OP_CHECKPRICE tapscript spend could fork the chain.
+                    // No DigiDollar script template emits OP_CHECKPRICE (mint/redeem collateral
+                    // scripts use OP_DIGIDOLLAR/OP_DDVERIFY/OP_CHECKCOLLATERAL/OP_CHECKSIG/CLTV),
+                    // so disabling it — consume the witness operand and deterministically push
+                    // FALSE (fail closed) — has zero DigiDollar protocol impact and removes the
+                    // fork vector. A future price-checking opcode MUST bind to the block's own
+                    // committed v0x03 bundle price (not GetLatestPrice) to be consensus-safe.
+                    if (stack.size() < 1)
+                        return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+                    popstack(stack);
+                    stack.push_back(vchFalse);
+                }
+                break;
+
+                case OP_CHECKCOLLATERAL:
+                {
+                    if (sigversion != SigVersion::TAPSCRIPT) {
+                        return set_error(serror, SCRIPT_ERR_BAD_OPCODE);
+                    }
+                    if (!(flags & SCRIPT_VERIFY_DIGIDOLLAR)) {
+                        return set_success(serror);
+                    }
+
+                    // Stack: <ratio> <threshold>
+                    if (stack.size() < 2)
+                        return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+
+                    CScriptNum ratio(0);
+                    CScriptNum threshold(0);
+                    try {
+                        ratio = CScriptNum(stacktop(-2), fRequireMinimal);
+                        threshold = CScriptNum(stacktop(-1), fRequireMinimal);
+                    } catch (const scriptnum_error&) {
+                        popstack(stack);
+                        popstack(stack);
+                        stack.push_back(vchFalse);  // Invalid number format
+                        break;
+                    }
+
+                    popstack(stack);
+                    popstack(stack);
+
+                    // Compare ratio to threshold
+                    stack.push_back(ratio >= threshold ? vchTrue : vchFalse);
                 }
                 break;
 
@@ -1718,7 +1862,10 @@ bool GenericTransactionSignatureChecker<T>::CheckSchnorrSignature(Span<const uns
     if (!SignatureHashSchnorr(sighash, execdata, *txTo, nIn, hashtype, sigversion, *this->txdata, m_mdb)) {
         return set_error(serror, SCRIPT_ERR_SCHNORR_SIG_HASHTYPE);
     }
-    if (!VerifySchnorrSignature(sig, pubkey, sighash)) return set_error(serror, SCRIPT_ERR_SCHNORR_SIG);
+
+    if (!VerifySchnorrSignature(sig, pubkey, sighash)) {
+        return set_error(serror, SCRIPT_ERR_SCHNORR_SIG);
+    }
     return true;
 }
 
@@ -1735,13 +1882,15 @@ bool GenericTransactionSignatureChecker<T>::CheckLockTime(const CScriptNum& nLoc
     if (!(
         (txTo->nLockTime <  LOCKTIME_THRESHOLD && nLockTime <  LOCKTIME_THRESHOLD) ||
         (txTo->nLockTime >= LOCKTIME_THRESHOLD && nLockTime >= LOCKTIME_THRESHOLD)
-    ))
+    )) {
         return false;
+    }
 
-    // Now that we know we're comparing apples-to-apples, the
+    // Now that we're comparing apples-to-apples, the
     // comparison is a simple numeric one.
-    if (nLockTime > (int64_t)txTo->nLockTime)
+    if (nLockTime > (int64_t)txTo->nLockTime) {
         return false;
+    }
 
     // Finally the nLockTime feature can be disabled in IsFinalTx()
     // and thus CHECKLOCKTIMEVERIFY bypassed if every txin has
@@ -1753,8 +1902,9 @@ bool GenericTransactionSignatureChecker<T>::CheckLockTime(const CScriptNum& nLoc
     // prevent this condition. Alternatively we could test all
     // inputs, but testing just this input minimizes the data
     // required to prove correct CHECKLOCKTIMEVERIFY execution.
-    if (CTxIn::SEQUENCE_FINAL == txTo->vin[nIn].nSequence)
+    if (CTxIn::SEQUENCE_FINAL == txTo->vin[nIn].nSequence) {
         return false;
+    }
 
     return true;
 }
@@ -1824,7 +1974,7 @@ static bool ExecuteWitnessScript(const Span<const valtype>& stack_span, const CS
                 return set_error(serror, SCRIPT_ERR_BAD_OPCODE);
             }
             // New opcodes will be listed here. May use a different sigversion to modify existing opcodes.
-            if (IsOpSuccess(opcode)) {
+            if (IsOpSuccessForFlags(opcode, flags)) {
                 if (flags & SCRIPT_VERIFY_DISCOURAGE_OP_SUCCESS) {
                     return set_error(serror, SCRIPT_ERR_DISCOURAGE_OP_SUCCESS);
                 }

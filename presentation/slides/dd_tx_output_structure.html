@@ -1,0 +1,336 @@
+<section class="slide">
+  <div class="slide-header">
+    <h1>Mint TX: Three-Output Architecture</h1>
+    <p class="subtitle">Each output serves a distinct cryptographic purpose</p>
+  </div>
+
+  <div class="three-column-grid">
+    <!-- Column 1: Collateral Vault -->
+    <div class="output-box vault-box">
+      <div class="output-header">
+        <span class="output-icon">🔒</span>
+        <h3>vout[0] - Collateral Vault</h3>
+      </div>
+      <div class="output-details">
+        <div class="detail-row">
+          <span class="label">Type:</span>
+          <span class="value">P2TR + MAST + CLTV</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Value:</span>
+          <span class="value highlight-green">Locked DGB (e.g., 500 DGB)</span>
+        </div>
+        <div class="script-box">
+          <div class="script-title">Script Structure:</div>
+          <pre class="script-content">OP_1 [32-byte tweaked key]
+
+MAST contains:
+  Leaf 1: &lt;height&gt; OP_CLTV OP_DROP
+          &lt;pk&gt; OP_CHECKSIG
+          (Normal unlock)
+
+  Leaf 2: &lt;height&gt; OP_CLTV OP_DROP
+          &lt;errpk&gt; OP_CHECKSIG
+          (ERR unlock)</pre>
+        </div>
+        <div class="detail-row">
+          <span class="label">Spending:</span>
+          <span class="value">Script-path (150+ bytes witness)</span>
+        </div>
+        <div class="purpose-box">
+          <strong>Purpose:</strong> Locks collateral until timelock expires
+        </div>
+      </div>
+    </div>
+
+    <!-- Column 2: DD Token -->
+    <div class="output-box token-box">
+      <div class="output-header">
+        <span class="output-icon">⚡</span>
+        <h3>vout[1] - DD Token</h3>
+      </div>
+      <div class="output-details">
+        <div class="detail-row">
+          <span class="label">Type:</span>
+          <span class="value">Simple P2TR (key-path only)</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Value:</span>
+          <span class="value highlight-blue">0 DGB (amount in metadata)</span>
+        </div>
+        <div class="script-box">
+          <div class="script-title">Script Structure:</div>
+          <pre class="script-content">OP_1 [32-byte x-only pubkey]</pre>
+        </div>
+        <div class="detail-row highlight-box">
+          <span class="label">Spending:</span>
+          <span class="value">Key-path (64-byte signature only!)</span>
+        </div>
+        <div class="purpose-box">
+          <strong>Purpose:</strong> Freely transferable DD token with minimal overhead
+        </div>
+      </div>
+    </div>
+
+    <!-- Column 3: Metadata -->
+    <div class="output-box metadata-box">
+      <div class="output-header">
+        <span class="output-icon">📋</span>
+        <h3>vout[2] - Metadata</h3>
+      </div>
+      <div class="output-details">
+        <div class="detail-row">
+          <span class="label">Type:</span>
+          <span class="value">OP_RETURN</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Value:</span>
+          <span class="value highlight-gray">0 DGB (unspendable)</span>
+        </div>
+        <div class="script-box">
+          <div class="script-title">Content: 21 bytes</div>
+          <pre class="script-content">• DD amount
+• Collateral amount
+• Tier identifier
+• Validation data</pre>
+        </div>
+        <div class="purpose-box">
+          <strong>Purpose:</strong> Cross-node validation and tracking
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Comparison Table -->
+  <div class="comparison-table">
+    <table>
+      <thead>
+        <tr>
+          <th>Output</th>
+          <th>Script Type</th>
+          <th>Witness Size</th>
+          <th>Purpose</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>🔒 Vault</strong></td>
+          <td>P2TR + MAST</td>
+          <td>150+ bytes</td>
+          <td>Locks DGB collateral</td>
+        </tr>
+        <tr>
+          <td><strong>⚡ Token</strong></td>
+          <td>P2TR only</td>
+          <td>64 bytes</td>
+          <td>Instant transfers</td>
+        </tr>
+        <tr>
+          <td><strong>📋 Metadata</strong></td>
+          <td>OP_RETURN</td>
+          <td>N/A</td>
+          <td>Validation tracking</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <style>
+    .slide {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #e0e0e0;
+      padding: 30px 40px;
+      box-sizing: border-box;
+      height: 1080px;
+      width: 1920px;
+      overflow: hidden;
+    }
+
+    .slide-header {
+      text-align: center;
+      margin-bottom: 25px;
+    }
+
+    .slide-header h1 {
+      font-size: 48px;
+      margin: 0 0 8px 0;
+      color: #00d9ff;
+      text-shadow: 0 0 10px rgba(0, 217, 255, 0.5);
+    }
+
+    .subtitle {
+      font-size: 22px;
+      color: #a0a0a0;
+      margin: 0;
+    }
+
+    .three-column-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .output-box {
+      background: rgba(255, 255, 255, 0.05);
+      border: 2px solid;
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    }
+
+    .vault-box {
+      border-color: #ff6b6b;
+    }
+
+    .token-box {
+      border-color: #4ecdc4;
+    }
+
+    .metadata-box {
+      border-color: #ffe66d;
+    }
+
+    .output-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 15px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .output-icon {
+      font-size: 28px;
+    }
+
+    .output-header h3 {
+      margin: 0;
+      font-size: 22px;
+      color: #fff;
+    }
+
+    .output-details {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      font-size: 14px;
+      gap: 8px;
+    }
+
+    .label {
+      font-weight: bold;
+      color: #00d9ff;
+      white-space: nowrap;
+    }
+
+    .value {
+      color: #e0e0e0;
+      text-align: right;
+    }
+
+    .highlight-green {
+      color: #4ecdc4;
+      font-weight: bold;
+    }
+
+    .highlight-blue {
+      color: #00d9ff;
+      font-weight: bold;
+    }
+
+    .highlight-gray {
+      color: #a0a0a0;
+      font-style: italic;
+    }
+
+    .highlight-box {
+      background: rgba(255, 215, 0, 0.1);
+      padding: 6px 8px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 215, 0, 0.3);
+    }
+
+    .script-box {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      padding: 10px;
+      margin: 8px 0;
+    }
+
+    .script-title {
+      font-size: 13px;
+      color: #00d9ff;
+      font-weight: bold;
+      margin-bottom: 6px;
+    }
+
+    .script-content {
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      line-height: 1.4;
+      margin: 0;
+      color: #d0d0d0;
+      white-space: pre-wrap;
+    }
+
+    .purpose-box {
+      background: rgba(255, 255, 255, 0.08);
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      border-left: 3px solid #00d9ff;
+      margin-top: 5px;
+    }
+
+    .purpose-box strong {
+      color: #00d9ff;
+    }
+
+    .comparison-table {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 15px;
+      border: 2px solid rgba(0, 217, 255, 0.3);
+    }
+
+    .comparison-table table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .comparison-table thead th {
+      background: rgba(0, 217, 255, 0.2);
+      color: #00d9ff;
+      padding: 10px;
+      font-size: 16px;
+      text-align: left;
+      border-bottom: 2px solid #00d9ff;
+    }
+
+    .comparison-table tbody td {
+      padding: 10px;
+      font-size: 15px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .comparison-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .comparison-table tbody tr:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .comparison-table strong {
+      font-size: 16px;
+    }
+  </style>
+</section>

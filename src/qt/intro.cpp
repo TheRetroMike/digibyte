@@ -1,5 +1,5 @@
 // Copyright (c) 2011-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #if defined(HAVE_CONFIG_H)
@@ -7,6 +7,7 @@
 #endif
 
 #include <chainparams.h>
+#include <clientversion.h>
 #include <qt/intro.h>
 #include <qt/forms/ui_intro.h>
 #include <util/chaintype.h>
@@ -129,16 +130,16 @@ Intro::Intro(QWidget *parent, int64_t blockchain_size_gb, int64_t chain_state_si
     m_prune_target_gb{GetPruneTargetGB()}
 {
     ui->setupUi(this);
-    ui->welcomeLabel->setText(ui->welcomeLabel->text().arg(PACKAGE_NAME));
-    ui->storageLabel->setText(ui->storageLabel->text().arg(PACKAGE_NAME));
+    ui->welcomeLabel->setText(ui->welcomeLabel->text().arg(QString::fromStdString(CLIENT_NAME)));
+    ui->storageLabel->setText(ui->storageLabel->text().arg(QString::fromStdString(CLIENT_NAME)));
 
     ui->lblExplanation1->setText(ui->lblExplanation1->text()
-        .arg(PACKAGE_NAME)
+        .arg(QString::fromStdString(CLIENT_NAME))
         .arg(m_blockchain_size_gb)
         .arg(2014)
         .arg(tr("DigiByte"))
     );
-    ui->lblExplanation2->setText(ui->lblExplanation2->text().arg(PACKAGE_NAME));
+    ui->lblExplanation2->setText(ui->lblExplanation2->text().arg(QString::fromStdString(CLIENT_NAME)));
 
     const int min_prune_target_GB = std::ceil(MIN_DISK_SPACE_FOR_BLOCK_FILES / 1e9);
     ui->pruneGB->setRange(min_prune_target_GB, std::numeric_limits<int>::max());
@@ -246,7 +247,7 @@ bool Intro::showIfNeeded(bool& did_show_intro, int64_t& prune_MiB)
                 }
                 break;
             } catch (const fs::filesystem_error&) {
-                QMessageBox::critical(nullptr, PACKAGE_NAME,
+                QMessageBox::critical(nullptr, QString::fromStdString(CLIENT_NAME),
                     tr("Error: Specified data directory \"%1\" cannot be created.").arg(dataDir));
                 /* fall through, back to choosing screen */
             }
@@ -389,7 +390,7 @@ void Intro::UpdatePruneLabels(bool prune_checked)
         //: Explanatory text on the capability of the current prune target.
         tr("(sufficient to restore backups %n day(s) old)", "", expected_backup_days));
     ui->sizeWarningLabel->setText(
-        tr("%1 will download and store a copy of the DigiByte block chain.").arg(PACKAGE_NAME) + " " +
+        tr("%1 will download and store a copy of the DigiByte block chain.").arg(QString::fromStdString(CLIENT_NAME)) + " " +
         storageRequiresMsg.arg(m_required_space_gb) + " " +
         tr("The wallet will also be stored in this directory.")
     );

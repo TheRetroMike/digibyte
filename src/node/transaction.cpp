@@ -1,5 +1,5 @@
 // Copyright (c) 2010 Satoshi Nakamoto
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <consensus/validation.h>
@@ -15,6 +15,7 @@
 #include <random.h>
 #include <logging.h>
 #include <common/args.h>
+#include <primitives/transaction.h>
 
 #include <future>
 
@@ -47,6 +48,9 @@ TransactionError BroadcastTransaction(NodeContext& node, const CTransactionRef t
     bool callback_set = false;
     bool already_in_mempool = false;  // Track if we already added to regular mempool
 
+    LogPrintf("BroadcastTransaction: Starting broadcast for tx %s (relay=%d, max_fee=%d)\n",
+              txid.ToString(), relay, max_tx_fee);
+
     {
         LOCK(cs_main);
 
@@ -57,10 +61,15 @@ TransactionError BroadcastTransaction(NodeContext& node, const CTransactionRef t
             const Coin& existingCoin = view.AccessCoin(COutPoint(txid, o));
             // IsSpent doesn't mean the coin is spent, it means the output doesn't exist.
             // So if the output does exist, then this transaction exists in the chain.
-            if (!existingCoin.IsSpent()) return TransactionError::ALREADY_IN_CHAIN;
+            if (!existingCoin.IsSpent()) {
+                LogPrintf("BroadcastTransaction: Transaction %s already in chain, returning ALREADY_IN_CHAIN\n", txid.ToString());
+                return TransactionError::ALREADY_IN_CHAIN;
+            }
         }
+        LogPrintf("BroadcastTransaction: Transaction %s NOT in chain, checking mempool/stempool\n", txid.ToString());
 
         if (auto mempool_tx = node.mempool->get(txid); mempool_tx) {
+            LogPrintf("BroadcastTransaction: Transaction %s found in mempool, reannouncing\n", txid.ToString());
             // There's already a transaction in the mempool with this txid. Don't
             // try to submit this transaction to the mempool (since it'll be
             // rejected as a TX_CONFLICT), but do attempt to reannounce the mempool
@@ -71,26 +80,42 @@ TransactionError BroadcastTransaction(NodeContext& node, const CTransactionRef t
             wtxid = mempool_tx->GetWitnessHash();
         } else if (gArgs.GetBoolArg("-dandelion", DEFAULT_DANDELION) && node.stempool && node.stempool->exists(GenTxid::Txid(txid))) {
             // Transaction is already in stempool for Dandelion routing
-            LogPrint(BCLog::DANDELION, "BroadcastTransaction: Transaction %s already in stempool, will proceed with relay\n", txid.ToString());
+            LogPrintf("BroadcastTransaction: Transaction %s already in stempool, will proceed with relay\n", txid.ToString());
             // Don't try to re-add to stempool, but DO continue with relay logic below
         } else {
+            LogPrintf("BroadcastTransaction: Transaction %s NOT in mempool or stempool, submitting\n", txid.ToString());
             // Transaction is not already in the mempool.
-            if (max_tx_fee > 0) {
+
+            // Check if this is a DigiDollar transaction
+            bool isDigiDollar = IsDigiDollarTransaction(*tx);
+
+            // Skip fee check for DigiDollar transactions - they can have large inputs (block rewards)
+            // that make the calculated "fee" appear huge, when it's actually just change.
+            if (max_tx_fee > 0 && !isDigiDollar) {
+                LogPrintf("BroadcastTransaction: Checking fee limit (max_fee=%d)\n", max_tx_fee);
                 // First, call ATMP with test_accept and check the fee. If ATMP
                 // fails here, return error immediately.
                 const MempoolAcceptResult result = AcceptToMemoryPool(node.chainman->ActiveChainstate(), *node.mempool, tx, /*bypass_limits=*/false, /*test_accept=*/true);
                 if (result.m_result_type != MempoolAcceptResult::ResultType::VALID) {
+                    LogPrintf("BroadcastTransaction: Fee check FAILED - %s\n", result.m_state.ToString());
                     return HandleATMPError(result.m_state, err_string);
                 } else if (result.m_base_fees.value() > max_tx_fee) {
+                    LogPrintf("BroadcastTransaction: Fee exceeds max (%d > %d)\n", result.m_base_fees.value(), max_tx_fee);
                     return TransactionError::MAX_FEE_EXCEEDED;
                 } else {
-                    // Test acceptance to stempool for consistency with Dandelion routing
-                    if (gArgs.GetBoolArg("-dandelion", DEFAULT_DANDELION)) {
-                        AcceptToMemoryPoolForStempool(node.chainman->ActiveChainstate(), *node.stempool, *node.mempool, tx, /*bypass_limits=*/false, /*test_accept=*/true);
-                    }
+                    LogPrintf("BroadcastTransaction: Fee check PASSED (fee=%d)\n", result.m_base_fees.value());
                 }
+            } else if (isDigiDollar) {
+                LogPrintf("BroadcastTransaction: Skipping fee check for DigiDollar transaction\n");
+            }
+
+            // Test acceptance to stempool for consistency with Dandelion routing
+            if (gArgs.GetBoolArg("-dandelion", DEFAULT_DANDELION)) {
+                LogPrintf("BroadcastTransaction: Testing stempool acceptance\n");
+                AcceptToMemoryPoolForStempool(node.chainman->ActiveChainstate(), *node.stempool, *node.mempool, tx, /*bypass_limits=*/false, /*test_accept=*/true);
             }
             // Try to submit the transaction to the stempool only (if dandelion is enabled);
+            LogPrintf("BroadcastTransaction: Dandelion=%d, checking submission path\n", gArgs.GetBoolArg("-dandelion", DEFAULT_DANDELION));
             if (gArgs.GetBoolArg("-dandelion", DEFAULT_DANDELION)) {
                 // Only submit if not already in stempool
                 if (!node.stempool->exists(GenTxid::Txid(txid))) {
@@ -132,10 +157,13 @@ TransactionError BroadcastTransaction(NodeContext& node, const CTransactionRef t
                     }
                 }
             } else {
+                LogPrintf("BroadcastTransaction: Dandelion DISABLED, submitting to regular mempool\n");
                 const MempoolAcceptResult result = node.chainman->ProcessTransaction(tx, /*test_accept=*/ false);
                 if (result.m_result_type != MempoolAcceptResult::ResultType::VALID) {
+                    LogPrintf("BroadcastTransaction: Mempool submission FAILED - %s\n", result.m_state.ToString());
                     return HandleATMPError(result.m_state, err_string);
                 }
+                LogPrintf("BroadcastTransaction: Successfully added to mempool\n");
             }
 
             // Transaction was accepted to the mempool.
@@ -164,14 +192,18 @@ TransactionError BroadcastTransaction(NodeContext& node, const CTransactionRef t
         }
     } // cs_main
 
+    LogPrintf("BroadcastTransaction: Exited cs_main lock, callback_set=%d\n", callback_set);
+
     if (callback_set) {
         // Wait until Validation Interface clients have been notified of the
         // transaction entering the mempool.
         promise.get_future().wait();
     }
 
+    LogPrintf("BroadcastTransaction: Entering relay section (relay=%d)\n", relay);
     if (relay) {
         if (gArgs.GetBoolArg("-dandelion", DEFAULT_DANDELION)) {
+            LogPrintf("BroadcastTransaction: Processing Dandelion relay for %s\n", txid.ToString());
             auto current_time = GetTime<std::chrono::milliseconds>();
             std::chrono::microseconds nEmbargo = DANDELION_EMBARGO_MINIMUM + PoissonNextSend(current_time, DANDELION_EMBARGO_AVG_ADD);
             node.connman->insertDandelionEmbargo(txid, nEmbargo);

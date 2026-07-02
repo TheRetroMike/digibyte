@@ -71,6 +71,13 @@ from test_framework.messages import (
     msg_version,
     MSG_WTX,
     msg_wtxidrelay,
+    msg_getoracles,
+    msg_oracleprice,
+    msg_oraclebundle,
+    msg_oracleconsensus,
+    msg_oracleattestation,
+    msg_oraclemusignonce,
+    msg_oraclemusigpartialsig,
     NODE_NETWORK,
     NODE_WITNESS,
     sha256,
@@ -141,6 +148,13 @@ MESSAGEMAP = {
     b"verack": msg_verack,
     b"version": msg_version,
     b"wtxidrelay": msg_wtxidrelay,
+    b"getoracles": msg_getoracles,
+    b"oracleprice": msg_oracleprice,
+    b"oraclebundle": msg_oraclebundle,
+    b"oracleconsns": msg_oracleconsensus,
+    b"oracleattest": msg_oracleattestation,
+    b"oramusnonce": msg_oraclemusignonce,
+    b"oramusigpsig": msg_oraclemusigpartialsig,
 }
 
 MAGIC_BYTES = {
@@ -437,6 +451,13 @@ class P2PInterface(P2PConnection):
     def on_tx(self, message): pass
     def on_dandeliontx(self, message): pass
     def on_wtxidrelay(self, message): pass
+    def on_getoracles(self, message): pass
+    def on_oracleprice(self, message): pass
+    def on_oraclebundle(self, message): pass
+    def on_oracleconsns(self, message): pass
+    def on_oracleattest(self, message): pass
+    def on_oramusnonce(self, message): pass
+    def on_oramusigpsig(self, message): pass
 
     def on_inv(self, message):
         want = msg_getdata()

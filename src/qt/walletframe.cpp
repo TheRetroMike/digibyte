@@ -1,5 +1,5 @@
 // Copyright (c) 2011-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <qt/walletframe.h>
@@ -125,10 +125,12 @@ void WalletFrame::removeWallet(WalletModel* wallet_model)
 
 void WalletFrame::removeAllWallets()
 {
-    QMap<WalletModel*, WalletView*>::const_iterator i;
-    for (i = mapWalletViews.constBegin(); i != mapWalletViews.constEnd(); ++i)
-        walletStack->removeWidget(i.value());
+    const QMap<WalletModel*, WalletView*> wallet_views = mapWalletViews;
     mapWalletViews.clear();
+    for (WalletView* walletView : wallet_views) {
+        walletStack->removeWidget(walletView);
+        delete walletView;
+    }
 }
 
 bool WalletFrame::handlePaymentRequest(const SendCoinsRecipient &recipient)
@@ -174,6 +176,13 @@ void WalletFrame::gotoSendCoinsPage(QString addr)
     QMap<WalletModel*, WalletView*>::const_iterator i;
     for (i = mapWalletViews.constBegin(); i != mapWalletViews.constEnd(); ++i)
         i.value()->gotoSendCoinsPage(addr);
+}
+
+void WalletFrame::gotoDigiDollarPage()
+{
+    QMap<WalletModel*, WalletView*>::const_iterator i;
+    for (i = mapWalletViews.constBegin(); i != mapWalletViews.constEnd(); ++i)
+        i.value()->gotoDigiDollarPage();
 }
 
 void WalletFrame::gotoSignMessageTab(QString addr)

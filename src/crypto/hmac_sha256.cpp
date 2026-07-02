@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <crypto/hmac_sha256.h>
@@ -10,7 +10,7 @@ CHMAC_SHA256::CHMAC_SHA256(const unsigned char* key, size_t keylen)
 {
     unsigned char rkey[64];
     if (keylen <= 64) {
-        memcpy(rkey, key, keylen);
+        if (key && keylen > 0) memcpy(rkey, key, keylen);
         memset(rkey + keylen, 0, 64 - keylen);
     } else {
         CSHA256().Write(key, keylen).Finalize(rkey);

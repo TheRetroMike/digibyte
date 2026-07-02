@@ -67,6 +67,11 @@ def assert_greater_than_or_equal(thing1, thing2):
         raise AssertionError("%s < %s" % (str(thing1), str(thing2)))
 
 
+def assert_less_than(thing1, thing2):
+    if thing1 >= thing2:
+        raise AssertionError("%s >= %s" % (str(thing1), str(thing2)))
+
+
 def assert_raises(exc, fun, *args, **kwds):
     assert_raises_message(exc, None, fun, *args, **kwds)
 
@@ -74,13 +79,12 @@ def assert_raises(exc, fun, *args, **kwds):
 def assert_raises_message(exc, message, fun, *args, **kwds):
     try:
         fun(*args, **kwds)
-    except JSONRPCException:
-        raise AssertionError("Use assert_raises_rpc_error() to test RPC failures")
     except exc as e:
-        if message is not None and message not in e.error['message']:
-            raise AssertionError(
-                "Expected substring not found in error message:\nsubstring: '{}'\nerror message: '{}'.".format(
-                    message, e.error['message']))
+        if isinstance(e, JSONRPCException):
+            raise AssertionError("Use assert_raises_rpc_error() to test RPC failures")
+        if message is not None and message not in str(e):
+            raise AssertionError("Expected substring not found in exception:\n"
+                                 f"substring: '{message}'\nexception: {e!r}.")
     except Exception as e:
         raise AssertionError("Unexpected exception raised: " + type(e).__name__)
     else:
@@ -299,7 +303,7 @@ def random_bytes(n):
 # The maximum number of nodes a single test can spawn
 MAX_NODES = 12
 # Don't assign rpc or p2p ports lower than this
-PORT_MIN = int(os.getenv('TEST_RUNNER_PORT_MIN', default=11000))
+PORT_MIN = int(os.getenv('TEST_RUNNER_PORT_MIN', default=15000))
 # The number of ports to "reserve" for p2p and rpc, each
 PORT_RANGE = 5000
 
@@ -348,12 +352,21 @@ def rpc_url(datadir, i, chain, rpchost):
     host = '127.0.0.1'
     port = rpc_port(i)
     if rpchost:
-        parts = rpchost.split(':')
-        if len(parts) == 2:
-            host, port = parts
+        if rpchost.startswith('['):
+            host_end = rpchost.find(']')
+            assert host_end > 0
+            host = rpchost[1:host_end]
+            if len(rpchost) > host_end + 1:
+                assert rpchost[host_end + 1] == ':'
+                port = rpchost[host_end + 2:]
         else:
-            host = rpchost
-    return "http://%s:%s@%s:%d" % (rpc_u, rpc_p, host, int(port))
+            parts = rpchost.rsplit(':', 1)
+            if len(parts) == 2 and ':' not in parts[0] and parts[1].isdigit():
+                host, port = parts
+            else:
+                host = rpchost
+    url_host = f'[{host}]' if ':' in host else host
+    return "http://%s:%s@%s:%d" % (rpc_u, rpc_p, url_host, int(port))
 
 
 # Node functions

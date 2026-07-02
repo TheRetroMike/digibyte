@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <logging.h>
@@ -184,6 +184,7 @@ const CLogCategoryDesc LogCategories[] =
     {BCLog::TXRECONCILIATION, "txreconciliation"},
     {BCLog::SCAN, "scan"},
     {BCLog::TXPACKAGES, "txpackages"},
+    {BCLog::DIGIDOLLAR, "digidollar"},
     {BCLog::ALL, "1"},
     {BCLog::ALL, "all"},
 };
@@ -292,6 +293,8 @@ std::string LogCategoryToStr(BCLog::LogFlags category)
         return "scan";
     case BCLog::LogFlags::TXPACKAGES:
         return "txpackages";
+    case BCLog::LogFlags::DIGIDOLLAR:
+        return "digidollar";
     case BCLog::LogFlags::ALL:
         return "all";
     }

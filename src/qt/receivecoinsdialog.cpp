@@ -1,5 +1,5 @@
 // Copyright (c) 2011-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <wallet/wallet.h>
@@ -80,6 +80,9 @@ void ReceiveCoinsDialog::setModel(WalletModel *_model)
         updateDisplayUnit();
 
         QTableView* tableView = ui->recentRequestsView;
+
+        // Use the model directly - DD addresses are now filtered at the model level
+        // (in RecentRequestsTableModel::addNewRequest) for clean DGB/DD separation
         tableView->setModel(_model->getRecentRequestsTableModel());
         tableView->sortByColumn(RecentRequestsTableModel::Date, Qt::DescendingOrder);
 
@@ -239,8 +242,7 @@ QModelIndex ReceiveCoinsDialog::selectedRow()
     if(selection.empty())
         return QModelIndex();
     // correct for selection mode ContiguousSelection
-    QModelIndex firstIndex = selection.at(0);
-    return firstIndex;
+    return selection.at(0);
 }
 
 // copy column of selected row to clipboard

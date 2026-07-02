@@ -16,6 +16,7 @@ class DisconnectBanTest(DigiByteTestFramework):
     def set_test_params(self):
         self.num_nodes = 2
         self.supports_cli = False
+        self.extra_args = [["-dandelion=0"]] * self.num_nodes
 
     def run_test(self):
         self.log.info("Connect nodes both way")

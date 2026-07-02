@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef DIGIBYTE_LOGGING_H
@@ -70,6 +70,7 @@ namespace BCLog {
         TXRECONCILIATION = (1 << 28),
         SCAN        = (1 << 29),
         TXPACKAGES  = (1 << 30),
+        DIGIDOLLAR  = (1U << 31),
         ALL         = ~(uint32_t)0,
     };
     enum class Level {

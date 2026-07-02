@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef DIGIBYTE_CONSENSUS_PARAMS_H
@@ -8,9 +8,12 @@
 
 #include <uint256.h>
 
+#include <algorithm>
 #include <chrono>
 #include <limits>
 #include <map>
+#include <set>
+#include <string>
 #include <vector>
 
 namespace Consensus {
@@ -37,6 +40,8 @@ constexpr bool ValidDeployment(BuriedDeployment dep) { return dep <= DEPLOYMENT_
 enum DeploymentPos : uint16_t {
     DEPLOYMENT_TESTDUMMY,
     DEPLOYMENT_TAPROOT, // Deployment of Schnorr/Taproot (BIPs 340-342)
+    DEPLOYMENT_DIGIDOLLAR, // Deployment of DigiDollar stablecoin features
+    DEPLOYMENT_ALGOLOCK, // Reject blocks mined with a deactivated (e.g. retired Groestl) or unknown algorithm
     // NOTE: Also add new deployments to VersionBitsDeploymentInfo in deploymentinfo.cpp
     MAX_VERSION_BITS_DEPLOYMENTS
 };
@@ -106,6 +111,10 @@ struct Params {
     /**
      * Block height at which Odocrypt got activated */
     int OdoHeight;
+    /**
+     * Block height at which blocks using a deactivated mining algorithm
+     * (e.g. the retired Groestl) or an unknown algorithm are rejected. */
+    int nGroestlDeactivationHeight{std::numeric_limits<int>::max()};
     /** Don't warn about unknown BIP 9 activations below this height.
      * This prevents us from warning about the CSV and segwit activations. */
     int MinBIP9WarningHeight;
@@ -177,6 +186,28 @@ struct Params {
     /** By default assume that the signatures in ancestors of this block are valid */
     uint256 defaultAssumeValid;
 
+    // DigiDollar specific consensus fields
+    int nDDOracleEpochBlocks{100};      // Blocks per oracle rotation epoch
+    int nDDOracleUpdateInterval{4};     // Blocks between price updates
+    int nDDActivationHeight{0};         // Height at which DigiDollar activates
+
+    /** Oracle system parameters. DigiDollar V1 block data uses MuSig2 bundles only. */
+    int nOracleActivationHeight{std::numeric_limits<int>::max()};  // Height when oracle system activates
+    int nOracleEpochLength{1440};               // Blocks per oracle epoch (default: 1440 = 24 hours)
+    int nOracleRequiredMessages{1};             // Off-chain signed price messages required before MuSig2 aggregation
+    int nOracleTotalOracles{1};                 // Total active oracle operators
+    std::vector<std::string> vOraclePublicKeys; // Hardcoded oracle public keys (hex encoded XOnlyPubKey, sorted)
+    int nDigiDollarMuSig2Height{std::numeric_limits<int>::max()};  // Height when MuSig2 aggregate signatures are valid
+
+    /** MuSig2 oracle configuration */
+    int nOraclePubkeyCount{0};                  // Number of oracle pubkeys for MuSig2
+    int nOracleConsensusRequired{0};            // Minimum oracles required for MuSig2 aggregate signature
+
+    /** Check if MuSig2 aggregate oracle signatures are active at given height */
+    bool IsMuSig2OracleActive(int32_t block_height) const {
+        return block_height >= nDigiDollarMuSig2Height;
+    }
+
     /**
      * If true, witness commitments contain a payload equal to a DigiByte Script solution
      * to the signet challenge. See BIP325.
@@ -210,6 +241,49 @@ struct Params {
         return std::numeric_limits<int>::max();
     }
 };
+
+/**
+ * Check if oracle system is active at given height
+ */
+inline bool IsOracleActive(const Params& params, int nHeight) {
+    return nHeight >= params.nOracleActivationHeight;
+}
+
+/**
+     * Check if MuSig2 is active at given height
+ */
+inline bool IsMuSig2Active(const Params& params, int nHeight) {
+    return params.IsMuSig2OracleActive(nHeight);
+}
+
+/**
+ * Validate MuSig2 oracle configuration.
+ */
+inline bool ValidateOracleConfiguration(const Params& params) {
+    if (params.nOracleTotalOracles < 0) return false;
+    if (params.nOraclePubkeyCount < 0) return false;
+    if (params.nOracleConsensusRequired < 0) return false;
+    if (static_cast<int>(params.vOraclePublicKeys.size()) != params.nOraclePubkeyCount) return false;
+    if (params.nOraclePubkeyCount > params.nOracleTotalOracles) return false;
+    if (params.nOraclePubkeyCount > 0 && params.nOracleConsensusRequired == 0) return false;
+    if (params.nOracleConsensusRequired > params.nOraclePubkeyCount) return false;
+    std::set<std::string> pubkey_set;
+    for (const auto& pk : params.vOraclePublicKeys) {
+        if (!pubkey_set.insert(pk).second) return false;
+    }
+    for (const auto& pk : params.vOraclePublicKeys) {
+        if (pk.size() != 64) return false;
+        for (char c : pk) {
+            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
+                return false;
+        }
+    }
+    // Note: vOraclePublicKeys is ordered by oracle slot (0..N-1), matching
+    // vOracleNodes and the MuSig2 participation bitmap. MuSig2 key aggregation
+    // sorts internally per BIP-327, so consensus pubkey ordering is slot-based,
+    // not lexicographic. We require uniqueness (checked above) but not sort order.
+    return true;
+}
 
 } // namespace Consensus
 

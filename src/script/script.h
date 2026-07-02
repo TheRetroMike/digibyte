@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef DIGIBYTE_SCRIPT_SCRIPT_H
@@ -206,11 +206,18 @@ enum opcodetype
     // Opcode added by BIP 342 (Tapscript)
     OP_CHECKSIGADD = 0xba,
 
+    // DigiDollar specific opcodes (using Tapscript OP_SUCCESSx slots for soft fork)
+    OP_DIGIDOLLAR = 0xbb,       // Marks DD outputs / payloads
+    OP_DDVERIFY = 0xbc,         // Verify DD conditions
+    OP_CHECKPRICE = 0xbd,       // Check oracle price
+    OP_CHECKCOLLATERAL = 0xbe,  // Verify collateral ratio
+    OP_ORACLE = 0xbf,           // Oracle price data marker
+
     OP_INVALIDOPCODE = 0xff,
 };
 
 // Maximum value that an opcode can be
-static const unsigned int MAX_OPCODE = OP_NOP10;
+static const unsigned int MAX_OPCODE = OP_ORACLE;
 
 std::string GetOpName(opcodetype opcode);
 

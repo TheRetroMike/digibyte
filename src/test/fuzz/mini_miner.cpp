@@ -176,7 +176,7 @@ FUZZ_TARGET(mini_miner_selection, .init = initialize_miner)
     CScript spk_placeholder = CScript() << OP_0;
     // Use BlockAssembler as oracle. BlockAssembler and MiniMiner should select the same
     // transactions, stopping once packages do not meet target_feerate.
-    const auto blocktemplate{miner.CreateNewBlock(spk_placeholder, ALGO_SHA256D)};
+    const auto blocktemplate{miner.CreateNewBlock(spk_placeholder, ALGO_SCRYPT)};
     mini_miner.BuildMockTemplate(target_feerate);
     assert(!mini_miner.IsReadyToCalculate());
     auto mock_template_txids = mini_miner.GetMockTemplateTxids();

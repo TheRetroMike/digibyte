@@ -19,6 +19,10 @@ from test_framework.authproxy import JSONRPCException
 class RpcMiscTest(DigiByteTestFramework):
     def set_test_params(self):
         self.num_nodes = 1
+        # DigiByte defaults -txindex on; this test first asserts no indexes are running,
+        # then restarts the node with indexes. Start with -txindex=0 so the initial
+        # getindexinfo() is empty.
+        self.extra_args = [["-txindex=0"]]
         self.supports_cli = False
 
     def run_test(self):

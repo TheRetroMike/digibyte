@@ -1,10 +1,14 @@
 // Copyright (c) 2014-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <base58.h>
 
+#include <addresstype.h>
 #include <hash.h>
+#include <chainparams.h>
+#include <kernel/chainparams.h>
+#include <pubkey.h>
 #include <uint256.h>
 #include <util/strencodings.h>
 #include <util/string.h>
@@ -12,7 +16,9 @@
 #include <assert.h>
 #include <string.h>
 
+#include <algorithm>
 #include <limits>
+#include <variant>
 
 /** All alphanumeric characters except for "0", "I", "O", and "l" */
 static const char* pszBase58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
@@ -164,4 +170,197 @@ bool DecodeBase58Check(const std::string& str, std::vector<unsigned char>& vchRe
         return false;
     }
     return DecodeBase58Check(str.c_str(), vchRet, max_ret);
+}
+
+//
+// DigiDollar address implementation
+//
+
+// Static constants for version bytes that generate correct prefixes
+const std::vector<unsigned char> CDigiDollarAddress::DD_P2TR_MAINNET = {0x52, 0x85};  // "DD"
+const std::vector<unsigned char> CDigiDollarAddress::DD_P2TR_TESTNET = {0xb1, 0x29};  // "TD"
+const std::vector<unsigned char> CDigiDollarAddress::DD_P2TR_REGTEST = {0xa3, 0xa4};  // "RD"
+
+CDigiDollarAddress::CDigiDollarAddress() : fValid(false)
+{
+}
+
+CDigiDollarAddress::CDigiDollarAddress(const std::string& str) : fValid(false), original_str(str)
+{
+    // DD-FA-FUNC-019 (Wave 15): DecodeBase58 transparently strips leading and
+    // trailing ASCII whitespace, so a base58check address wrapped in spaces
+    // would otherwise decode silently. Reject any whitespace anywhere in the
+    // input so the canonical address echoed by validateddaddress, the
+    // to_address echoed by senddigidollar, and any other consumer cannot be a
+    // whitespace-corrupted variant of the user's intended target. This also
+    // catches embedded \t / \r / \n that copy-paste flows can introduce.
+    for (unsigned char c : str) {
+        if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v') {
+            return;
+        }
+    }
+
+    std::vector<unsigned char> vchTemp;
+    if (DecodeBase58Check(str, vchTemp, 256)) {
+        if (vchTemp.size() >= 2) {
+            if (vchTemp.size() == 34) { // 2 byte version + 32 bytes data
+                vchVersion.assign(vchTemp.begin(), vchTemp.begin() + 2);
+                vchData.assign(vchTemp.begin() + 2, vchTemp.end());
+                fValid = (vchVersion == DD_P2TR_MAINNET ||
+                         vchVersion == DD_P2TR_TESTNET ||
+                         vchVersion == DD_P2TR_REGTEST);
+                // Clear original_str for valid addresses (not needed)
+                if (fValid) {
+                    original_str.clear();
+                }
+            }
+        }
+    }
+}
+
+bool CDigiDollarAddress::SetDigiDollar(const CTxDestination& dest, int type)
+{
+    // Reset state
+    vchData.clear();
+    vchVersion.clear();
+    fValid = false;
+
+    // Check if destination is valid
+    if (!IsValidDestination(dest)) {
+        return false;
+    }
+
+    // Only P2TR addresses can be DigiDollar addresses
+    if (!std::holds_alternative<WitnessV1Taproot>(dest)) {
+        return false;
+    }
+
+    const WitnessV1Taproot& taproot = std::get<WitnessV1Taproot>(dest);
+
+    // Set appropriate version based on network type
+    switch (type) {
+        case CChainParams::DIGIDOLLAR_ADDRESS:
+            vchVersion = DD_P2TR_MAINNET;
+            break;
+        case CChainParams::DIGIDOLLAR_ADDRESS_TESTNET:
+            vchVersion = DD_P2TR_TESTNET;
+            break;
+        case CChainParams::DIGIDOLLAR_ADDRESS_REGTEST:
+            vchVersion = DD_P2TR_REGTEST;
+            break;
+        default:
+            return false;
+    }
+
+    // Copy the 32-byte pubkey data
+    vchData.resize(32);
+    std::copy(taproot.begin(), taproot.end(), vchData.begin());
+    fValid = true;
+
+    return true;
+}
+
+CTxDestination CDigiDollarAddress::GetDigiDollarDestination() const
+{
+    if (!IsValid()) {
+        return CNoDestination();
+    }
+
+    if (vchData.size() != 32) {
+        return CNoDestination();
+    }
+
+    // Convert to P2TR destination
+    uint256 hash;
+    std::copy(vchData.begin(), vchData.end(), hash.begin());
+    return WitnessV1Taproot(XOnlyPubKey(hash));
+}
+
+std::string CDigiDollarAddress::ToString() const
+{
+    if (!IsValid()) {
+        return "";
+    }
+
+    // Create version + data vector
+    std::vector<unsigned char> vch;
+    vch.reserve(34);
+    vch.insert(vch.end(), vchVersion.begin(), vchVersion.end());
+    vch.insert(vch.end(), vchData.begin(), vchData.end());
+
+    return EncodeBase58Check(vch);
+}
+
+bool CDigiDollarAddress::IsValid() const
+{
+    return fValid && vchData.size() == 32 && vchVersion.size() == 2;
+}
+
+bool CDigiDollarAddress::IsValidForCurrentNetwork() const
+{
+    if (!IsValid()) {
+        return false;
+    }
+
+    switch (Params().GetChainType()) {
+    case ChainType::REGTEST:
+        return vchVersion == DD_P2TR_REGTEST;
+    case ChainType::TESTNET:
+        return vchVersion == DD_P2TR_TESTNET;
+    case ChainType::MAIN:
+    case ChainType::SIGNET:
+        return vchVersion == DD_P2TR_MAINNET;
+    }
+
+    return false;
+}
+
+bool CDigiDollarAddress::IsValidDigiDollarAddress(const std::string& str)
+{
+    // Reject embedded null bytes
+    if (str.find('\0') != std::string::npos) {
+        return false;
+    }
+
+    return CDigiDollarAddress(str).IsValid();
+}
+
+bool CDigiDollarAddress::IsValidDigiDollarAddressForCurrentNetwork(const std::string& str)
+{
+    // Reject embedded null bytes
+    if (str.find('\0') != std::string::npos) {
+        return false;
+    }
+
+    return CDigiDollarAddress(str).IsValidForCurrentNetwork();
+}
+
+//
+// Helper functions
+//
+
+std::string EncodeDigiDollarAddress(const CTxDestination& dest)
+{
+    CDigiDollarAddress addr;
+    // Determine network type from global chain params
+    const CChainParams& chainParams = Params();
+    std::string chainType = chainParams.GetChainTypeString();
+    int networkType;
+    if (chainType == "regtest") {
+        networkType = CChainParams::DIGIDOLLAR_ADDRESS_REGTEST;
+    } else if (chainType == "test") {
+        networkType = CChainParams::DIGIDOLLAR_ADDRESS_TESTNET;
+    } else {
+        networkType = CChainParams::DIGIDOLLAR_ADDRESS;
+    }
+    if (!addr.SetDigiDollar(dest, networkType)) {
+        return "";
+    }
+    return addr.ToString();
+}
+
+CTxDestination DecodeDigiDollarAddress(const std::string& str)
+{
+    CDigiDollarAddress addr(str);
+    return addr.GetDigiDollarDestination();
 }

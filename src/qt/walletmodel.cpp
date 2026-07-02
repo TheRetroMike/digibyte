@@ -1,5 +1,5 @@
 // Copyright (c) 2011-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #if defined(HAVE_CONFIG_H)
@@ -25,14 +25,32 @@
 #include <node/interface_ui.h>
 #include <psbt.h>
 #include <util/translation.h>
+#include <util/error.h>
+#include <util/strencodings.h> // for strprintf
 #include <wallet/coincontrol.h>
+#include <wallet/spend.h> // for AvailableCoins, CreateTransaction
 #include <wallet/wallet.h> // for CRecipient
+#include <univalue.h>
+#include <wallet/digidollarwallet.h> // for DigiDollarWallet
+#include <base58.h> // for CDigiDollarAddress
+#include <uint256.h>
+#include <hash.h>
+#include <crypto/sha256.h> // for CSHA256
+#include <util/time.h> // for GetTime
+#include <logging.h> // for LogPrintf
+#include <digidollar/txbuilder.h> // for MintTxBuilder
+#include <oracle/mock_oracle.h> // for MockOracleManager
+#include <QUrl> // for QUrl::toPercentEncoding
+#include <kernel/chainparams.h> // for CChainParams
 
 #include <stdint.h>
+#include <algorithm>
 #include <functional>
+#include <optional>
 
 #include <QDebug>
 #include <QMessageBox>
+#include <QRegularExpression>
 #include <QSet>
 #include <QTimer>
 
@@ -628,4 +646,812 @@ CAmount WalletModel::getAvailableBalance(const CCoinControl* control)
     }
     // Fetch balance from the wallet, taking into account the selected coins
     return wallet().getAvailableBalance(*control);
+}
+
+// DigiDollar method implementations
+WalletModel::DigiDollarSendResult WalletModel::sendDigiDollar(const QString& address, CAmount amount, const QString& comment,
+                                                              const std::vector<COutPoint>* preset_dd_inputs)
+{
+    // Validate address format first
+    if (!validateDigiDollarAddress(address)) {
+        return DigiDollarSendResult(InvalidAddress, "", "Invalid DigiDollar address format");
+    }
+
+    if (m_wallet->privateKeysDisabled()) {
+        return DigiDollarSendResult(TransactionCreationFailed, "", "Private keys are disabled for this wallet");
+    }
+
+    // Check if wallet is locked
+    if (getEncryptionStatus() == Locked) {
+        return DigiDollarSendResult(TransactionCreationFailed, "", "Wallet is locked. Please unlock to send DigiDollar.");
+    }
+
+    // Check if amount is positive
+    if (amount <= 0) {
+        return DigiDollarSendResult(InvalidAmount, "", "Send amount must be positive");
+    }
+
+    // Check if we have sufficient DigiDollar balance
+    CAmount currentBalance = getDigiDollarBalance();
+    if (amount > currentBalance) {
+        return DigiDollarSendResult(AmountExceedsBalance, "",
+            QString("Insufficient DigiDollar balance. Available: %1, Requested: %2")
+                .arg(QString::number(currentBalance / 100.0, 'f', 2))
+                .arg(QString::number(amount / 100.0, 'f', 2)));
+    }
+
+    try {
+        // Get DigiDollar wallet instance from wallet interface
+        DigiDollarWallet* ddWallet = m_wallet->getDigiDollarWallet();
+        if (!ddWallet) {
+            LogPrintf("DigiDollar Qt: DigiDollar wallet not available\n");
+            return DigiDollarSendResult(TransactionCreationFailed, "", "DigiDollar wallet not initialized");
+        }
+
+        // Create DigiDollar address object
+        CDigiDollarAddress recipientAddr(address.toStdString());
+
+        // Call backend to create and send transaction
+        std::string txid;
+        std::string error;
+        bool success = ddWallet->TransferDigiDollar(recipientAddr, amount, txid, error,
+                                                    nullptr, preset_dd_inputs, comment.toStdString());
+
+        if (!success) {
+            // Transaction creation or sending failed
+            LogPrintf("DigiDollar Qt: Send failed - %s\n", error);
+            return DigiDollarSendResult(TransactionCreationFailed, "", QString::fromStdString(error));
+        }
+
+        // Transaction successfully created and broadcast
+        LogPrintf("DigiDollar Qt: Send successful - %d cents to %s, txid: %s\n",
+                  amount, address.toStdString(), txid);
+
+        // PHASE 7.4-7.6: Emit signals for UI updates
+        // Force balance refresh to update all widgets
+        checkBalanceChanged(m_wallet->getBalances());
+
+        // Emit pollBalanceChanged to trigger UI refresh across all widgets
+        Q_EMIT pollBalanceChanged();
+        Q_EMIT digiDollarChanged();
+
+        return DigiDollarSendResult(OK, QString::fromStdString(txid), "");
+
+    } catch (const std::exception& e) {
+        LogPrintf("DigiDollar Qt: Send exception - %s\n", e.what());
+        return DigiDollarSendResult(TransactionCreationFailed, "", QString::fromStdString(e.what()));
+    }
+}
+
+WalletModel::DigiDollarMintResult WalletModel::mintDigiDollar(CAmount ddAmount, int lockTier)
+{
+    LogPrintf("DigiDollar Qt: ========== MINT DIGIDOLLAR START ==========\n");
+    LogPrintf("DigiDollar Qt: mintDigiDollar called - Amount: %d cents, Tier: %d\n", ddAmount, lockTier);
+
+    // Validate lock tier
+    if (lockTier < 0 || lockTier > 9) {
+        LogPrintf("DigiDollar Qt: ERROR - Invalid lock tier: %d\n", lockTier);
+        return DigiDollarMintResult(InvalidAmount, "", "", "Invalid lock tier. Must be between 0 and 9 (0 = 1 hour testing).");
+    }
+    LogPrintf("DigiDollar Qt: Lock tier validation passed\n");
+
+    // DD-FA-FUNC-031 (Wave 19 Agent A): mirror the sendDigiDollar guard so
+    // private-keys-disabled / watch-only wallets fail fast with an explicit
+    // diagnostic before we run any UTXO scan, oracle RPC, or surface the two
+    // confirmation dialogs in the Qt mint flow. Without this guard the path
+    // fell through to GetHDKeyForDigiDollar() and emitted the more general
+    // descriptor/bech32m HD-wallet requirement, which conflates non-HD legacy
+    // wallets with watch-only.
+    if (m_wallet->privateKeysDisabled()) {
+        LogPrintf("DigiDollar Qt: ERROR - Private keys are disabled for this wallet\n");
+        return DigiDollarMintResult(TransactionCreationFailed, "", "",
+            "Private keys are disabled for this wallet");
+    }
+
+    // Check if wallet is locked
+    if (getEncryptionStatus() == Locked) {
+        LogPrintf("DigiDollar Qt: ERROR - Wallet is locked\n");
+        return DigiDollarMintResult(TransactionCreationFailed, "", "", "Wallet is locked. Please unlock to mint DigiDollar.");
+    }
+    LogPrintf("DigiDollar Qt: Wallet encryption check passed\n");
+
+    // Check if amount is positive
+    if (ddAmount <= 0) {
+        LogPrintf("DigiDollar Qt: ERROR - Invalid amount: %d\n", ddAmount);
+        return DigiDollarMintResult(InvalidAmount, "", "", "Mint amount must be positive");
+    }
+    LogPrintf("DigiDollar Qt: Amount validation passed\n");
+
+    // Calculate required collateral
+    CAmount requiredCollateral = calculateRequiredCollateral(ddAmount, lockTier);
+    CAmount availableDGBBalance = getAvailableDGBBalance();
+
+    LogPrintf("DigiDollar Qt: Required collateral: %d sats (%.8f DGB)\n",
+              requiredCollateral, requiredCollateral / 100000000.0);
+    LogPrintf("DigiDollar Qt: Available balance: %d sats (%.8f DGB)\n",
+              availableDGBBalance, availableDGBBalance / 100000000.0);
+
+    if (requiredCollateral > availableDGBBalance) {
+        LogPrintf("DigiDollar Qt: ERROR - Insufficient balance\n");
+        return DigiDollarMintResult(AmountExceedsBalance, "", "",
+            QString("Insufficient DGB balance for collateral. Required: %1, Available: %2")
+                .arg(QString::number(requiredCollateral / 100000000.0, 'f', 8))
+                .arg(QString::number(availableDGBBalance / 100000000.0, 'f', 8)));
+    }
+    LogPrintf("DigiDollar Qt: Balance check passed\n");
+
+    try {
+        // Step 1: Convert lock tier to lock days for TxBuilder
+        const int lockDaysForTier[10] = {0, 30, 90, 180, 365, 730, 1095, 1825, 2555, 3650};
+        int lockDays = lockDaysForTier[lockTier];
+        LogPrintf("DigiDollar Qt: Step 1 - Lock days for tier %d: %d days\n", lockTier, lockDays);
+
+        // Step 2: Get current blockchain height from client model
+        if (!m_client_model) {
+            LogPrintf("DigiDollar Qt: ERROR - Client model not available\n");
+            return DigiDollarMintResult(TransactionCreationFailed, "", "", "Client model not available");
+        }
+        int currentHeight = m_client_model->getNumBlocks();
+        const int mintHeight = currentHeight + 1;
+        LogPrintf("DigiDollar Qt: Step 2 - Current blockchain height: %d, mint height: %d\n",
+                  currentHeight, mintHeight);
+
+        // Step 3: Get oracle price (MockOracleManager for RegTest only, RPC for testnet/mainnet)
+        // Oracle price format: micro-USD per DGB (1,000,000 = $1.00)
+        CAmount oraclePriceMicroUSD = 0;
+        ChainType chainType = Params().GetChainType();
+        LogPrintf("DigiDollar Qt: Step 3 - Getting oracle price, ChainType=%d\n", (int)chainType);
+
+        if (chainType == ChainType::REGTEST && MockOracleManager::GetInstance().IsEnabled()) {
+            // RegTest uses mock oracle
+            oraclePriceMicroUSD = MockOracleManager::GetInstance().GetCurrentPrice();
+            LogPrintf("DigiDollar Qt: Using MockOracle price: %ld micro-USD ($%.6f/DGB)\n",
+                      oraclePriceMicroUSD, oraclePriceMicroUSD / 1000000.0);
+        } else {
+            // Testnet/Mainnet uses real oracle via RPC
+            try {
+                UniValue params(UniValue::VARR);
+                UniValue result = m_node.executeRpc("getoracleprice", params, "");
+                const UniValue& priceVal = result.find_value("price_micro_usd");
+                if (!priceVal.isNull()) {
+                    oraclePriceMicroUSD = priceVal.getInt<int64_t>();
+                    LogPrintf("DigiDollar Qt: Using RPC oracle price: %ld micro-USD ($%.6f/DGB)\n",
+                              oraclePriceMicroUSD, oraclePriceMicroUSD / 1000000.0);
+                }
+            } catch (const std::exception& e) {
+                LogPrintf("DigiDollar Qt: ERROR getting oracle price from RPC: %s\n", e.what());
+            }
+        }
+
+        if (oraclePriceMicroUSD <= 0) {
+            LogPrintf("DigiDollar Qt: ERROR - Oracle price not available\n");
+            return DigiDollarMintResult(TransactionCreationFailed, "", "", "Oracle price not available. Cannot mint DigiDollar.");
+        }
+
+        // Convert to the format expected by the mint transaction builder
+        // The builder expects micro-USD (1,000,000 = $1.00)
+        CAmount oraclePrice = oraclePriceMicroUSD;
+
+        // Step 4: Get wallet pointer for accessing UTXOs and signing
+        wallet::CWallet* pWallet = wallet().wallet();
+        if (!pWallet) {
+            LogPrintf("DigiDollar Qt: ERROR - Wallet pointer not available\n");
+            return DigiDollarMintResult(TransactionCreationFailed, "", "", "Wallet not available");
+        }
+        LogPrintf("DigiDollar Qt: Step 4 - Wallet pointer obtained\n");
+
+        // Step 5: Collect available UTXOs from wallet for collateral
+        // Build UTXO map for value lookup
+        std::map<COutPoint, CAmount> utxoValues;
+        std::vector<COutPoint> availableUtxos;
+        CAmount totalAvailable = 0;
+
+        LogPrintf("DigiDollar Qt: Step 5 - Collecting UTXOs from wallet...\n");
+        {
+            LOCK(pWallet->cs_wallet);
+
+            // Get all available coins from wallet
+            auto coins = wallet().listCoins();
+            LogPrintf("DigiDollar Qt: listCoins returned %d destinations\n", coins.size());
+
+            for (const auto& [dest, outputs] : coins) {
+                LogPrintf("DigiDollar Qt: Processing destination with %d outputs\n", outputs.size());
+                for (const auto& outpoint_txout : outputs) {
+                    const COutPoint& outpoint = std::get<0>(outpoint_txout);
+                    const interfaces::WalletTxOut& wtxout = std::get<1>(outpoint_txout);
+
+                    LogPrintf("DigiDollar Qt: Checking UTXO %s:%d - Value: %d, Depth: %d, Spent: %s\n",
+                              outpoint.hash.GetHex(), outpoint.n, wtxout.txout.nValue,
+                              wtxout.depth_in_main_chain, wtxout.is_spent ? "YES" : "NO");
+
+                    // Only use confirmed, spendable UTXOs
+                    if (wtxout.depth_in_main_chain > 0 && !wtxout.is_spent) {
+                        availableUtxos.push_back(outpoint);
+                        utxoValues[outpoint] = wtxout.txout.nValue;
+                        totalAvailable += wtxout.txout.nValue;
+                        LogPrintf("DigiDollar Qt: Added UTXO - Total now: %d sats\n", totalAvailable);
+                    }
+                }
+            }
+        }
+
+        if (availableUtxos.empty()) {
+            LogPrintf("DigiDollar Qt: ERROR - No available UTXOs found\n");
+            return DigiDollarMintResult(TransactionCreationFailed, "", "",
+                "No available UTXOs for collateral. Please ensure wallet has confirmed DGB balance.");
+        }
+
+        LogPrintf("DigiDollar Qt: Found %d available UTXOs totaling %d satoshis (%.8f DGB)\n",
+                  availableUtxos.size(), totalAvailable, totalAvailable / 100000000.0);
+
+        // Step 6: Derive owner key for the mint position from the wallet.
+        // This keeps Qt-created positions recoverable from wallet descriptors.
+        CKey ownerKey;
+        {
+            LOCK(pWallet->cs_wallet);
+            ownerKey = pWallet->GetHDKeyForDigiDollar("dd-owner");
+        }
+        if (!ownerKey.IsValid()) {
+            return DigiDollarMintResult(TransactionCreationFailed, "", "",
+                "DigiDollar mint requires a descriptor/bech32m HD wallet with private keys enabled");
+        }
+        CPubKey ownerPubKey = ownerKey.GetPubKey();
+        CKeyID ownerKeyID = ownerPubKey.GetID();
+
+        LogPrintf("DigiDollar Qt: Step 6 - Generated owner key - PubKey: %s, KeyID: %s\n",
+                  HexStr(ownerPubKey), HexStr(ownerKeyID));
+
+        // Step 7: Build mint transaction using custom MintTxBuilder that has UTXO access
+        LogPrintf("DigiDollar Qt: Step 7 - Building mint transaction...\n");
+
+        // Create a custom builder class that can access UTXO values
+        class QtMintTxBuilder : public DigiDollar::MintTxBuilder {
+        private:
+            const std::map<COutPoint, CAmount>& m_utxo_values;
+        public:
+            QtMintTxBuilder(const CChainParams& params, int height, CAmount price,
+                          const std::map<COutPoint, CAmount>& utxo_values)
+                : MintTxBuilder(params, height, price), m_utxo_values(utxo_values) {}
+
+            CAmount GetDGBFromUTXO(const COutPoint& outpoint) const override {
+                auto it = m_utxo_values.find(outpoint);
+                if (it != m_utxo_values.end()) {
+                    return it->second;
+                }
+                return 0; // UTXO not found
+            }
+        };
+
+        QtMintTxBuilder builder(Params(), mintHeight, oraclePrice, utxoValues);
+
+        DigiDollar::TxBuilderMintParams params;
+        params.ddAmount = ddAmount;
+        params.lockDays = lockDays;
+        params.lockTier = lockTier;  // Store tier explicitly in OP_RETURN for exact reconstruction
+        params.ownerKey = ownerKey;
+        // DigiDollar Qt mint uses a fixed high rate; txbuilder also enforces
+        // the DD minimum fee floor on constructed transactions.
+        // TxBuilder formula: (vsize * feeRate) / 1000
+        // For ~200 vB tx: (200 * 500000) / 1000 = 100,000 sats.
+        params.feeRate = 500000;
+        params.utxos = availableUtxos;
+
+        // CRITICAL FIX: Get a proper change address from the wallet for DGB change output
+        // This ensures the wallet recognizes the change output as its own!
+        {
+            LOCK(pWallet->cs_wallet);
+            auto op_dest = pWallet->GetNewChangeDestination(OutputType::BECH32);
+            if (op_dest) {
+                params.dgbChangeDest = *op_dest;
+                LogPrintf("DigiDollar Qt Mint: Using wallet change address for DGB change output\n");
+            } else {
+                LogPrintf("DigiDollar Qt Mint: WARNING - Could not get change destination!\n");
+            }
+        }
+
+        LogPrintf("DigiDollar Qt: TxBuilder params - DD: %d cents, Days: %d, Height: %d, Price: %d, UTXOs: %d\n",
+                  ddAmount, lockDays, currentHeight, oraclePrice, availableUtxos.size());
+
+        DigiDollar::TxBuilderResult result = builder.BuildMintTransaction(params);
+
+        // Auto-consolidate if mint failed due to UTXO fragmentation
+        // (mirrors the RPC mintdigidollar consolidation logic)
+        std::string consolidation_txid;
+        if (!result.success && result.error.find("Too many small UTXOs") != std::string::npos) {
+            LogPrintf("DigiDollar Qt: UTXO fragmentation detected (%zu UTXOs). Auto-consolidating...\n",
+                      availableUtxos.size());
+
+            auto sort_available_utxos_by_value = [&]() {
+                std::sort(availableUtxos.begin(), availableUtxos.end(),
+                    [&](const COutPoint& a, const COutPoint& b) {
+                        const CAmount av = utxoValues.count(a) ? utxoValues.at(a) : 0;
+                        const CAmount bv = utxoValues.count(b) ? utxoValues.at(b) : 0;
+                        if (av != bv) return av > bv;
+                        return a < b;
+                    });
+            };
+
+            auto commit_consolidation = [&](const CTransactionRef& consolidation_tx) -> std::optional<QString> {
+                std::string commit_error;
+                bool commit_success = false;
+                LOCK(pWallet->cs_wallet);
+                commit_success = pWallet->CommitTransaction(consolidation_tx, {}, {}, &commit_error);
+                if (!commit_success) {
+                    return QString("Auto-consolidation transaction rejected by mempool: %1")
+                        .arg(QString::fromStdString(commit_error));
+                }
+                return std::nullopt;
+            };
+
+            sort_available_utxos_by_value();
+
+            CAmount minRequired = result.collateralRequired + 20000000; // collateral + 0.2 DGB margin
+            if (totalAvailable < minRequired) {
+                return DigiDollarMintResult(AmountExceedsBalance, "", "",
+                    QString("Insufficient funds for collateral. Need %1 DGB, have %2 DGB.")
+                        .arg(result.collateralRequired / 100000000.0, 0, 'f', 2)
+                        .arg(totalAvailable / 100000000.0, 0, 'f', 2));
+            }
+
+            CTxDestination consolidationDest;
+            {
+                LOCK(pWallet->cs_wallet);
+                auto op_dest = pWallet->GetNewChangeDestination(OutputType::BECH32);
+                if (!op_dest) {
+                    return DigiDollarMintResult(TransactionCreationFailed, "", "",
+                        "Failed to get consolidation address");
+                }
+                consolidationDest = *op_dest;
+            }
+
+            // Multi-pass consolidation: MAX_STANDARD_TX_WEIGHT is 400k WU.
+            // P2WPKH input ~271 WU. Conservative limit: 1400 inputs per pass.
+            static const size_t MAX_CONSOLIDATION_INPUTS = 1400;
+            static const int MAX_CONSOLIDATION_PASSES = 10;
+            int pass = 0;
+            std::vector<COutPoint> consolidatedUtxos;
+            std::map<COutPoint, CAmount> consolidatedValues;
+
+            for (size_t offset = 0; offset < availableUtxos.size() && pass < MAX_CONSOLIDATION_PASSES;) {
+                ++pass;
+                size_t batch_size = std::min(availableUtxos.size() - offset, MAX_CONSOLIDATION_INPUTS);
+                LogPrintf("DigiDollar Qt: Consolidation pass %d — sweeping %zu of %zu UTXOs\n",
+                          pass, batch_size, availableUtxos.size());
+
+                wallet::CCoinControl coin_control;
+                CAmount batchTotal = 0;
+                for (size_t i = 0; i < batch_size; ++i) {
+                    const COutPoint& utxo = availableUtxos[offset + i];
+                    coin_control.Select(utxo);
+                    batchTotal += utxoValues[utxo];
+                }
+                coin_control.m_allow_other_inputs = false;
+
+                wallet::CRecipient recipient{consolidationDest, batchTotal, /*subtract_fee=*/true};
+                std::vector<wallet::CRecipient> recipients = {recipient};
+
+                auto consolidation_result = wallet::CreateTransaction(*pWallet, recipients, /*change_pos=*/-1, coin_control, /*sign=*/true);
+                if (!consolidation_result) {
+                    return DigiDollarMintResult(TransactionCreationFailed, "", "",
+                        QString("Auto-consolidation pass %1 failed: %2")
+                            .arg(pass)
+                            .arg(QString::fromStdString(util::ErrorString(consolidation_result).original)));
+                }
+
+                const CTransactionRef& consolidation_tx = consolidation_result->tx;
+                consolidation_txid = consolidation_tx->GetHash().GetHex();
+                if (auto error = commit_consolidation(consolidation_tx)) {
+                    return DigiDollarMintResult(TransactionCreationFailed, "", "", *error);
+                }
+
+                LogPrintf("DigiDollar Qt: Consolidation pass %d tx: %s (swept %.2f DGB from %zu inputs)\n",
+                          pass, consolidation_txid, batchTotal / 100000000.0, batch_size);
+
+                COutPoint consolidated_outpoint(consolidation_tx->GetHash(), 0);
+                consolidatedUtxos.push_back(consolidated_outpoint);
+                consolidatedValues[consolidated_outpoint] = consolidation_tx->vout[0].nValue;
+                offset += batch_size;
+            }
+
+            if (consolidatedUtxos.empty() || consolidatedUtxos.size() > MAX_CONSOLIDATION_PASSES) {
+                return DigiDollarMintResult(TransactionCreationFailed, "", "",
+                    "Auto-consolidation failed: too many fragmented UTXOs. Try manually consolidating UTXOs.");
+            }
+
+            availableUtxos = std::move(consolidatedUtxos);
+            utxoValues = std::move(consolidatedValues);
+
+            LogPrintf("DigiDollar Qt: After consolidation: %zu UTXOs available (passes: %d)\n",
+                      availableUtxos.size(), pass);
+
+            // Retry mint with consolidated UTXOs
+            QtMintTxBuilder retryBuilder(Params(), mintHeight, oraclePrice, utxoValues);
+            params.utxos = availableUtxos;
+            result = retryBuilder.BuildMintTransaction(params);
+        }
+
+        if (!result.success) {
+            LogPrintf("DigiDollar Qt: ERROR - BuildMintTransaction failed: %s\n", result.error);
+            return DigiDollarMintResult(TransactionCreationFailed, "", "",
+                QString::fromStdString("Failed to build mint transaction: " + result.error));
+        }
+
+        LogPrintf("DigiDollar Qt: Transaction built successfully!\n");
+        LogPrintf("DigiDollar Qt: - Inputs: %d, Outputs: %d\n", result.tx.vin.size(), result.tx.vout.size());
+        LogPrintf("DigiDollar Qt: - Collateral required: %d sats (%.8f DGB)\n",
+                  result.collateralRequired, result.collateralRequired / 100000000.0);
+        LogPrintf("DigiDollar Qt: - Total fees: %d sats (%.8f DGB)\n",
+                  result.totalFees, result.totalFees / 100000000.0);
+
+        // Step 8: Sign the transaction
+        LogPrintf("DigiDollar Qt: Step 8 - Signing transaction...\n");
+        bool signSuccess = false;
+        {
+            LOCK(pWallet->cs_wallet);
+            signSuccess = pWallet->SignTransaction(result.tx);
+        }
+
+        if (!signSuccess) {
+            LogPrintf("DigiDollar Qt: ERROR - Failed to sign transaction\n");
+            // Check if transaction has any inputs that need signing
+            LogPrintf("DigiDollar Qt: Transaction has %d inputs\n", result.tx.vin.size());
+            for (size_t i = 0; i < result.tx.vin.size(); i++) {
+                LogPrintf("DigiDollar Qt: Input %d: %s:%d - scriptSig size: %d\n",
+                          i, result.tx.vin[i].prevout.hash.GetHex(), result.tx.vin[i].prevout.n,
+                          result.tx.vin[i].scriptSig.size());
+            }
+            return DigiDollarMintResult(TransactionCreationFailed, "", "",
+                "Failed to sign mint transaction. Check wallet keys.");
+        }
+
+        LogPrintf("DigiDollar Qt: Transaction signed successfully\n");
+
+        // Step 9: Create transaction reference for broadcast
+        CTransactionRef txRef = MakeTransactionRef(result.tx);
+        uint256 txId = txRef->GetHash();
+        uint256 positionId = txId; // Position ID is the mint transaction ID
+
+        LogPrintf("DigiDollar Qt: Step 9 - Transaction ID: %s\n", txId.GetHex());
+
+        DigiDollarWallet* ddWallet = m_wallet->getDigiDollarWallet();
+        if (ddWallet) {
+            ddWallet->StoreOwnerKey(positionId, ownerKey);
+            LogPrintf("DigiDollar Qt: Stored owner key for position %s before broadcast\n", positionId.GetHex());
+        } else {
+            LogPrintf("DigiDollar Qt: WARNING - DD wallet not available before broadcast, owner key not stored\n");
+        }
+
+        // Step 10: Commit through the wallet relay path, which broadcasts once
+        // and updates wallet/mempool state from the same code path.
+        LogPrintf("DigiDollar Qt: Step 10 - Committing transaction through wallet relay...\n");
+
+        std::string commit_error;
+        bool commit_success = false;
+        {
+            LOCK(pWallet->cs_wallet);
+            commit_success = pWallet->CommitTransaction(txRef, {}, {}, &commit_error);
+        }
+        if (!commit_success) {
+            LogPrintf("DigiDollar Qt: ERROR - Failed to commit transaction: %s\n", commit_error);
+            // CommitTransaction() adds the tx to the wallet as inactive BEFORE relay and
+            // leaves it there when relay fails. A rejected mint must not linger as a
+            // non-abandoned wallet tx: the generic history model decodes any DD-shaped tx
+            // into "DigiDollar Collateral Lock / Transfer" rows, surfacing phantom DD
+            // activity even though no vault position was created. Abandon it, mirroring
+            // the RPC mint path (rpc/digidollar.cpp) and CommitDDTransaction().
+            if (pWallet->TransactionCanBeAbandoned(txId)) {
+                pWallet->AbandonTransaction(txId);
+                LogPrintf("DigiDollar Qt: Abandoned rejected local mint tx %s\n", txId.GetHex());
+            }
+            return DigiDollarMintResult(TransactionCreationFailed, "", "",
+                QString("Failed to broadcast transaction: %1").arg(QString::fromStdString(commit_error)));
+        }
+        LogPrintf("DigiDollar Qt: Transaction broadcast successful!\n");
+
+        // Step 11: Store position in wallet database for tracking
+        LogPrintf("DigiDollar Qt: Step 11 - Storing position in wallet...\n");
+
+        // Store position in DigiDollarWallet
+        if (ddWallet) {
+            // DigiByte has 15-second blocks: 4 blocks/min * 60 min/hr * 24 hr/day = 5760 blocks/day
+            int64_t lockBlocks = DigiDollar::LockDaysToBlocks(lockDays);
+            int64_t unlockHeight = mintHeight + lockBlocks + DigiDollar::MINT_LOCK_CONFIRMATION_BUFFER_BLOCKS;
+            WalletCollateralPosition position(positionId, ddAmount, result.collateralRequired, lockTier, unlockHeight);
+            position.owner_keyid = ownerKeyID;  // Store the owner key ID for later transfer signing
+            ddWallet->AddCollateralPosition(position);
+
+            LogPrintf("DigiDollar Qt: Position stored in wallet - ID: %s, DD: %d, DGB: %d, Tier: %d\n",
+                      positionId.GetHex(), ddAmount, result.collateralRequired, lockTier);
+
+            // Note: Transaction is automatically added to history by AddCollateralPosition()
+        } else {
+            LogPrintf("DigiDollar Qt: WARNING - DD wallet not available, position not stored\n");
+        }
+
+        LogPrintf("DigiDollar Qt: ========== MINT DIGIDOLLAR SUCCESS ==========\n");
+        LogPrintf("DigiDollar Qt: Summary:\n");
+        LogPrintf("DigiDollar Qt: - TxID: %s\n", txId.GetHex());
+        LogPrintf("DigiDollar Qt: - Position ID: %s\n", positionId.GetHex());
+        LogPrintf("DigiDollar Qt: - DD Minted: %d cents ($%.2f)\n", ddAmount, ddAmount / 100.0);
+        LogPrintf("DigiDollar Qt: - Collateral: %d sats (%.8f DGB)\n",
+                  result.collateralRequired, result.collateralRequired / 100000000.0);
+        LogPrintf("DigiDollar Qt: - Fees: %d sats (%.8f DGB)\n",
+                  result.totalFees, result.totalFees / 100000000.0);
+        LogPrintf("DigiDollar Qt: - Lock tier: %d (%d days)\n", lockTier, lockDays);
+
+        Q_EMIT digiDollarChanged();
+
+        return DigiDollarMintResult(OK,
+                                  QString::fromStdString(txId.GetHex()),
+                                  QString::fromStdString(positionId.GetHex()),
+                                  "",
+                                  result.collateralRequired);
+
+    } catch (const std::exception& e) {
+        LogPrintf("DigiDollar Qt: ========== MINT DIGIDOLLAR FAILED ==========\n");
+        LogPrintf("DigiDollar Qt: Exception: %s\n", e.what());
+        return DigiDollarMintResult(TransactionCreationFailed, "", "", QString::fromStdString(e.what()));
+    }
+}
+
+WalletModel::DigiDollarRedeemResult WalletModel::redeemDigiDollar(const QString& positionId, CAmount amount, const QString& redeemAddress)
+{
+    // Validate position ID format
+    if (positionId.length() != 64 || !positionId.contains(QRegularExpression("^[0-9a-fA-F]{64}$"))) {
+        return DigiDollarRedeemResult(InvalidAmount, "", "Invalid position ID format");
+    }
+
+    // Check if wallet is locked
+    if (getEncryptionStatus() == Locked) {
+        return DigiDollarRedeemResult(TransactionCreationFailed, "", "Wallet is locked. Please unlock to redeem DigiDollar.");
+    }
+
+    // Check if amount is positive
+    if (amount <= 0) {
+        return DigiDollarRedeemResult(InvalidAmount, "", "Redeem amount must be positive");
+    }
+
+    // Validate redemption address if provided
+    if (!redeemAddress.isEmpty()) {
+        if (!validateAddress(redeemAddress)) {
+            return DigiDollarRedeemResult(InvalidAddress, "", "Invalid DGB address for redemption");
+        }
+    }
+
+    try {
+        // Convert position ID to uint256
+        uint256 positionIdHash;
+        positionIdHash.SetHex(positionId.toStdString());
+        if (positionIdHash.IsNull()) {
+            return DigiDollarRedeemResult(InvalidAmount, "", "Invalid position ID hex format");
+        }
+
+        // Call redeemdigidollar RPC
+        LogPrintf("DigiDollar Qt: Calling redeemdigidollar RPC - Position: %s, Amount: %d cents\n",
+                  positionId.toStdString(), amount);
+
+        UniValue params(UniValue::VARR);
+        params.push_back(positionId.toStdString());
+        params.push_back(amount);
+        if (!redeemAddress.isEmpty()) {
+            params.push_back(redeemAddress.toStdString());
+        }
+
+        UniValue result;
+        try {
+            // Construct wallet URI like rpcconsole does
+            QByteArray encodedName = QUrl::toPercentEncoding(getWalletName());
+            std::string uri = "/wallet/" + std::string(encodedName.constData(), encodedName.length());
+            result = m_node.executeRpc("redeemdigidollar", params, uri);
+        } catch (const UniValue& objError) {
+            std::string errorMsg = objError.find_value("message").get_str();
+            LogPrintf("DigiDollar Qt: Redeem RPC failed - %s\n", errorMsg);
+            return DigiDollarRedeemResult(TransactionCreationFailed, "", QString::fromStdString(errorMsg));
+        } catch (const std::exception& e) {
+            LogPrintf("DigiDollar Qt: Redeem RPC exception - %s\n", e.what());
+            return DigiDollarRedeemResult(TransactionCreationFailed, "", QString::fromStdString(e.what()));
+        }
+
+        // Extract transaction ID from result
+        std::string txid = result.find_value("txid").get_str();
+        LogPrintf("DigiDollar Qt: Redemption successful - TxID: %s\n", txid);
+
+        Q_EMIT digiDollarChanged();
+
+        return DigiDollarRedeemResult(OK, QString::fromStdString(txid), "");
+
+    } catch (const std::exception& e) {
+        return DigiDollarRedeemResult(TransactionCreationFailed, "", QString::fromStdString(e.what()));
+    }
+}
+
+CAmount WalletModel::getDigiDollarBalance() const
+{
+    // Query actual DigiDollar balance from wallet
+    // DD balance is tracked separately from regular DGB balance
+    // Balance is stored in cents (e.g., 10000 = $100.00 DD)
+
+    try {
+        if (m_wallet->privateKeysDisabled()) {
+            LogPrintf("DigiDollar Qt: getDigiDollarBalance returning 0 for private-key-disabled wallet\n");
+            return 0;
+        }
+
+        // Get DigiDollar wallet instance from wallet interface
+        DigiDollarWallet* ddWallet = m_wallet->getDigiDollarWallet();
+        if (!ddWallet) {
+            LogPrintf("DigiDollar Qt: DD wallet not available\n");
+            return 0;
+        }
+
+        // Get the total DD balance
+        CAmount balance = ddWallet->GetTotalDDBalance();
+
+        LogPrintf("DigiDollar Qt: getDigiDollarBalance returning %d cents\n", balance);
+        return balance;
+
+    } catch (const std::exception& e) {
+        LogPrintf("DigiDollar Qt: getDigiDollarBalance exception - %s\n", e.what());
+        return 0;
+    }
+}
+
+CAmount WalletModel::getPendingDigiDollarBalance() const
+{
+    try {
+        if (m_wallet->privateKeysDisabled()) {
+            LogPrint(BCLog::DIGIDOLLAR, "DigiDollar Qt: getPendingDigiDollarBalance returning 0 for private-key-disabled wallet\n");
+            return 0;
+        }
+
+        DigiDollarWallet* ddWallet = m_wallet->getDigiDollarWallet();
+        if (!ddWallet) {
+            return 0;
+        }
+
+        CAmount pending = ddWallet->GetPendingDDBalance();
+        LogPrint(BCLog::DIGIDOLLAR, "DigiDollar Qt: getPendingDigiDollarBalance returning %d cents\n", pending);
+        return pending;
+
+    } catch (const std::exception& e) {
+        LogPrintf("DigiDollar Qt: getPendingDigiDollarBalance exception - %s\n", e.what());
+        return 0;
+    }
+}
+
+CAmount WalletModel::getLockedCollateral() const
+{
+    try {
+        DigiDollarWallet* ddWallet = m_wallet->getDigiDollarWallet();
+        if (!ddWallet) {
+            return 0;
+        }
+
+        CAmount locked = ddWallet->GetLockedCollateral();
+        LogPrintf("DigiDollar Qt: getLockedCollateral returning %d satoshis\n", locked);
+        return locked;
+
+    } catch (const std::exception& e) {
+        LogPrintf("DigiDollar Qt: getLockedCollateral exception - %s\n", e.what());
+        return 0;
+    }
+}
+
+CAmount WalletModel::getAvailableDGBBalance() const
+{
+    // Get the regular DGB balance from the wallet
+    const interfaces::WalletBalances& balances = getCachedBalance();
+    return balances.balance;
+}
+
+bool WalletModel::validateDigiDollarAddress(const QString& address) const
+{
+    return CDigiDollarAddress::IsValidDigiDollarAddressForCurrentNetwork(address.toStdString());
+}
+
+CAmount WalletModel::calculateRequiredCollateral(CAmount ddAmount, int lockTier) const
+{
+    if (lockTier < 0 || lockTier > 9) {
+        return 0;
+    }
+
+    // Get oracle price based on network type
+    // MockOracleManager for RegTest only, RPC for testnet/mainnet
+    CAmount oraclePriceMicroUSD = 0;
+    ChainType chainType = Params().GetChainType();
+
+    if (chainType == ChainType::REGTEST && MockOracleManager::GetInstance().IsEnabled()) {
+        oraclePriceMicroUSD = MockOracleManager::GetInstance().GetCurrentPrice();
+    } else {
+        // Get from RPC for testnet/mainnet
+        try {
+            UniValue params(UniValue::VARR);
+            UniValue result = m_node.executeRpc("getoracleprice", params, "");
+            const UniValue& priceVal = result.find_value("price_micro_usd");
+            if (!priceVal.isNull()) {
+                oraclePriceMicroUSD = priceVal.getInt<int64_t>();
+            }
+        } catch (...) {
+            // If RPC fails, return 0 to indicate calculation failed
+            return 0;
+        }
+    }
+
+    if (oraclePriceMicroUSD <= 0) {
+        return 0;
+    }
+
+    static constexpr int LOCK_DAYS_FOR_TIER[10] = {0, 30, 90, 180, 365, 730, 1095, 1825, 2555, 3650};
+    const int currentHeight = m_client_model ? m_client_model->getNumBlocks() : 0;
+    DigiDollar::MintTxBuilder builder(Params(), currentHeight, oraclePriceMicroUSD);
+    return builder.CalculateRequiredCollateral(ddAmount, LOCK_DAYS_FOR_TIER[lockTier]);
+}
+
+UniValue WalletModel::executeRpc(const std::string& command, const UniValue& params) const
+{
+    // Construct wallet URI like rpcconsole does
+    QByteArray encodedName = QUrl::toPercentEncoding(getWalletName());
+    std::string uri = "/wallet/" + std::string(encodedName.constData(), encodedName.length());
+    return m_node.executeRpc(command, params, uri);
+}
+
+QString WalletModel::getNewDigiDollarAddress(const QString& label)
+{
+    LogPrintf("DigiDollar Qt: getNewDigiDollarAddress called with label: %s\n", label.toStdString());
+
+    try {
+        // Get the wallet pointer
+        wallet::CWallet* pWallet = wallet().wallet();
+        if (!pWallet) {
+            LogPrintf("DigiDollar Qt: ERROR - Wallet pointer not available\n");
+            return QString();
+        }
+
+        if (m_wallet->privateKeysDisabled()) {
+            LogPrintf("DigiDollar Qt: refusing to generate DigiDollar address for private-key-disabled wallet\n");
+            return QString();
+        }
+
+        // Generate a new Taproot (P2TR) destination for DigiDollar
+        // DigiDollar addresses must be P2TR (Taproot) type
+        auto result = m_wallet->getNewDestination(OutputType::BECH32M, label.toStdString());
+
+        if (!result) {
+            LogPrintf("DigiDollar Qt: ERROR - Failed to generate new destination: %s\n",
+                     util::ErrorString(result).translated);
+            return QString();
+        }
+
+        CTxDestination dest = *result;
+
+        // Convert the destination to DigiDollar address format
+        // DigiDollar addresses use DD (mainnet), TD (testnet), RD (regtest) prefixes
+        std::string ddAddress = EncodeDigiDollarAddress(dest);
+
+        if (ddAddress.empty()) {
+            LogPrintf("DigiDollar Qt: ERROR - Failed to encode DigiDollar address\n");
+            return QString();
+        }
+
+        LogPrintf("DigiDollar Qt: Generated DD address: %s\n", ddAddress);
+
+        // Add address to address book with label if provided
+        // Use DIGIDOLLAR purpose to distinguish from regular DGB addresses
+        if (!label.isEmpty()) {
+            m_wallet->setAddressBook(dest, label.toStdString(), wallet::AddressPurpose::DIGIDOLLAR);
+        } else {
+            m_wallet->setAddressBook(dest, "", wallet::AddressPurpose::DIGIDOLLAR);
+        }
+
+        return QString::fromStdString(ddAddress);
+
+    } catch (const std::exception& e) {
+        LogPrintf("DigiDollar Qt: getNewDigiDollarAddress exception - %s\n", e.what());
+        return QString();
+    }
+}
+
+DigiDollarWallet* WalletModel::getDigiDollarWallet() const
+{
+    return m_wallet ? m_wallet->getDigiDollarWallet() : nullptr;
 }

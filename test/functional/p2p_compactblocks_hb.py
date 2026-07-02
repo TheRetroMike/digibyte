@@ -14,6 +14,7 @@ class CompactBlocksConnectionTest(DigiByteTestFramework):
     def set_test_params(self):
         self.setup_clean_chain = True
         self.num_nodes = 6
+        self.extra_args = [["-dandelion=0"]] * self.num_nodes
 
     def peer_info(self, from_node, to_node):
         """Query from_node for its getpeerinfo about to_node."""

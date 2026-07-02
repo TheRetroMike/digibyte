@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <qt/transactiontablemodel.h>
@@ -254,7 +254,7 @@ TransactionTableModel::TransactionTableModel(const PlatformStyle *_platformStyle
 {
     subscribeToCoreSignals();
 
-    columns << QString() << QString() << tr("Date") << tr("Type") << tr("Label") << DigiByteUnits::getAmountColumnTitle(walletModel->getOptionsModel()->getDisplayUnit());
+    columns << QString() << QString() << tr("Date") << tr("Type") << tr("Label") << tr("Amount (%1/$DD)").arg(DigiByteUnits::shortName(walletModel->getOptionsModel()->getDisplayUnit()));
     priv->refreshWallet(walletModel->wallet());
 
     connect(walletModel->getOptionsModel(), &OptionsModel::displayUnitChanged, this, &TransactionTableModel::updateDisplayUnit);
@@ -266,10 +266,10 @@ TransactionTableModel::~TransactionTableModel()
     delete priv;
 }
 
-/** Updates the column title to "Amount (DisplayUnit)" and emits headerDataChanged() signal for table headers to react. */
+/** Updates the column title to include both the selected DGB display unit and DigiDollar rows. */
 void TransactionTableModel::updateAmountColumnTitle()
 {
-    columns[Amount] = DigiByteUnits::getAmountColumnTitle(walletModel->getOptionsModel()->getDisplayUnit());
+    columns[Amount] = tr("Amount (%1/$DD)").arg(DigiByteUnits::shortName(walletModel->getOptionsModel()->getDisplayUnit()));
     Q_EMIT headerDataChanged(Qt::Horizontal,Amount,Amount);
 }
 
@@ -379,6 +379,16 @@ QString TransactionTableModel::formatTxType(const TransactionRecord *wtx) const
         return tr("Sent to");
     case TransactionRecord::Generated:
         return tr("Mined");
+    case TransactionRecord::DDTimeLockCollateral:
+        return tr("DigiDollar Collateral Lock");
+    case TransactionRecord::DDCollateralReturn:
+        return tr("DigiDollar Collateral Unlock");
+    case TransactionRecord::DDSend:
+        return tr("DigiDollar Transfer (Out)");
+    case TransactionRecord::DDRecv:
+        return tr("DigiDollar Transfer (In)");
+    case TransactionRecord::DDSendFee:
+        return tr("DigiDollar Transfer Fee");
     default:
         return QString();
     }
@@ -396,6 +406,13 @@ QVariant TransactionTableModel::txAddressDecoration(const TransactionRecord *wtx
     case TransactionRecord::SendToAddress:
     case TransactionRecord::SendToOther:
         return QIcon(":/icons/tx_output");
+    case TransactionRecord::DDTimeLockCollateral:
+    case TransactionRecord::DDSend:
+    case TransactionRecord::DDSendFee:
+        return QIcon(":/icons/tx_output");  // Use output icon for DD sends
+    case TransactionRecord::DDCollateralReturn:
+    case TransactionRecord::DDRecv:
+        return QIcon(":/icons/tx_input");   // Use input icon for DD receives
     default:
         return QIcon(":/icons/tx_inout");
     }
@@ -419,6 +436,16 @@ QString TransactionTableModel::formatTxToAddress(const TransactionRecord *wtx, b
         return lookupAddress(wtx->address, tooltip) + watchAddress;
     case TransactionRecord::SendToOther:
         return QString::fromStdString(wtx->address) + watchAddress;
+    case TransactionRecord::DDTimeLockCollateral:
+        return tr("DigiDollar Collateral (Locked)") + watchAddress;
+    case TransactionRecord::DDCollateralReturn:
+        return tr("DigiDollar Collateral (Unlocked)") + watchAddress;
+    case TransactionRecord::DDSend:
+        return tr("DigiDollar Transfer (Out)") + watchAddress;
+    case TransactionRecord::DDRecv:
+        return tr("DigiDollar Transfer (In)") + watchAddress;
+    case TransactionRecord::DDSendFee:
+        return tr("DigiDollar Transfer Fee") + watchAddress;
     default:
         return tr("(n/a)") + watchAddress;
     }
@@ -426,9 +453,12 @@ QString TransactionTableModel::formatTxToAddress(const TransactionRecord *wtx, b
 
 QVariant TransactionTableModel::addressColor(const TransactionRecord *wtx) const
 {
-    // Check if we're using dark theme
-    QString currentTheme = walletModel->getOptionsModel()->data(walletModel->getOptionsModel()->index(OptionsModel::Theme), Qt::EditRole).toString();
-    bool isDarkTheme = (currentTheme == "dark");
+    // Check if we're using dark theme (empty defaults to dark, matching applyTheme() behavior)
+    bool isDarkTheme = true; // Default to dark
+    if (walletModel && walletModel->getOptionsModel()) {
+        QString currentTheme = walletModel->getOptionsModel()->data(walletModel->getOptionsModel()->index(OptionsModel::Theme), Qt::EditRole).toString();
+        isDarkTheme = (currentTheme.isEmpty() || currentTheme == "dark");
+    }
 
     // Always return the appropriate color for the current theme
     // Dark theme: white text, Light theme: dark blue text
@@ -441,6 +471,16 @@ QVariant TransactionTableModel::addressColor(const TransactionRecord *wtx) const
         // Return theme-appropriate color for both labeled and unlabeled addresses
         return isDarkTheme ? QColor(255, 255, 255) : QColor(0, 51, 102);
         } break;
+    case TransactionRecord::DDTimeLockCollateral:
+    case TransactionRecord::DDCollateralReturn:
+    case TransactionRecord::DDSend:
+    case TransactionRecord::DDRecv:
+    case TransactionRecord::DDSendFee:
+        {
+        // DigiDollar transactions - use a distinctive color
+        // Gold/amber for DD related transactions
+        return isDarkTheme ? QColor(255, 193, 7) : QColor(184, 134, 11);  // Gold color
+        } break;
     default:
         break;
     }
@@ -450,7 +490,15 @@ QVariant TransactionTableModel::addressColor(const TransactionRecord *wtx) const
 
 QString TransactionTableModel::formatTxAmount(const TransactionRecord *wtx, bool showUnconfirmed, DigiByteUnits::SeparatorStyle separators) const
 {
-    QString str = DigiByteUnits::format(walletModel->getOptionsModel()->getDisplayUnit(), wtx->credit + wtx->debit, false, separators);
+    QString str;
+    if ((wtx->type == TransactionRecord::DDSend || wtx->type == TransactionRecord::DDRecv) && wtx->ddAmount != 0) {
+        const CAmount amount = wtx->ddAmount;
+        const CAmount absAmount = amount < 0 ? -amount : amount;
+        const QString prefix = amount > 0 ? QString("+") : (amount < 0 ? QString("-") : QString());
+        str = prefix + QString::number(absAmount / 100.0, 'f', 2) + QString(" $DD");
+    } else {
+        str = DigiByteUnits::format(walletModel->getOptionsModel()->getDisplayUnit(), wtx->credit + wtx->debit, false, separators);
+    }
     if(showUnconfirmed)
     {
         if(!wtx->status.countsForBalance)
@@ -567,6 +615,9 @@ QVariant TransactionTableModel::data(const QModelIndex &index, int role) const
         case ToAddress:
             return formatTxToAddress(rec, true);
         case Amount:
+            if ((rec->type == TransactionRecord::DDSend || rec->type == TransactionRecord::DDRecv) && rec->ddAmount != 0) {
+                return qint64(rec->ddAmount);
+            }
             return qint64(rec->credit + rec->debit);
         } // no default case, so the compiler can warn about missing cases
         assert(false);
@@ -576,9 +627,12 @@ QVariant TransactionTableModel::data(const QModelIndex &index, int role) const
         return column_alignments[index.column()];
     case Qt::ForegroundRole:
         {
-            // Check if we're using dark theme
-            QString currentTheme = walletModel->getOptionsModel()->data(walletModel->getOptionsModel()->index(OptionsModel::Theme), Qt::EditRole).toString();
-            bool isDarkTheme = (currentTheme == "dark");
+            // Check if we're using dark theme (empty defaults to dark, matching applyTheme() behavior)
+            bool isDarkTheme = true; // Default to dark
+            if (walletModel && walletModel->getOptionsModel()) {
+                QString currentTheme = walletModel->getOptionsModel()->data(walletModel->getOptionsModel()->index(OptionsModel::Theme), Qt::EditRole).toString();
+                isDarkTheme = (currentTheme.isEmpty() || currentTheme == "dark");
+            }
             
             // Use the "danger" color for abandoned transactions
             if(rec->status.status == TransactionStatus::Abandoned)
@@ -591,7 +645,10 @@ QVariant TransactionTableModel::data(const QModelIndex &index, int role) const
                 // Let the specific column logic below handle the actual colors
                 // This used to return gray, but we want theme-aware colors
             }
-            if(index.column() == Amount && (rec->credit+rec->debit) < 0)
+            const CAmount displayAmount = ((rec->type == TransactionRecord::DDSend || rec->type == TransactionRecord::DDRecv) && rec->ddAmount != 0)
+                ? rec->ddAmount
+                : (rec->credit + rec->debit);
+            if(index.column() == Amount && displayAmount < 0)
             {
                 // Red for negative amounts
                 return isDarkTheme ? QColor(255, 70, 70) : QColor(200, 0, 0);

@@ -1,0 +1,162 @@
+@page {
+  size: Letter;
+  margin: 1in;
+}
+
+body {
+  font-family: 'Helvetica', 'Arial', sans-serif;
+  font-size: 10pt;
+  line-height: 1.5;
+  color: #000000;
+  font-weight: normal;
+}
+
+h1 {
+  font-size: 18pt;
+  font-weight: bold;
+  margin-top: 16pt;
+  margin-bottom: 10pt;
+  color: #000000;
+  border-bottom: 2pt solid #0066FF;
+  padding-bottom: 6pt;
+  page-break-after: avoid;
+}
+
+h2 {
+  font-size: 14pt;
+  font-weight: bold;
+  margin-top: 14pt;
+  margin-bottom: 8pt;
+  color: #000000;
+  page-break-after: avoid;
+}
+
+h3 {
+  font-size: 12pt;
+  font-weight: bold;
+  margin-top: 12pt;
+  margin-bottom: 6pt;
+  color: #000000;
+  page-break-after: avoid;
+}
+
+h4 {
+  font-size: 11pt;
+  font-weight: bold;
+  margin-top: 10pt;
+  margin-bottom: 6pt;
+  color: #000000;
+}
+
+p {
+  margin-bottom: 10pt;
+  color: #000000;
+  orphans: 3;
+  widows: 3;
+}
+
+strong, b {
+  font-weight: bold;
+  color: #000000;
+}
+
+em, i {
+  font-style: italic;
+}
+
+ul, ol {
+  margin-bottom: 10pt;
+  padding-left: 24pt;
+}
+
+li {
+  margin-bottom: 4pt;
+  color: #000000;
+}
+
+code {
+  background-color: #f4f4f4;
+  padding: 2pt 4pt;
+  border-radius: 3pt;
+  font-family: 'Courier New', 'Courier', monospace;
+  font-size: 11pt;
+  color: #000000;
+}
+
+pre {
+  background-color: #f4f4f4;
+  padding: 10pt;
+  border-radius: 5pt;
+  overflow-x: auto;
+  margin-bottom: 12pt;
+  page-break-inside: avoid;
+}
+
+pre code {
+  background-color: transparent;
+  padding: 0;
+}
+
+blockquote {
+  border-left: 4pt solid #0066FF;
+  padding-left: 16pt;
+  margin-left: 0;
+  margin-right: 0;
+  font-style: italic;
+  color: #333333;
+  page-break-inside: avoid;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 16pt;
+  page-break-inside: avoid;
+}
+
+th {
+  background-color: #0066FF;
+  color: white;
+  font-weight: bold;
+  padding: 8pt;
+  text-align: left;
+  border: 1pt solid #0066FF;
+}
+
+td {
+  border: 1pt solid #cccccc;
+  padding: 8pt;
+  color: #000000;
+}
+
+a {
+  color: #0066FF;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+hr {
+  border: none;
+  border-top: 2pt solid #cccccc;
+  margin: 20pt 0;
+}
+
+/* Prevent page breaks after headings */
+h1, h2, h3, h4, h5, h6 {
+  page-break-after: avoid;
+}
+
+/* Prevent orphans and widows */
+p {
+  orphans: 3;
+  widows: 3;
+}
+
+/* Better page breaks */
+.page-break {
+  page-break-before: always;
+}

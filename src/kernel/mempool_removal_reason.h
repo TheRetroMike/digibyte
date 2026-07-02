@@ -1,5 +1,5 @@
 // Copyright (c) 2016-present The Bitcoin Core developers
-// Copyright (c) 2014-2025-present The DigiByte Core developers
+// Copyright (c) 2014-2026-present The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or https://opensource.org/license/mit/.
 #ifndef DIGIBYTE_KERNEL_MEMPOOL_REMOVAL_REASON_H

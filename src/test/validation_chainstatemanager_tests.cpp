@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 //
@@ -388,23 +388,35 @@ struct SnapshotTestSetup : TestChain100Setup {
             // Process all callbacks referring to the old manager before wiping it.
             SyncWithValidationInterfaceQueue();
             LOCK(::cs_main);
+            const ChainType chain_type = chainman.GetParams().GetChainType();
+            const fs::path datadir = chainman.m_options.datadir;
+            const fs::path blocks_dir = m_args.GetBlocksDirPath();
             chainman.ResetChainstates();
             BOOST_CHECK_EQUAL(chainman.GetAll().size(), 0);
             m_node.notifications = std::make_unique<KernelNotifications>(m_node.exit_status);
+            // Unit tests can switch the global params. A simulated restart must
+            // rebuild the same network params before wiring the replacement manager.
+            m_node.chainman.reset();
+            SelectParams(chain_type);
+            const CChainParams& chainparams = Params();
+            if (const auto snapshot_dir = node::FindSnapshotChainstateDir(datadir)) {
+                const auto snapshot_base = node::ReadSnapshotBaseBlockhash(*snapshot_dir);
+                BOOST_REQUIRE(snapshot_base);
+                BOOST_REQUIRE_MESSAGE(chainparams.AssumeutxoForBlockhash(*snapshot_base),
+                    strprintf("Missing assumeutxo data for %s on %s",
+                        snapshot_base->ToString(), chainparams.GetChainTypeString()));
+            }
             const ChainstateManager::Options chainman_opts{
-                .chainparams = ::Params(),
-                .datadir = chainman.m_options.datadir,
+                .chainparams = chainparams,
+                .datadir = datadir,
                 .adjusted_time_callback = GetAdjustedTime,
                 .notifications = *m_node.notifications,
             };
             const BlockManager::Options blockman_opts{
                 .chainparams = chainman_opts.chainparams,
-                .blocks_dir = m_args.GetBlocksDirPath(),
+                .blocks_dir = blocks_dir,
                 .notifications = chainman_opts.notifications,
             };
-            // For robustness, ensure the old manager is destroyed before creating a
-            // new one.
-            m_node.chainman.reset();
             m_node.chainman = std::make_unique<ChainstateManager>(m_node.kernel->interrupt, chainman_opts, blockman_opts);
         }
         return *Assert(m_node.chainman);

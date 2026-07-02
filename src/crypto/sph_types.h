@@ -48,6 +48,7 @@
 #define SPH_TYPES_H__
 
 #include <limits.h>
+#include <string.h>
 
 /*
  * All our I/O functions are defined over octet streams. We do not know
@@ -1371,7 +1372,7 @@ sph_enc32be(void *dst, sph_u32 val)
 #if SPH_LITTLE_ENDIAN
 	val = sph_bswap32(val);
 #endif
-	*(sph_u32 *)dst = val;
+	memcpy(dst, &val, sizeof val);
 #else
 	if (((SPH_UPTR)dst & 3) == 0) {
 #if SPH_LITTLE_ENDIAN
@@ -1427,9 +1428,17 @@ sph_dec32be(const void *src)
 #if defined SPH_UPTR
 #if SPH_UNALIGNED
 #if SPH_LITTLE_ENDIAN
-	return sph_bswap32(*(const sph_u32 *)src);
+	{
+		sph_u32 val;
+		memcpy(&val, src, sizeof val);
+		return sph_bswap32(val);
+	}
 #else
-	return *(const sph_u32 *)src;
+	{
+		sph_u32 val;
+		memcpy(&val, src, sizeof val);
+		return val;
+	}
 #endif
 #else
 	if (((SPH_UPTR)src & 3) == 0) {
@@ -1489,7 +1498,7 @@ sph_enc32le(void *dst, sph_u32 val)
 #if SPH_BIG_ENDIAN
 	val = sph_bswap32(val);
 #endif
-	*(sph_u32 *)dst = val;
+	memcpy(dst, &val, sizeof val);
 #else
 	if (((SPH_UPTR)dst & 3) == 0) {
 #if SPH_BIG_ENDIAN
@@ -1545,9 +1554,17 @@ sph_dec32le(const void *src)
 #if defined SPH_UPTR
 #if SPH_UNALIGNED
 #if SPH_BIG_ENDIAN
-	return sph_bswap32(*(const sph_u32 *)src);
+	{
+		sph_u32 val;
+		memcpy(&val, src, sizeof val);
+		return sph_bswap32(val);
+	}
 #else
-	return *(const sph_u32 *)src;
+	{
+		sph_u32 val;
+		memcpy(&val, src, sizeof val);
+		return val;
+	}
 #endif
 #else
 	if (((SPH_UPTR)src & 3) == 0) {
@@ -1658,7 +1675,7 @@ sph_enc64be(void *dst, sph_u64 val)
 #if SPH_LITTLE_ENDIAN
 	val = sph_bswap64(val);
 #endif
-	*(sph_u64 *)dst = val;
+	memcpy(dst, &val, sizeof val);
 #else
 	if (((SPH_UPTR)dst & 7) == 0) {
 #if SPH_LITTLE_ENDIAN
@@ -1726,9 +1743,17 @@ sph_dec64be(const void *src)
 #if defined SPH_UPTR
 #if SPH_UNALIGNED
 #if SPH_LITTLE_ENDIAN
-	return sph_bswap64(*(const sph_u64 *)src);
+	{
+		sph_u64 val;
+		memcpy(&val, src, sizeof val);
+		return sph_bswap64(val);
+	}
 #else
-	return *(const sph_u64 *)src;
+	{
+		sph_u64 val;
+		memcpy(&val, src, sizeof val);
+		return val;
+	}
 #endif
 #else
 	if (((SPH_UPTR)src & 7) == 0) {
@@ -1800,7 +1825,7 @@ sph_enc64le(void *dst, sph_u64 val)
 #if SPH_BIG_ENDIAN
 	val = sph_bswap64(val);
 #endif
-	*(sph_u64 *)dst = val;
+	memcpy(dst, &val, sizeof val);
 #else
 	if (((SPH_UPTR)dst & 7) == 0) {
 #if SPH_BIG_ENDIAN
@@ -1868,9 +1893,17 @@ sph_dec64le(const void *src)
 #if defined SPH_UPTR
 #if SPH_UNALIGNED
 #if SPH_BIG_ENDIAN
-	return sph_bswap64(*(const sph_u64 *)src);
+	{
+		sph_u64 val;
+		memcpy(&val, src, sizeof val);
+		return sph_bswap64(val);
+	}
 #else
-	return *(const sph_u64 *)src;
+	{
+		sph_u64 val;
+		memcpy(&val, src, sizeof val);
+		return val;
+	}
 #endif
 #else
 	if (((SPH_UPTR)src & 7) == 0) {

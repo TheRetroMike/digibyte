@@ -1,5 +1,5 @@
 // Copyright (c) 2017-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <consensus/amount.h>
@@ -257,6 +257,15 @@ BOOST_AUTO_TEST_CASE(bnb_search_test)
     BOOST_CHECK_EQUAL(result4->GetSelectedValue(), 1 * CENT);
     BOOST_CHECK(EquivalentResult(expected_result, *result4));
     expected_result.Clear();
+
+    // BnB accepts the exact cost-of-change boundary as a changeless selection.
+    const CAmount exact_change_cost = 1 * CENT;
+    std::vector<COutput> boundary_pool;
+    add_coin(2 * CENT, 1, boundary_pool);
+    const auto result4_boundary = SelectCoinsBnB(GroupCoins(boundary_pool), 1 * CENT, exact_change_cost);
+    BOOST_REQUIRE(result4_boundary);
+    BOOST_CHECK_EQUAL(result4_boundary->GetSelectedValue(), 2 * CENT);
+    BOOST_CHECK_EQUAL(result4_boundary->GetChange(exact_change_cost + 1, CAmount{0}), 0);
 
     // Cost of change is less than the difference between target value and utxo sum
     BOOST_CHECK(!SelectCoinsBnB(GroupCoins(utxo_pool), 0.9 * CENT, 0));

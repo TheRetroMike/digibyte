@@ -16,9 +16,9 @@ class FeatureIndexPruneTest(DigiByteTestFramework):
     def set_test_params(self):
         self.num_nodes = 4
         self.extra_args = [
-            ["-fastprune", "-prune=1", "-blockfilterindex=1"],
-            ["-fastprune", "-prune=1", "-coinstatsindex=1"],
-            ["-fastprune", "-prune=1", "-blockfilterindex=1", "-coinstatsindex=1"],
+            ["-fastprune", "-prune=1", "-blockfilterindex=1", "-digidollarstatsindex=0"],
+            ["-fastprune", "-prune=1", "-coinstatsindex=1", "-digidollarstatsindex=0"],
+            ["-fastprune", "-prune=1", "-blockfilterindex=1", "-coinstatsindex=1", "-digidollarstatsindex=0"],
             []
         ]
 
@@ -50,7 +50,7 @@ class FeatureIndexPruneTest(DigiByteTestFramework):
 
     def restart_without_indices(self):
         for i in range(3):
-            self.restart_node(i, extra_args=["-fastprune", "-prune=1"])
+            self.restart_node(i, extra_args=["-fastprune", "-prune=1", "-digidollarstatsindex=0"])
         self.reconnect_nodes()
 
     def run_test(self):
@@ -74,7 +74,7 @@ class FeatureIndexPruneTest(DigiByteTestFramework):
                 pruneheight_new = node.pruneblockchain(400)
                 # the prune heights used here and below are magic numbers that are determined by the
                 # thresholds at which block files wrap, so they depend on disk serialization and default block file size.
-                assert_equal(pruneheight_new, 248)
+                assert_equal(pruneheight_new, 249)
 
         self.log.info("check if we can access the tips blockfilter and coinstats when we have pruned some blocks")
         tip = self.nodes[0].getbestblockhash()
@@ -90,9 +90,11 @@ class FeatureIndexPruneTest(DigiByteTestFramework):
         for node in stats_nodes:
             assert node.gettxoutsetinfo(hash_type="muhash", hash_or_height=height_hash)['muhash']
 
-        # mine and sync index up to a height that will later be the pruneheight
-        self.generate(self.nodes[0], 51)
-        self.sync_index(height=751)
+        # Mine and sync the index one block beyond the next prune height.
+        # DigiByte block headers include the mining algorithm field, so the
+        # fast-prune block-file boundaries differ from upstream Bitcoin's.
+        self.generate(self.nodes[0], 52)
+        self.sync_index(height=752)
 
         self.restart_without_indices()
 
@@ -104,17 +106,17 @@ class FeatureIndexPruneTest(DigiByteTestFramework):
             msg = "Querying specific block heights requires coinstatsindex"
             assert_raises_rpc_error(-8, msg, node.gettxoutsetinfo, "muhash", height_hash)
 
-        self.mine_batches(749)
+        self.mine_batches(581)
 
         self.log.info("prune exactly up to the indices best blocks while the indices are disabled")
         for i in range(3):
             pruneheight_2 = self.nodes[i].pruneblockchain(1000)
-            assert_equal(pruneheight_2, 750)
+            assert_equal(pruneheight_2, 751)
             # Restart the nodes again with the indices activated
             self.restart_node(i, extra_args=self.extra_args[i])
 
         self.log.info("make sure that we can continue with the partially synced indices after having pruned up to the index height")
-        self.sync_index(height=1500)
+        self.sync_index(height=1333)
 
         self.log.info("prune further than the indices best blocks while the indices are disabled")
         self.restart_without_indices()
@@ -140,16 +142,16 @@ class FeatureIndexPruneTest(DigiByteTestFramework):
             self.connect_nodes(i, 3)
 
         self.sync_blocks(timeout=300)
-        self.sync_index(height=2500)
+        self.sync_index(height=2333)
 
         for node in self.nodes[:2]:
-            with node.assert_debug_log(['limited pruning to height 2489']):
-                pruneheight_new = node.pruneblockchain(2500)
-                assert_equal(pruneheight_new, 2005)
+            with node.assert_debug_log(['limited pruning to height 2322']):
+                pruneheight_new = node.pruneblockchain(2333)
+                assert_equal(pruneheight_new, 2006)
 
         self.log.info("ensure that prune locks don't prevent indices from failing in a reorg scenario")
-        with self.nodes[0].assert_debug_log(['basic block filter index prune lock moved back to 2480']):
-            self.nodes[3].invalidateblock(self.nodes[0].getblockhash(2480))
+        with self.nodes[0].assert_debug_log(['basic block filter index prune lock moved back to 2313']):
+            self.nodes[3].invalidateblock(self.nodes[0].getblockhash(2313))
             self.generate(self.nodes[3], 30)
             self.sync_blocks()
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <core_io.h>
@@ -12,6 +12,7 @@
 #include <wallet/rpc/util.h>
 #include <wallet/spend.h>
 #include <wallet/wallet.h>
+#include <wallet/digidollarwallet.h>
 
 #include <univalue.h>
 
@@ -380,6 +381,13 @@ RPCHelpMan lockunspent()
     // Atomically set (un)locked status for the outputs.
     for (const COutPoint& outpt : outputs) {
         if (fUnlock) {
+            // SECURITY: Prevent unlocking DigiDollar collateral/token UTXOs via RPC.
+            // Use redeemdigidollar to properly redeem DD and release collateral.
+            DigiDollarWallet* dd_wallet = pwallet->GetDDWallet();
+            if (dd_wallet && dd_wallet->IsLockedByDD(outpt)) {
+                throw JSONRPCError(RPC_WALLET_ERROR,
+                    strprintf("Cannot unlock DigiDollar-locked output %s. Use redeemdigidollar to properly redeem.", outpt.ToString()));
+            }
             if (!pwallet->UnlockCoin(outpt, batch.get())) throw JSONRPCError(RPC_WALLET_ERROR, "Unlocking coin failed");
         } else {
             if (!pwallet->LockCoin(outpt, batch.get())) throw JSONRPCError(RPC_WALLET_ERROR, "Locking coin failed");

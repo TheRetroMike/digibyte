@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <consensus/tx_check.h>
@@ -6,6 +6,7 @@
 #include <consensus/amount.h>
 #include <primitives/transaction.h>
 #include <consensus/validation.h>
+// DigiDollar validation deferred to ConnectBlock (requires activation context)
 
 bool CheckTransaction(const CTransaction& tx, TxValidationState& state)
 {
@@ -53,6 +54,11 @@ bool CheckTransaction(const CTransaction& tx, TxValidationState& state)
             if (txin.prevout.IsNull())
                 return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-prevout-null");
     }
+
+    // DigiDollar transaction validation is deferred to ConnectBlock where
+    // activation status can be checked via BIP9. CheckTransaction is context-free
+    // and cannot determine whether DigiDollar is active, so enforcing DD rules
+    // here would incorrectly reject transactions pre-activation.
 
     return true;
 }

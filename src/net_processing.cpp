@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <net_processing.h>
@@ -13,6 +13,7 @@
 #include <consensus/amount.h>
 #include <consensus/validation.h>
 #include <deploymentstatus.h>
+#include <digidollar/digidollar.h>
 #include <hash.h>
 #include <headerssync.h>
 #include <index/blockfilterindex.h>
@@ -28,8 +29,16 @@
 #include <policy/policy.h>
 #include <policy/settings.h>
 #include <primitives/block.h>
+#include <primitives/oracle.h>
 #include <primitives/transaction.h>
+#include <oracle/bundle_manager.h>
+#include <oracle/signing_orchestrator.h>
+#include <oracle/musig2_messages.h>
+#include <oracle/musig2_session.h>
+#include <oracle/node.h>
 #include <random.h>
+
+#include <secp256k1_musig.h>
 #include <reverse_iterator.h>
 #include <scheduler.h>
 #include <streams.h>
@@ -397,6 +406,15 @@ struct Peer {
 
     /** Whether this peer wants invs or headers (when possible) for block announcements */
     bool m_prefers_headers GUARDED_BY(NetEventsInterface::g_msgproc_mutex){false};
+
+    /** Protects oracle inventory data members */
+    Mutex m_oracle_inventory_mutex;
+    /** Rolling bloom filter of oracle message hashes known to this peer
+     *  (either they sent it to us, or we relayed it to them).
+     *  Used to avoid relaying oracle messages back to the peer that sent them.
+     *  Sized for ~500 entries with very low false positive rate — oracle traffic
+     *  is much lower volume than transactions. */
+    CRollingBloomFilter m_oracle_inventory_known_filter GUARDED_BY(m_oracle_inventory_mutex){500, 0.000001};
 
     explicit Peer(NodeId id, ServiceFlags our_services)
         : m_id{id}
@@ -1130,6 +1148,30 @@ static void AddKnownTx(Peer& peer, const uint256& hash)
     tx_relay->m_tx_inventory_known_filter.insert(hash);
 }
 
+/** Mark an oracle message hash as known to a peer (they sent it to us or we relayed it to them).
+ *  Mirrors AddKnownTx() for transactions — prevents relaying messages back to the sender. */
+static void AddKnownOracle(Peer& peer, const uint256& hash)
+{
+    LOCK(peer.m_oracle_inventory_mutex);
+    peer.m_oracle_inventory_known_filter.insert(hash);
+}
+
+/** Check whether a peer already knows about an oracle message hash. */
+static bool PeerKnowsOracle(Peer& peer, const uint256& hash)
+{
+    LOCK(peer.m_oracle_inventory_mutex);
+    return peer.m_oracle_inventory_known_filter.contains(hash);
+}
+
+/** Oracle P2P is active only when the legacy oracle height and DigiDollar BIP9 deployment are both active. */
+static bool IsOracleP2PActive(const ChainstateManager& chainman)
+{
+    const CBlockIndex* tip = WITH_LOCK(::cs_main, return chainman.ActiveChain().Tip());
+    const int height = tip ? tip->nHeight : 0;
+    return Consensus::IsOracleActive(chainman.GetConsensus(), height) &&
+           DigiDollar::IsDigiDollarEnabled(tip, chainman);
+}
+
 /** Whether this peer can serve us blocks. */
 static bool CanServeBlocks(const Peer& peer)
 {
@@ -1589,10 +1631,6 @@ void PeerManagerImpl::RelayDandelionTransaction(const CTransaction& tx, CNode* p
     CNode* destination = m_connman.getDandelionDestination(pfrom);
     if (destination) {
         PushDandelionInventory(destination, inv);
-        
-        // Also send the transaction immediately
-        const CNetMsgMaker msgMaker(destination->GetCommonVersion());
-        m_connman.PushMessage(destination, msgMaker.Make(NetMsgType::DANDELIONTX, tx));
         LogPrint(BCLog::DANDELION, "Relayed dandelion stem transaction %s to peer=%d\n", 
                  tx.GetHash().ToString(), destination->GetId());
     }
@@ -1600,63 +1638,133 @@ void PeerManagerImpl::RelayDandelionTransaction(const CTransaction& tx, CNode* p
 
 void PeerManagerImpl::CheckDandelionEmbargoes()
 {
-    LOCK(m_connman.m_dandelion_embargo_mutex);
-    auto current_time = GetTime<std::chrono::milliseconds>();
-    
-    // Log every time we check embargoes
-    if (!m_connman.mDandelionEmbargo.empty()) {
-        LogPrintf("CheckDandelionEmbargoes: Checking %d embargoed transactions\n", m_connman.mDandelionEmbargo.size());
-        LogPrintf("CheckDandelionEmbargoes: Stempool size=%d, Mempool size=%d\n", m_stempool.size(), m_mempool.size());
-    }
-    
-    // Check if we now have Dandelion destinations available for stuck transactions
+    // =========================================================================
+    // Bug #29 fix: ABBA deadlock between m_nodes_mutex and m_dandelion_embargo_mutex
+    //
+    // The established lock ordering throughout the Dandelion++ code is:
+    //   m_nodes_mutex FIRST, then m_dandelion_embargo_mutex SECOND
+    //
+    // This ordering is used by:
+    //   - DandelionShuffle()            (dandelion.cpp:344 → 357)
+    //   - CloseDandelionConnections()   (dandelion.cpp:211 → 292)
+    //   - DisconnectNodes()             (net.cpp:1952 → CloseDandelionConnections)
+    //
+    // Before this fix, CheckDandelionEmbargoes() violated that ordering:
+    //   it held m_dandelion_embargo_mutex, then called usingDandelion() and
+    //   localDandelionDestinationPushInventory(), both of which acquire
+    //   m_nodes_mutex internally. This created a classic ABBA deadlock:
+    //
+    //   Thread A (shuffle timer):  LOCK(m_nodes_mutex) → LOCK(m_dandelion_embargo_mutex)
+    //   Thread B (embargo timer):  LOCK(m_dandelion_embargo_mutex) → LOCK(m_nodes_mutex)
+    //
+    //   When both fire concurrently, each thread holds the lock the other needs.
+    //   Result: sendtoaddress hangs forever at "Processing Dandelion relay",
+    //   shutdown hangs on threadDandelionShuffle.join(), RPC times out.
+    //   (Reported by DanGB on Windows 11, RC26, reproducible after ~1 week uptime.)
+    //
+    // Fix: restructure this function into two phases:
+    //   Phase 1 — under m_dandelion_embargo_mutex: scan the embargo map, handle
+    //             expired/mempool entries, collect txids that need stem routing.
+    //   Phase 2 — after releasing m_dandelion_embargo_mutex: perform the stem
+    //             routing (which needs m_nodes_mutex), then briefly re-acquire
+    //             m_dandelion_embargo_mutex to mark them as routed.
+    //
+    // usingDandelion() is also moved before the embargo lock for the same reason.
+    // The bool may be momentarily stale, but that only means we skip one routing
+    // cycle (~1 second) — no correctness impact.
+    // =========================================================================
+
+    // Phase 0: query Dandelion destination availability WITHOUT holding the
+    // embargo lock.  usingDandelion() acquires m_nodes_mutex internally.
     bool hasDandelionDestinations = m_connman.usingDandelion();
-    
-    for (auto iter = m_connman.mDandelionEmbargo.begin(); iter != m_connman.mDandelionEmbargo.end();) {
-        if (m_mempool.exists(iter->first)) {
-            LogPrint(BCLog::DANDELION, "Embargoed dandeliontx %s found in mempool; removing from embargo map\n", iter->first.ToString());
-            iter = m_connman.mDandelionEmbargo.erase(iter);
-        } else if (iter->second < current_time) {
-            LogPrintf("CheckDandelionEmbargoes: dandeliontx %s embargo expired\n", iter->first.ToString());
-            CTransactionRef ptx = m_stempool.get(iter->first);
-            if (ptx) {
-                LogPrintf("CheckDandelionEmbargoes: Moving transaction %s from stempool to mempool for broadcast\n", iter->first.ToString());
-                {
-                    LOCK(cs_main);
-                    const MempoolAcceptResult result = AcceptToMemoryPool(m_chainman.ActiveChainstate(), m_mempool, ptx, false);
-                    if (result.m_result_type == MempoolAcceptResult::ResultType::VALID) {
-                        LogPrintf("CheckDandelionEmbargoes: Successfully moved tx %s to mempool\n", iter->first.ToString());
-                        LogPrint(BCLog::MEMPOOL, "AcceptToMemoryPool: accepted %s (poolsz %u txn, %u kB)\n",
-                                                 iter->first.ToString(), m_mempool.size(), m_mempool.DynamicMemoryUsage() / 1000);
-                        RelayTransaction(ptx->GetHash(), ptx->GetWitnessHash());
-                    } else {
-                        LogPrintf("CheckDandelionEmbargoes: Failed to move tx %s to mempool: %s\n", 
-                                 iter->first.ToString(), result.m_state.ToString());
-                    }
-                }
-            } else {
-                LogPrintf("CheckDandelionEmbargoes: Transaction %s not found in stempool!\n", iter->first.ToString());
-            }
-            iter = m_connman.mDandelionEmbargo.erase(iter);
-        } else {
-            // Check if this is a transaction waiting for Dandelion peers
-            if (hasDandelionDestinations) {
+
+    // Transactions collected during Phase 1 that need stem routing in Phase 2.
+    std::vector<uint256> txidsNeedingStemRoute;
+
+    // Phase 1: scan embargo map under m_dandelion_embargo_mutex.
+    // Everything in this block touches only embargo-protected state (plus
+    // cs_main for AcceptToMemoryPool, which has no ordering conflict here).
+    {
+        LOCK(m_connman.m_dandelion_embargo_mutex);
+        auto current_time = GetTime<std::chrono::milliseconds>();
+
+        // Log embargo checks (debug level only — this fires every second)
+        if (!m_connman.mDandelionEmbargo.empty()) {
+            LogPrint(BCLog::DANDELION, "CheckDandelionEmbargoes: Checking %d embargoed transactions (stempool=%d, mempool=%d)\n",
+                     m_connman.mDandelionEmbargo.size(), m_stempool.size(), m_mempool.size());
+        }
+
+        for (auto iter = m_connman.mDandelionEmbargo.begin(); iter != m_connman.mDandelionEmbargo.end();) {
+            if (m_mempool.exists(iter->first)) {
+                LogPrint(BCLog::DANDELION, "Embargoed dandeliontx %s found in mempool; removing from embargo map\n", iter->first.ToString());
+                m_connman.m_dandelion_stem_routed.erase(iter->first);
+                iter = m_connman.mDandelionEmbargo.erase(iter);
+            } else if (iter->second < current_time) {
+                LogPrintf("CheckDandelionEmbargoes: dandeliontx %s embargo expired\n", iter->first.ToString());
                 CTransactionRef ptx = m_stempool.get(iter->first);
                 if (ptx) {
-                    // Try to route through Dandelion again
-                    CInv inv(MSG_DANDELION_TX, iter->first);
-                    bool pushed = m_connman.localDandelionDestinationPushInventory(inv);
-                    if (pushed) {
-                        LogPrintf("CheckDandelionEmbargoes: Retrying Dandelion routing for transaction %s\n", iter->first.ToString());
-                        PushDandelionTransaction(iter->first);
+                    LogPrintf("CheckDandelionEmbargoes: Moving transaction %s from stempool to mempool for broadcast\n", iter->first.ToString());
+                    bool accepted_to_mempool{false};
+                    {
+                        LOCK(cs_main);
+                        const MempoolAcceptResult result = AcceptToMemoryPool(m_chainman.ActiveChainstate(), m_mempool, ptx, false);
+                        if (result.m_result_type == MempoolAcceptResult::ResultType::VALID) {
+                            accepted_to_mempool = true;
+                            LogPrintf("CheckDandelionEmbargoes: Successfully moved tx %s to mempool\n", iter->first.ToString());
+                            LogPrint(BCLog::MEMPOOL, "AcceptToMemoryPool: accepted %s (poolsz %u txn, %u kB)\n",
+                                                     iter->first.ToString(), m_mempool.size(), m_mempool.DynamicMemoryUsage() / 1000);
+                            RelayTransaction(ptx->GetHash(), ptx->GetWitnessHash());
+                        } else {
+                            LogPrintf("CheckDandelionEmbargoes: Failed to move tx %s to mempool: %s\n",
+                                     iter->first.ToString(), result.m_state.ToString());
+                        }
+                    }
+                    WITH_LOCK(m_stempool.cs, m_stempool.removeRecursive(*ptx, accepted_to_mempool ? MemPoolRemovalReason::REORG : MemPoolRemovalReason::EXPIRY));
+                } else {
+                    LogPrintf("CheckDandelionEmbargoes: Transaction %s not found in stempool!\n", iter->first.ToString());
+                }
+                m_connman.m_dandelion_stem_routed.erase(iter->first);
+                iter = m_connman.mDandelionEmbargo.erase(iter);
+            } else {
+                // Embargo not yet expired — check if this TX needs stem routing:
+                // 1. We have Dandelion destinations available
+                // 2. This TX has NOT already been successfully routed
+                //    (prevents the spam bug where we re-send every second)
+                // 3. OR the previous Dandelion destination disconnected (destination changed)
+                //
+                // We only COLLECT the txid here.  The actual push happens in Phase 2,
+                // after we release m_dandelion_embargo_mutex, because
+                // localDandelionDestinationPushInventory() acquires m_nodes_mutex.
+                if (hasDandelionDestinations && m_connman.m_dandelion_stem_routed.count(iter->first) == 0) {
+                    if (m_stempool.exists(iter->first)) {
+                        txidsNeedingStemRoute.push_back(iter->first);
                     }
                 }
+
+                // Log remaining time
+                auto remaining = std::chrono::duration_cast<std::chrono::seconds>(iter->second - current_time).count();
+                LogPrint(BCLog::DANDELION, "Transaction %s embargo expires in %d seconds\n", iter->first.ToString(), remaining);
+                iter++;
             }
-            
-            // Log remaining time
-            auto remaining = std::chrono::duration_cast<std::chrono::seconds>(iter->second - current_time).count();
-            LogPrint(BCLog::DANDELION, "Transaction %s embargo expires in %d seconds\n", iter->first.ToString(), remaining);
-            iter++;
+        }
+    } // m_dandelion_embargo_mutex released here — safe to touch m_nodes_mutex now.
+
+    // Phase 2: perform stem routing WITHOUT holding m_dandelion_embargo_mutex.
+    // localDandelionDestinationPushInventory() acquires m_nodes_mutex, which is
+    // now safe because we no longer hold the embargo lock.
+    for (const auto& txid : txidsNeedingStemRoute) {
+        CTransactionRef ptx = m_stempool.get(txid);
+        if (!ptx) continue;  // raced with expiry/mempool promotion — harmless
+
+        CInv inv(MSG_DANDELION_TX, txid);
+        bool pushed = m_connman.localDandelionDestinationPushInventory(inv);
+        if (pushed) {
+            LogPrint(BCLog::DANDELION, "CheckDandelionEmbargoes: Routed Dandelion transaction %s via stem\n", txid.ToString());
+            PushDandelionTransaction(txid);
+            // Re-acquire embargo lock briefly to mark this TX as routed, so we
+            // don't re-send it every cycle.
+            LOCK(m_connman.m_dandelion_embargo_mutex);
+            m_connman.m_dandelion_stem_routed.insert(txid);
         }
     }
 }
@@ -1684,17 +1792,32 @@ bool PeerManagerImpl::PushDandelionInventory(CNode* pnode, const CInv& inv)
     }
     
     LOCK(tx_relay->m_tx_inventory_mutex);
-    if (!tx_relay->m_tx_inventory_known_filter.contains(inv.hash)) {
+    // Check BOTH the Dandelion known set and the regular bloom filter to prevent
+    // re-queuing transactions we've already sent. The Dandelion known set tracks
+    // txids/wtxids of Dandelion TXs we've sent; the bloom filter tracks regular TXs.
+    if (tx_relay->setDandelionInventoryKnown.count(inv.hash) == 0 &&
+        !tx_relay->m_tx_inventory_known_filter.contains(inv.hash)) {
         // For Dandelion transactions, use the proper vector
         if (inv.IsDandelionMsg()) {
-            tx_relay->vInventoryDandelionTxToSend.push_back(inv.hash);
-            LogPrint(BCLog::DANDELION, "Queued Dandelion transaction %s for peer %d\n", inv.hash.ToString(), pnode->GetId());
+            // Check if already queued (prevents duplicates within same cycle)
+            bool already_queued = false;
+            for (const uint256& queued_hash : tx_relay->vInventoryDandelionTxToSend) {
+                if (queued_hash == inv.hash) {
+                    already_queued = true;
+                    break;
+                }
+            }
+            if (!already_queued) {
+                tx_relay->vInventoryDandelionTxToSend.push_back(inv.hash);
+                LogPrint(BCLog::DANDELION, "Queued Dandelion transaction %s for peer %d\n", inv.hash.ToString(), pnode->GetId());
+            }
         } else {
             tx_relay->setInventoryTxToSendOther.insert(inv);
             LogPrint(BCLog::DANDELION, "Queued other inventory for peer %d: %s\n", pnode->GetId(), inv.ToString());
         }
         return true;
     }
+    LogPrint(BCLog::DANDELION, "PushDandelionInventory: tx %s already known to peer %d, skipping\n", inv.hash.ToString(), pnode->GetId());
     return false;
 }
 
@@ -3914,7 +4037,22 @@ void PeerManagerImpl::ProcessMessage(CNode& pfrom, const std::string& msg_type, 
 
         pfrom.fSuccessfullyConnected = true;
         LogPrintf("DEBUG: VERACK processing completed successfully for peer=%d\n", pfrom.GetId());
-        
+
+        // Request oracle data from new peer for discovery
+        // This enables newly connected/restarted nodes to catch up on oracle prices
+        {
+            int chain_height = m_chainman.ActiveChain().Height();
+            if (IsOracleP2PActive(m_chainman)) {
+                int32_t current_epoch = GetCurrentEpoch(chain_height);
+                GetOracleDataMsg oracle_request;
+                oracle_request.epoch = current_epoch;
+                oracle_request.oracle_id = 0xFFFFFFFF; // Request all oracles
+                m_connman.PushMessage(&pfrom, msgMaker.Make(NetMsgType::GETORACLES, oracle_request));
+                LogPrint(BCLog::NET, "Requested oracle data for epoch %d from new peer=%d\n",
+                         current_epoch, pfrom.GetId());
+            }
+        }
+
         // Schedule Dandelion discovery message if Dandelion is enabled and peer can relay transactions
         if (gArgs.GetBoolArg("-dandelion", DEFAULT_DANDELION) && pfrom.m_relays_txs) {
             pfrom.m_send_dandelion_discovery = true;
@@ -4201,7 +4339,7 @@ void PeerManagerImpl::ProcessMessage(CNode& pfrom, const std::string& msg_type, 
                     LOCK(tx_relay->m_tx_inventory_mutex);
                     auto result = tx_relay->setDandelionInventoryKnown.insert(inv.hash);
                     const bool fAlreadyHave = !result.second;
-                    LogPrintf("ProcessMessage INV: Got dandelion inv: %s  %s peer=%d\n", inv.ToString(), fAlreadyHave ? "have" : "new", pfrom.GetId());
+                    LogPrint(BCLog::DANDELION, "ProcessMessage INV: Got dandelion inv: %s  %s peer=%d\n", inv.ToString(), fAlreadyHave ? "have" : "new", pfrom.GetId());
                     if ((!fAlreadyHave && !m_chainman.IsInitialBlockDownload() &&
                         m_connman.isDandelionInbound(&pfrom)) || (inv.hash == DANDELION_DISCOVERYHASH)) {
                         std::vector<CInv> vInv{inv};
@@ -5311,6 +5449,910 @@ void PeerManagerImpl::ProcessMessage(CNode& pfrom, const std::string& msg_type, 
         return;
     }
 
+    if (msg_type == NetMsgType::ORACLEPRICE) {
+        // Gate: ignore oracle messages before DigiDollar/oracle activation
+        if (!IsOracleP2PActive(m_chainman)) {
+            return;
+        }
+
+        // ── Step 1: Deserialize (cheap, needed for hash) ──
+        OraclePriceMsg oracle_msg;
+        vRecv >> oracle_msg;
+
+        uint256 msg_hash = oracle_msg.GetHash();
+        OracleBundleManager& bundleManager = OracleBundleManager::GetInstance();
+
+        // ── Step 2: Duplicate check (silent return, no penalty) ──
+        // In a P2P gossip network, duplicate relays are the majority of traffic.
+        // Never penalize or rate-count duplicates — they're normal and expected.
+        if (bundleManager.HasOracleMessage(msg_hash)) {
+            LogPrint(BCLog::NET, "Ignoring duplicate oracle message from oracle %d peer=%d\n",
+                     oracle_msg.price_message.oracle_id, pfrom.GetId());
+            return;
+        }
+
+        // ── Step 2.5: Bind oracle pubkey from chainparams (SECURITY CRITICAL) ──
+        // The deserialized message contains an attacker-supplied pubkey field.
+        // We MUST replace it with the authorized pubkey from chainparams before
+        // signature verification. Otherwise an attacker can generate their own
+        // keypair, sign any price, and pass verification.
+        {
+            const CChainParams& params = m_chainparams;
+            if (oracle_msg.price_message.oracle_id >= ORACLE_TOTAL_COUNT) {
+                Misbehaving(*peer, 10, "invalid oracle ID in price message");
+                return;
+            }
+            const OracleNodeInfo* oracle_config = params.GetOracleNode(oracle_msg.price_message.oracle_id);
+            if (!oracle_config) {
+                Misbehaving(*peer, 10, "unknown oracle ID");
+                return;
+            }
+            // Force the authorized pubkey — ignore whatever the sender supplied
+            oracle_msg.price_message.oracle_pubkey = XOnlyPubKey(oracle_config->pubkey);
+        }
+
+        // ── Step 3: Signature verification EARLY (catch attackers before rate limiter) ──
+        // This is critical: an attacker sending fake-signed messages must NOT consume
+        // rate limit budget of honest peers. We verify crypto BEFORE touching the rate
+        // limiter so forged messages are rejected and penalized immediately.
+        // Schnorr verification is ~50-100µs — cheap enough to do before rate limiting.
+        if (!oracle_msg.price_message.VerifyAttestation()) {
+            LogPrint(BCLog::NET, "Oracle message signature verification failed from oracle %d peer=%d\n",
+                     oracle_msg.price_message.oracle_id, pfrom.GetId());
+            Misbehaving(*peer, 20, "invalid oracle signature");
+            return;
+        }
+
+        // ── Step 4: Rate limiting (novel, signature-verified messages only) ──
+        //
+        // Math: 30 mainnet oracles × 60 broadcasts/hr (1 per minute) = 1800 novel
+        // messages/peer/hour. Limit of 3600 provides 2x headroom for bursts,
+        // network jitter, and epoch transitions where oracles may broadcast more
+        // frequently.
+        //
+        // CRITICAL: Do NOT call Misbehaving() here. Oracle relay is legitimate
+        // P2P gossip behavior — a peer forwarding 30 oracles' messages is doing
+        // its job correctly. Penalizing it causes cascading peer disconnections,
+        // loss of oracle data, and consensus failure. Silently drop excess.
+        //
+        // Previous bug (RC15): limit was 50 with Misbehaving(+5) per excess msg.
+        // 8 testnet oracles at 15s intervals = 1920 msgs/hr, hitting the limit in
+        // ~12 minutes. Each subsequent message added +5 misbehavior → peers banned
+        // within minutes → oracle count dropped below 5 → no consensus → no DD TX
+        // confirmations.
+        static constexpr int ORACLE_MSG_RATE_LIMIT_PER_HOUR = 3600;
+        static std::map<NodeId, std::pair<int64_t, int>> oracle_rate_limit;
+        int64_t now = GetTime();
+
+        // Cleanup disconnected peers (only when map grows large)
+        if (oracle_rate_limit.size() > 100) {
+            auto it = oracle_rate_limit.begin();
+            while (it != oracle_rate_limit.end()) {
+                if (now - it->second.first > 7200) {
+                    it = oracle_rate_limit.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+
+        auto& [last_reset, count] = oracle_rate_limit[pfrom.GetId()];
+        if (now - last_reset > 3600) {
+            last_reset = now;
+            count = 0;
+        }
+
+        if (++count > ORACLE_MSG_RATE_LIMIT_PER_HOUR) {
+            // Silently drop — no Misbehaving penalty
+            if (count % 100 == 1) {
+                LogPrint(BCLog::NET, "Oracle message rate limit reached from peer=%d (count=%d/%d novel msgs/hr), dropping\n",
+                         pfrom.GetId(), count, ORACLE_MSG_RATE_LIMIT_PER_HOUR);
+            }
+            return;
+        }
+
+        // ── Step 5: Remaining validation (timestamp, price range, oracle ID) ──
+        if (oracle_msg.price_message.oracle_id >= ORACLE_TOTAL_COUNT) {
+            LogPrint(BCLog::NET, "Received oracle price from invalid oracle ID %d from peer=%d\n",
+                      oracle_msg.price_message.oracle_id, pfrom.GetId());
+            Misbehaving(*peer, 10, "invalid oracle ID");
+            return;
+        }
+
+        int64_t msg_time = oracle_msg.price_message.timestamp;
+        if (msg_time > now + 60) {
+            LogPrint(BCLog::NET, "Oracle message from future (diff=%d) from peer=%d\n",
+                      msg_time - now, pfrom.GetId());
+            Misbehaving(*peer, 2, "oracle message from future");
+            return;
+        }
+        if (msg_time < now - ORACLE_MAX_AGE_SECONDS) {
+            LogPrint(BCLog::NET, "Oracle message too old (age=%d) from peer=%d\n",
+                      now - msg_time, pfrom.GetId());
+            return; // Stale messages aren't malicious, just ignore
+        }
+
+        if (oracle_msg.price_message.price_micro_usd < ORACLE_MIN_PRICE_MICRO_USD ||
+            oracle_msg.price_message.price_micro_usd > ORACLE_MAX_PRICE_MICRO_USD) {
+            LogPrint(BCLog::NET, "Oracle price out of range (%llu) from oracle %d peer=%d\n",
+                      oracle_msg.price_message.price_micro_usd,
+                      oracle_msg.price_message.oracle_id, pfrom.GetId());
+            Misbehaving(*peer, 5, "unreasonable oracle price");
+            return;
+        }
+
+        // ── Step 6: Store + relay ──
+        if (!bundleManager.AddOracleMessage(oracle_msg.price_message)) {
+            LogPrint(BCLog::NET, "Failed to add oracle message to bundle manager from oracle %d peer=%d\n",
+                     oracle_msg.price_message.oracle_id, pfrom.GetId());
+            return;
+        }
+
+        // Register the P2P wrapper hash in the bundle manager's seen set so that
+        // subsequent relays of the same message from other peers are caught by
+        // HasOracleMessage() without entering AddOracleMessage() (which logs
+        // multiple lines per call). This closes the hash-mismatch dedup gap.
+        bundleManager.RegisterSeenHash(msg_hash);
+
+        // Mark sender as knowing this oracle message (don't relay back to them)
+        AddKnownOracle(*peer, msg_hash);
+
+        LogPrint(BCLog::NET, "Accepted oracle price: oracle_id=%d, price=%llu, peer=%d\n",
+                 oracle_msg.price_message.oracle_id, oracle_msg.price_message.price_micro_usd,
+                 pfrom.GetId());
+
+        // Relay to peers who don't already know this message
+        m_connman.ForEachNode([&oracle_msg, &msg_hash, this](CNode* pnode) {
+            PeerRef relay_peer = GetPeerRef(pnode->GetId());
+            if (!relay_peer) return;
+
+            // Skip peers who already know this message (sent it to us or we already relayed it)
+            if (PeerKnowsOracle(*relay_peer, msg_hash)) return;
+
+            AddKnownOracle(*relay_peer, msg_hash);
+            m_connman.PushMessage(pnode, CNetMsgMaker(pnode->GetCommonVersion()).Make(NetMsgType::ORACLEPRICE, oracle_msg));
+        });
+
+        return;
+    }
+
+    if (msg_type == NetMsgType::ORACLEBUNDLE) {
+        // Gate: ignore oracle messages before DigiDollar/oracle activation
+        if (!IsOracleP2PActive(m_chainman)) {
+            return;
+        }
+
+        // V1 does not accept or relay legacy oracle bundle messages. MuSig2
+        // coordination uses ORACLEMUSIGNONCE / ORACLEMUSIGPARTIALSIG, and the
+        // final v0x03 bundle is committed in the block coinbase.
+        OracleBundleMsg bundle_msg;
+        vRecv >> bundle_msg;
+        LogPrint(BCLog::NET,
+                 "Ignoring deprecated ORACLEBUNDLE message from peer=%d; DigiDollar V1 uses MuSig2 nonce/partial-sig messages and on-chain v0x03 bundles\n",
+                 pfrom.GetId());
+        return;
+    }
+
+    if (msg_type == NetMsgType::ORACLECONSENSUS) {
+        // Gate: ignore oracle messages before DigiDollar/oracle activation
+        if (!IsOracleP2PActive(m_chainman)) {
+            return;
+        }
+
+        // ── Step 1: Deserialize ──
+        OracleConsensusMsg consensus_msg;
+        vRecv >> consensus_msg;
+
+        // ── Step 2: Duplicate check ──
+        uint256 proposal_hash = consensus_msg.GetHash();
+        OracleBundleManager& bundleManager = OracleBundleManager::GetInstance();
+        if (bundleManager.HasOracleMessage(proposal_hash)) {
+            return; // Already seen this proposal
+        }
+
+        // ── Step 3: Rate limit consensus proposals ──
+        // Max 100 per hour per peer (generous — one per epoch × multiple peers)
+        {
+            static std::map<NodeId, std::pair<int64_t, int>> consensus_rate_limit;
+            int64_t now = GetTime();
+            if (consensus_rate_limit.size() > 100) {
+                auto it = consensus_rate_limit.begin();
+                while (it != consensus_rate_limit.end()) {
+                    if (now - it->second.first > 7200) {
+                        it = consensus_rate_limit.erase(it);
+                    } else {
+                        ++it;
+                    }
+                }
+            }
+            auto& [last_reset, count] = consensus_rate_limit[pfrom.GetId()];
+            if (now - last_reset > 3600) { last_reset = now; count = 0; }
+            if (++count > 100) {
+                return; // Silently drop — proposals are best-effort
+            }
+        }
+
+        // ── Step 4: Validate epoch ──
+        int32_t current_epoch = GetCurrentEpoch(m_chainman.ActiveChain().Height());
+        if (consensus_msg.epoch != current_epoch && consensus_msg.epoch != current_epoch - 1) {
+            LogPrint(BCLog::NET, "Oracle consensus proposal has stale epoch %d (current=%d) from peer=%d\n",
+                     consensus_msg.epoch, current_epoch, pfrom.GetId());
+            return;
+        }
+
+        // ── Step 5: Validate consensus price is reasonable ──
+        if (consensus_msg.consensus_price < ORACLE_MIN_PRICE_MICRO_USD ||
+            consensus_msg.consensus_price > ORACLE_MAX_PRICE_MICRO_USD) {
+            Misbehaving(*peer, 5, "unreasonable consensus proposal price");
+            return;
+        }
+
+        // ── Step 6: Cross-validate against our own price data ──
+        // Consensus attestations are valid block material, so only sign/relay a
+        // proposal when it exactly matches the locally computed pending-message
+        // consensus.
+        if (!bundleManager.ValidateConsensusProposal(consensus_msg.consensus_price,
+                                                     consensus_msg.consensus_timestamp)) {
+            LogPrint(BCLog::NET, "Oracle consensus proposal rejected: price=%llu timestamp=%lld peer=%d\n",
+                     consensus_msg.consensus_price, consensus_msg.consensus_timestamp, pfrom.GetId());
+            return;
+        }
+
+        // ── Step 7: If we run a local oracle, create attestation and broadcast ──
+        {
+            OracleManager& om = OracleManager::GetInstance();
+            for (const auto& oracle_id : om.GetActiveOracleIds()) {
+                OracleNode* node = om.GetOracleNode(oracle_id);
+                if (!node || !node->IsRunning()) continue;
+
+                COraclePriceMessage att = node->CreateConsensusAttestation(
+                    consensus_msg.consensus_price, consensus_msg.consensus_timestamp);
+                if (att.schnorr_sig.empty()) continue;
+
+                // Store locally
+                bundleManager.AddConsensusAttestation(att);
+
+                // Broadcast attestation to network
+                OracleAttestationMsg att_msg;
+                att_msg.attestation = att;
+
+                uint256 att_hash = att_msg.GetHash();
+                bundleManager.RegisterSeenAttestation(att_hash);
+
+                m_connman.ForEachNode([this, &att_msg, &att_hash](CNode* pnode) {
+                    PeerRef relay_peer = GetPeerRef(pnode->GetId());
+                    if (!relay_peer) return;
+                    if (PeerKnowsOracle(*relay_peer, att_hash)) return;
+                    AddKnownOracle(*relay_peer, att_hash);
+                    m_connman.PushMessage(pnode,
+                        CNetMsgMaker(pnode->GetCommonVersion()).Make(
+                            NetMsgType::ORACLEATTESTATION, att_msg));
+                });
+
+                LogPrint(BCLog::NET, "Oracle: Generated and broadcast attestation for oracle %d in response to consensus proposal\n",
+                         oracle_id);
+            }
+        }
+
+        // ── Step 8: Relay proposal to other peers ──
+        bundleManager.RegisterSeenHash(proposal_hash);
+        AddKnownOracle(*peer, proposal_hash);
+        m_connman.ForEachNode([this, &consensus_msg, &proposal_hash](CNode* pnode) {
+            PeerRef relay_peer = GetPeerRef(pnode->GetId());
+            if (!relay_peer) return;
+            if (PeerKnowsOracle(*relay_peer, proposal_hash)) return;
+            AddKnownOracle(*relay_peer, proposal_hash);
+            m_connman.PushMessage(pnode,
+                CNetMsgMaker(pnode->GetCommonVersion()).Make(
+                    NetMsgType::ORACLECONSENSUS, consensus_msg));
+        });
+
+        LogPrint(BCLog::NET, "Accepted and relayed oracle consensus proposal: epoch=%d, price=%llu, peer=%d\n",
+                 consensus_msg.epoch, consensus_msg.consensus_price, pfrom.GetId());
+        return;
+    }
+
+    if (msg_type == NetMsgType::ORACLEATTESTATION) {
+        // Gate: ignore oracle messages before DigiDollar/oracle activation
+        if (!IsOracleP2PActive(m_chainman)) {
+            return;
+        }
+
+        // ── Step 1: Deserialize ──
+        OracleAttestationMsg att_msg;
+        vRecv >> att_msg;
+
+        uint256 att_hash = att_msg.GetHash();
+        OracleBundleManager& bundleManager = OracleBundleManager::GetInstance();
+
+        // ── Step 2: Replay prevention ──
+        if (bundleManager.HasSeenAttestation(att_hash)) {
+            LogPrint(BCLog::NET, "Ignoring duplicate/replay oracle attestation from oracle %d peer=%d\n",
+                     att_msg.attestation.oracle_id, pfrom.GetId());
+            return;
+        }
+
+        // ── Step 3: Validate oracle ID ──
+        if (att_msg.attestation.oracle_id >= ORACLE_TOTAL_COUNT) {
+            Misbehaving(*peer, 10, "invalid oracle ID in attestation");
+            return;
+        }
+
+        // ── Step 4: SECURITY CRITICAL — Bind pubkey from chainparams ──
+        // Same pattern as ORACLEPRICE handler: NEVER trust the sender's pubkey.
+        {
+            const CChainParams& params = m_chainparams;
+            const OracleNodeInfo* oracle_config = params.GetOracleNode(att_msg.attestation.oracle_id);
+            if (!oracle_config) {
+                Misbehaving(*peer, 10, "unknown oracle ID in attestation");
+                return;
+            }
+            att_msg.attestation.oracle_pubkey = XOnlyPubKey(oracle_config->pubkey);
+        }
+
+        // ── Step 5: Signature verification EARLY ──
+        if (!att_msg.attestation.VerifyAttestation()) {
+            LogPrint(BCLog::NET, "Oracle attestation signature verification failed oracle=%d peer=%d\n",
+                     att_msg.attestation.oracle_id, pfrom.GetId());
+            Misbehaving(*peer, 20, "invalid attestation signature");
+            return;
+        }
+
+        // ── Step 6: Rate limit (same pattern as ORACLEPRICE) ──
+        {
+            static constexpr int ATT_RATE_LIMIT_PER_HOUR = 3600;
+            static std::map<NodeId, std::pair<int64_t, int>> att_rate_limit;
+            int64_t now = GetTime();
+            if (att_rate_limit.size() > 100) {
+                auto it = att_rate_limit.begin();
+                while (it != att_rate_limit.end()) {
+                    if (now - it->second.first > 7200) {
+                        it = att_rate_limit.erase(it);
+                    } else {
+                        ++it;
+                    }
+                }
+            }
+            auto& [last_reset, count] = att_rate_limit[pfrom.GetId()];
+            if (now - last_reset > 3600) { last_reset = now; count = 0; }
+            if (++count > ATT_RATE_LIMIT_PER_HOUR) {
+                return; // Silently drop — no penalty for relay
+            }
+        }
+
+        // ── Step 7: Validate price range ──
+        if (att_msg.attestation.price_micro_usd < ORACLE_MIN_PRICE_MICRO_USD ||
+            att_msg.attestation.price_micro_usd > ORACLE_MAX_PRICE_MICRO_USD) {
+            Misbehaving(*peer, 5, "unreasonable attestation price");
+            return;
+        }
+
+        // ── Step 8: Store attestation ──
+        if (!bundleManager.AddConsensusAttestation(att_msg.attestation)) {
+            LogPrint(BCLog::NET, "Failed to store oracle attestation from oracle %d peer=%d\n",
+                     att_msg.attestation.oracle_id, pfrom.GetId());
+            return;
+        }
+        if (!bundleManager.RegisterSeenAttestation(att_hash)) {
+            LogPrint(BCLog::NET, "Ignoring duplicate/replay oracle attestation after validation from oracle %d peer=%d\n",
+                     att_msg.attestation.oracle_id, pfrom.GetId());
+            return;
+        }
+
+        // ── Step 9: Relay ──
+        AddKnownOracle(*peer, att_hash);
+        m_connman.ForEachNode([this, &att_msg, &att_hash](CNode* pnode) {
+            PeerRef relay_peer = GetPeerRef(pnode->GetId());
+            if (!relay_peer) return;
+            if (PeerKnowsOracle(*relay_peer, att_hash)) return;
+            AddKnownOracle(*relay_peer, att_hash);
+            m_connman.PushMessage(pnode,
+                CNetMsgMaker(pnode->GetCommonVersion()).Make(
+                    NetMsgType::ORACLEATTESTATION, att_msg));
+        });
+
+        LogPrint(BCLog::NET, "Accepted and relayed oracle attestation: oracle=%d, price=%llu, peer=%d\n",
+                 att_msg.attestation.oracle_id, att_msg.attestation.price_micro_usd, pfrom.GetId());
+        return;
+    }
+
+    if (msg_type == NetMsgType::ORACLEMUSIGNONCE) {
+        if (!IsOracleP2PActive(m_chainman)) {
+            return;
+        }
+
+        OracleMusigNonceMsg nonce_msg;
+        vRecv >> nonce_msg;
+
+        if (!nonce_msg.IsValid()) {
+            Misbehaving(*peer, 10, "invalid MuSig2 nonce message");
+            return;
+        }
+
+        // MuSig2 v0x03 relay is limited to the active consensus pubkey roster.
+        // Reserve metadata slots in vOracleNodes are not signing slots and
+        // must be rejected before dedup/relay/ingestion.
+        if (!IsAuthorizedMuSig2OracleIdForRelay(m_chainparams, nonce_msg.oracle_id)) {
+            Misbehaving(*peer, 10, "MuSig2 nonce oracle_id outside active consensus roster");
+            return;
+        }
+
+        // ── RH-24 Fix: Schnorr signature verification (SECURITY CRITICAL) ──
+        // Without this, any peer can forge nonce messages for any oracle_id.
+        // Look up the authorized pubkey from chainparams and verify BEFORE
+        // rate limiting (same pattern as ORACLEPRICE handler).
+        {
+            const OracleNodeInfo* oracle_config = m_chainparams.GetOracleNode(nonce_msg.oracle_id);
+            if (!oracle_config) {
+                Misbehaving(*peer, 10, "unknown oracle ID in MuSig2 nonce");
+                return;
+            }
+            XOnlyPubKey oracle_pubkey(oracle_config->pubkey);
+            if (!nonce_msg.VerifySignature(oracle_pubkey)) {
+                LogPrint(BCLog::NET, "MuSig2 nonce signature verification failed oracle=%u peer=%d\n",
+                         nonce_msg.oracle_id, pfrom.GetId());
+                Misbehaving(*peer, 20, "invalid MuSig2 nonce signature");
+                return;
+            }
+        }
+
+        // ── RH-03 Fix: Epoch sanity check ──
+        // Reject messages for negative, stale, or far-future epochs.
+        // Current epoch is derived from chain height; allow current + 1 for
+        // race conditions during epoch transitions. Older epochs are no longer
+        // useful for signing and can otherwise amplify stale session state.
+        {
+            int32_t current_epoch = GetCurrentEpoch(m_chainman.ActiveChain().Height());
+            if (!IsMuSig2RelayEpochInRange(nonce_msg.epoch, current_epoch)) {
+                LogPrint(BCLog::NET, "MuSig2 nonce epoch out of range (epoch=%d, current=%d) peer=%d\n",
+                         nonce_msg.epoch, current_epoch, pfrom.GetId());
+                Misbehaving(*peer, 5, "MuSig2 nonce epoch out of range");
+                return;
+            }
+        }
+
+        // ── RH-03 Fix: Rate limiting (same pattern as ORACLEPRICE) ──
+        // Without this, an attacker can flood MuSig2 nonce messages.
+        // 30 oracles × 1 nonce per epoch = modest traffic; allow 600/hr headroom.
+        {
+            static constexpr int MUSIG_NONCE_RATE_LIMIT_PER_HOUR = 600;
+            static std::map<NodeId, std::pair<int64_t, int>> musig_nonce_rate_limit;
+            int64_t now_rl = GetTime();
+            if (musig_nonce_rate_limit.size() > 100) {
+                auto it = musig_nonce_rate_limit.begin();
+                while (it != musig_nonce_rate_limit.end()) {
+                    if (now_rl - it->second.first > 3600) it = musig_nonce_rate_limit.erase(it);
+                    else ++it;
+                }
+            }
+            auto& [last_reset, count] = musig_nonce_rate_limit[pfrom.GetId()];
+            if (now_rl - last_reset > 3600) { last_reset = now_rl; count = 0; }
+            if (++count > MUSIG_NONCE_RATE_LIMIT_PER_HOUR) {
+                LogPrint(BCLog::NET, "MuSig2 nonce rate limit reached peer=%d (%d/%d/hr)\n",
+                         pfrom.GetId(), count, MUSIG_NONCE_RATE_LIMIT_PER_HOUR);
+                return;
+            }
+        }
+
+        const uint256 nonce_hash = nonce_msg.GetHash();
+        OracleBundleManager& bundleManager = OracleBundleManager::GetInstance();
+        if (bundleManager.HasOracleMessage(nonce_hash)) {
+            return;
+        }
+        bundleManager.RegisterSeenHash(nonce_hash);
+
+        AddKnownOracle(*peer, nonce_hash);
+        m_connman.ForEachNode([this, &pfrom, &nonce_msg, &nonce_hash](CNode* pnode) {
+            if (pnode->GetId() == pfrom.GetId()) return;
+
+            PeerRef relay_peer = GetPeerRef(pnode->GetId());
+            if (!relay_peer) return;
+            if (PeerKnowsOracle(*relay_peer, nonce_hash)) return;
+
+            AddKnownOracle(*relay_peer, nonce_hash);
+            m_connman.PushMessage(pnode,
+                CNetMsgMaker(pnode->GetCommonVersion()).Make(
+                    NetMsgType::ORACLEMUSIGNONCE, nonce_msg));
+        });
+
+        // Feed into the signing orchestrator for MuSig2 aggregation. The
+        // orchestrator is the RC38 source of truth for attempt-aware sessions;
+        // the older bundle-manager ingestion path is intentionally bypassed
+        // so relay cannot create a second epoch-only session view.
+        if (g_signing_orchestrator) {
+            g_signing_orchestrator->IngestRemoteNonce(nonce_msg);
+        }
+
+        LogPrint(BCLog::NET, "Accepted and relayed MuSig2 nonce: epoch=%d, oracle_id=%u, peer=%d\n",
+                 nonce_msg.epoch, nonce_msg.oracle_id, pfrom.GetId());
+        return;
+    }
+
+    if (msg_type == NetMsgType::ORACLEMUSIGCONTEXT) {
+        if (!IsOracleP2PActive(m_chainman)) {
+            return;
+        }
+
+        OracleMusigContextMsg context_msg;
+        vRecv >> context_msg;
+
+        if (!context_msg.IsValid()) {
+            Misbehaving(*peer, 10, "invalid MuSig2 context message");
+            return;
+        }
+
+        if (!IsAuthorizedMuSig2OracleIdForRelay(m_chainparams, context_msg.proposer_id)) {
+            Misbehaving(*peer, 10, "MuSig2 context proposer outside active consensus roster");
+            return;
+        }
+
+        {
+            const OracleNodeInfo* oracle_config = m_chainparams.GetOracleNode(context_msg.proposer_id);
+            if (!oracle_config) {
+                Misbehaving(*peer, 10, "unknown oracle ID in MuSig2 context");
+                return;
+            }
+            XOnlyPubKey oracle_pubkey(oracle_config->pubkey);
+            if (!context_msg.VerifySignature(oracle_pubkey)) {
+                LogPrint(BCLog::NET, "MuSig2 context signature verification failed proposer=%u peer=%d\n",
+                         context_msg.proposer_id, pfrom.GetId());
+                Misbehaving(*peer, 20, "invalid MuSig2 context signature");
+                return;
+            }
+        }
+
+        {
+            int32_t current_epoch = GetCurrentEpoch(m_chainman.ActiveChain().Height());
+            if (!IsMuSig2RelayEpochInRange(context_msg.epoch, current_epoch)) {
+                LogPrint(BCLog::NET, "MuSig2 context epoch out of range (epoch=%d, current=%d) peer=%d\n",
+                         context_msg.epoch, current_epoch, pfrom.GetId());
+                Misbehaving(*peer, 5, "MuSig2 context epoch out of range");
+                return;
+            }
+        }
+
+        {
+            static constexpr int MUSIG_CONTEXT_RATE_LIMIT_PER_HOUR = 600;
+            static std::map<NodeId, std::pair<int64_t, int>> musig_context_rate_limit;
+            int64_t now_rl = GetTime();
+            if (musig_context_rate_limit.size() > 100) {
+                auto it = musig_context_rate_limit.begin();
+                while (it != musig_context_rate_limit.end()) {
+                    if (now_rl - it->second.first > 3600) it = musig_context_rate_limit.erase(it);
+                    else ++it;
+                }
+            }
+            auto& [last_reset, count] = musig_context_rate_limit[pfrom.GetId()];
+            if (now_rl - last_reset > 3600) { last_reset = now_rl; count = 0; }
+            if (++count > MUSIG_CONTEXT_RATE_LIMIT_PER_HOUR) {
+                LogPrint(BCLog::NET, "MuSig2 context rate limit reached peer=%d (%d/%d/hr)\n",
+                         pfrom.GetId(), count, MUSIG_CONTEXT_RATE_LIMIT_PER_HOUR);
+                return;
+            }
+        }
+
+        const uint256 context_hash = context_msg.GetHash();
+        OracleBundleManager& bundleManager = OracleBundleManager::GetInstance();
+        if (bundleManager.HasOracleMessage(context_hash)) {
+            return;
+        }
+        bundleManager.RegisterSeenHash(context_hash);
+
+        AddKnownOracle(*peer, context_hash);
+        m_connman.ForEachNode([this, &pfrom, &context_msg, &context_hash](CNode* pnode) {
+            if (pnode->GetId() == pfrom.GetId()) return;
+
+            PeerRef relay_peer = GetPeerRef(pnode->GetId());
+            if (!relay_peer) return;
+            if (PeerKnowsOracle(*relay_peer, context_hash)) return;
+
+            AddKnownOracle(*relay_peer, context_hash);
+            m_connman.PushMessage(pnode,
+                CNetMsgMaker(pnode->GetCommonVersion()).Make(
+                    NetMsgType::ORACLEMUSIGCONTEXT, context_msg));
+        });
+
+        if (g_signing_orchestrator) {
+            g_signing_orchestrator->IngestRemoteContext(context_msg);
+        }
+
+        LogPrint(BCLog::NET, "Accepted and relayed MuSig2 context: epoch=%d proposer=%u peer=%d\n",
+                 context_msg.epoch, context_msg.proposer_id, pfrom.GetId());
+        return;
+    }
+
+    if (msg_type == NetMsgType::ORACLEMUSIGPARTIALSIG) {
+        if (!IsOracleP2PActive(m_chainman)) {
+            return;
+        }
+
+        OracleMusigPartialSigMsg partial_sig_msg;
+        vRecv >> partial_sig_msg;
+
+        if (!partial_sig_msg.IsValid()) {
+            Misbehaving(*peer, 10, "invalid MuSig2 partial signature message");
+            return;
+        }
+        if (partial_sig_msg.context_version != ORACLE_MUSIG2_SESSION_CONTEXT_VERSION ||
+            partial_sig_msg.session_context_id.IsNull()) {
+            LogPrint(BCLog::NET,
+                     "MuSig2 partial sig missing valid session context (epoch=%d oracle=%u peer=%d)\n",
+                     partial_sig_msg.epoch, partial_sig_msg.oracle_id, pfrom.GetId());
+            Misbehaving(*peer, 10, "MuSig2 partial sig missing session context");
+            return;
+        }
+
+        // MuSig2 v0x03 relay is limited to the active consensus pubkey roster.
+        if (!IsAuthorizedMuSig2OracleIdForRelay(m_chainparams, partial_sig_msg.oracle_id)) {
+            Misbehaving(*peer, 10, "MuSig2 partial sig oracle_id outside active consensus roster");
+            return;
+        }
+
+        // ── RH-24 Fix: Schnorr signature verification (SECURITY CRITICAL) ──
+        // Same pattern as nonce handler above — verify before rate limiting.
+        {
+            const OracleNodeInfo* oracle_config = m_chainparams.GetOracleNode(partial_sig_msg.oracle_id);
+            if (!oracle_config) {
+                Misbehaving(*peer, 10, "unknown oracle ID in MuSig2 partial sig");
+                return;
+            }
+            XOnlyPubKey oracle_pubkey(oracle_config->pubkey);
+            if (!partial_sig_msg.VerifySignature(oracle_pubkey)) {
+                LogPrint(BCLog::NET, "MuSig2 partial sig signature verification failed oracle=%u peer=%d\n",
+                         partial_sig_msg.oracle_id, pfrom.GetId());
+                Misbehaving(*peer, 20, "invalid MuSig2 partial sig signature");
+                return;
+            }
+        }
+
+        // ── RH-03 Fix: Epoch sanity check ──
+        // Current and current+1 are the only useful relay windows. Stale
+        // epochs must not be relayed or ingested into obsolete
+        // sessions.
+        {
+            int32_t current_epoch = GetCurrentEpoch(m_chainman.ActiveChain().Height());
+            if (!IsMuSig2RelayEpochInRange(partial_sig_msg.epoch, current_epoch)) {
+                LogPrint(BCLog::NET, "MuSig2 partial sig epoch out of range (epoch=%d, current=%d) peer=%d\n",
+                         partial_sig_msg.epoch, current_epoch, pfrom.GetId());
+                Misbehaving(*peer, 5, "MuSig2 partial sig epoch out of range");
+                return;
+            }
+        }
+
+        // ── RH-03 Fix: Rate limiting ──
+        {
+            static constexpr int MUSIG_PARTIALSIG_RATE_LIMIT_PER_HOUR = 600;
+            static std::map<NodeId, std::pair<int64_t, int>> musig_psig_rate_limit;
+            int64_t now_rl = GetTime();
+            if (musig_psig_rate_limit.size() > 100) {
+                auto it = musig_psig_rate_limit.begin();
+                while (it != musig_psig_rate_limit.end()) {
+                    if (now_rl - it->second.first > 3600) it = musig_psig_rate_limit.erase(it);
+                    else ++it;
+                }
+            }
+            auto& [last_reset, count] = musig_psig_rate_limit[pfrom.GetId()];
+            if (now_rl - last_reset > 3600) { last_reset = now_rl; count = 0; }
+            if (++count > MUSIG_PARTIALSIG_RATE_LIMIT_PER_HOUR) {
+                LogPrint(BCLog::NET, "MuSig2 partial sig rate limit reached peer=%d (%d/%d/hr)\n",
+                         pfrom.GetId(), count, MUSIG_PARTIALSIG_RATE_LIMIT_PER_HOUR);
+                return;
+            }
+        }
+
+        const uint256 partial_sig_hash = partial_sig_msg.GetHash();
+        OracleBundleManager& bundleManager = OracleBundleManager::GetInstance();
+        if (bundleManager.HasOracleMessage(partial_sig_hash)) {
+            return;
+        }
+        bundleManager.RegisterSeenHash(partial_sig_hash);
+
+        AddKnownOracle(*peer, partial_sig_hash);
+        m_connman.ForEachNode([this, &pfrom, &partial_sig_msg, &partial_sig_hash](CNode* pnode) {
+            if (pnode->GetId() == pfrom.GetId()) return;
+
+            PeerRef relay_peer = GetPeerRef(pnode->GetId());
+            if (!relay_peer) return;
+            if (PeerKnowsOracle(*relay_peer, partial_sig_hash)) return;
+
+            AddKnownOracle(*relay_peer, partial_sig_hash);
+            m_connman.PushMessage(pnode,
+                CNetMsgMaker(pnode->GetCommonVersion()).Make(
+                    NetMsgType::ORACLEMUSIGPARTIALSIG, partial_sig_msg));
+        });
+
+        // Feed into the signing orchestrator for MuSig2 aggregation. The
+        // orchestrator owns the attempt/context id checks used by RC38.
+        if (g_signing_orchestrator) {
+            g_signing_orchestrator->IngestRemotePartialSig(partial_sig_msg);
+        }
+
+        LogPrint(BCLog::NET, "Accepted and relayed MuSig2 partial signature: epoch=%d, oracle_id=%u, peer=%d\n",
+                 partial_sig_msg.epoch, partial_sig_msg.oracle_id, pfrom.GetId());
+        return;
+    }
+
+    if (msg_type == NetMsgType::ORACLEHEARTBEAT) {
+        if (!IsOracleP2PActive(m_chainman)) {
+            return;
+        }
+
+        OracleVersionHeartbeatMsg heartbeat_msg;
+        vRecv >> heartbeat_msg;
+
+        if (!heartbeat_msg.IsValid()) {
+            Misbehaving(*peer, 10, "invalid oracle heartbeat message");
+            return;
+        }
+
+        if (!IsAuthorizedMuSig2OracleIdForRelay(m_chainparams, heartbeat_msg.oracle_id)) {
+            Misbehaving(*peer, 10, "oracle heartbeat oracle_id outside active consensus roster");
+            return;
+        }
+
+        {
+            const OracleNodeInfo* oracle_config = m_chainparams.GetOracleNode(heartbeat_msg.oracle_id);
+            if (!oracle_config) {
+                Misbehaving(*peer, 10, "unknown oracle ID in heartbeat");
+                return;
+            }
+            XOnlyPubKey oracle_pubkey(oracle_config->pubkey);
+            if (!heartbeat_msg.VerifySignature(oracle_pubkey)) {
+                LogPrint(BCLog::NET, "Oracle heartbeat signature verification failed oracle=%u peer=%d\n",
+                         heartbeat_msg.oracle_id, pfrom.GetId());
+                Misbehaving(*peer, 20, "invalid oracle heartbeat signature");
+                return;
+            }
+        }
+
+        {
+            static constexpr int ORACLE_HEARTBEAT_RATE_LIMIT_PER_HOUR = 240;
+            static std::map<NodeId, std::pair<int64_t, int>> heartbeat_rate_limit;
+            int64_t now_rl = GetTime();
+            if (heartbeat_rate_limit.size() > 100) {
+                auto it = heartbeat_rate_limit.begin();
+                while (it != heartbeat_rate_limit.end()) {
+                    if (now_rl - it->second.first > 3600) it = heartbeat_rate_limit.erase(it);
+                    else ++it;
+                }
+            }
+            auto& [last_reset, count] = heartbeat_rate_limit[pfrom.GetId()];
+            if (now_rl - last_reset > 3600) { last_reset = now_rl; count = 0; }
+            if (++count > ORACLE_HEARTBEAT_RATE_LIMIT_PER_HOUR) {
+                LogPrint(BCLog::NET, "Oracle heartbeat rate limit reached peer=%d (%d/%d/hr)\n",
+                         pfrom.GetId(), count, ORACLE_HEARTBEAT_RATE_LIMIT_PER_HOUR);
+                return;
+            }
+        }
+
+        const uint256 heartbeat_hash = heartbeat_msg.GetHash();
+        OracleBundleManager& bundleManager = OracleBundleManager::GetInstance();
+        if (bundleManager.HasOracleMessage(heartbeat_hash)) {
+            return;
+        }
+        if (!bundleManager.AddVersionHeartbeat(heartbeat_msg)) {
+            LogPrint(BCLog::NET, "Rejected oracle heartbeat after validation oracle=%u peer=%d\n",
+                     heartbeat_msg.oracle_id, pfrom.GetId());
+            return;
+        }
+        bundleManager.RegisterSeenHash(heartbeat_hash);
+
+        AddKnownOracle(*peer, heartbeat_hash);
+        m_connman.ForEachNode([this, &pfrom, &heartbeat_msg, &heartbeat_hash](CNode* pnode) {
+            if (pnode->GetId() == pfrom.GetId()) return;
+
+            PeerRef relay_peer = GetPeerRef(pnode->GetId());
+            if (!relay_peer) return;
+            if (PeerKnowsOracle(*relay_peer, heartbeat_hash)) return;
+
+            AddKnownOracle(*relay_peer, heartbeat_hash);
+            m_connman.PushMessage(pnode,
+                CNetMsgMaker(pnode->GetCommonVersion()).Make(
+                    NetMsgType::ORACLEHEARTBEAT, heartbeat_msg));
+        });
+
+        LogPrint(BCLog::NET,
+                 "Accepted and relayed oracle heartbeat: oracle_id=%u client=%d oracle_protocol=%u musig2_context=%u peer=%d\n",
+                 heartbeat_msg.oracle_id, heartbeat_msg.client_version,
+                 heartbeat_msg.oracle_protocol_version, heartbeat_msg.musig2_context_version,
+                 pfrom.GetId());
+        return;
+    }
+
+    if (msg_type == NetMsgType::GETORACLES) {
+        // Gate: ignore oracle messages before DigiDollar/oracle activation
+        if (!IsOracleP2PActive(m_chainman)) {
+            return;
+        }
+
+        // Rate limit GETORACLES requests: max 10 per minute per peer.
+        // Without this, an attacker can spam GETORACLES causing repeated responses
+        // of N oracle messages each time, wasting outbound bandwidth.
+        {
+            static std::map<NodeId, std::pair<int64_t, int>> getoracles_rate_limit;
+            int64_t now = GetTime();
+
+            // Cleanup disconnected peers periodically
+            if (getoracles_rate_limit.size() > 100) {
+                auto it = getoracles_rate_limit.begin();
+                while (it != getoracles_rate_limit.end()) {
+                    if (now - it->second.first > 300) {
+                        it = getoracles_rate_limit.erase(it);
+                    } else {
+                        ++it;
+                    }
+                }
+            }
+
+            auto& [last_reset, count] = getoracles_rate_limit[pfrom.GetId()];
+            if (now - last_reset > 60) {
+                last_reset = now;
+                count = 0;
+            }
+            if (++count > 10) {
+                LogPrint(BCLog::NET, "GETORACLES rate limit exceeded from peer=%d (%d/min)\n",
+                         pfrom.GetId(), count);
+                return;
+            }
+        }
+
+        GetOracleDataMsg request;
+        vRecv >> request;
+
+        // Validate epoch is reasonable
+        int32_t current_epoch = GetCurrentEpoch(m_chainman.ActiveChain().Height());
+        if (request.epoch < current_epoch - 24 || request.epoch > current_epoch + 1) {
+            LogPrintf("Oracle data request for unreasonable epoch %d (current=%d) from peer=%d\n",
+                      request.epoch, current_epoch, pfrom.GetId());
+            return;
+        }
+
+        // Respond with our pending oracle messages for the requested epoch
+        OracleBundleManager& bundleManager = OracleBundleManager::GetInstance();
+        std::vector<COraclePriceMessage> pending = bundleManager.GetPendingMessages();
+
+        // Send each matching oracle message to the requesting peer
+        const int64_t now = GetTime();
+        int sent_count = 0;
+        int skipped_stale_count = 0;
+        for (const auto& msg : pending) {
+            // If specific oracle requested, only send that one
+            if (request.oracle_id != 0xFFFFFFFF && msg.oracle_id != request.oracle_id)
+                continue;
+
+            if (msg.timestamp < now - ORACLE_MAX_AGE_SECONDS || msg.timestamp > now + 60) {
+                skipped_stale_count++;
+                continue;
+            }
+
+            OraclePriceMsg price_msg;
+            price_msg.price_message = msg;
+            m_connman.PushMessage(&pfrom, CNetMsgMaker(pfrom.GetCommonVersion()).Make(NetMsgType::ORACLEPRICE, price_msg));
+            sent_count++;
+        }
+
+        int heartbeat_count = 0;
+        int skipped_heartbeat_count = 0;
+        for (const auto& heartbeat : bundleManager.GetVersionHeartbeats()) {
+            if (request.oracle_id != 0xFFFFFFFF && heartbeat.oracle_id != request.oracle_id) {
+                continue;
+            }
+            if (heartbeat.timestamp < now - 7 * 24 * 60 * 60 || heartbeat.timestamp > now + 600) {
+                skipped_heartbeat_count++;
+                continue;
+            }
+            m_connman.PushMessage(&pfrom,
+                CNetMsgMaker(pfrom.GetCommonVersion()).Make(NetMsgType::ORACLEHEARTBEAT, heartbeat));
+            heartbeat_count++;
+        }
+
+        LogPrint(BCLog::NET,
+                 "Sent %d oracle messages and %d heartbeats to peer=%d for epoch %d request (skipped %d stale prices, %d stale heartbeats)\n",
+                 sent_count, heartbeat_count, pfrom.GetId(), request.epoch,
+                 skipped_stale_count, skipped_heartbeat_count);
+        return;
+    }
+
     // Ignore unknown commands for extensibility
     LogPrint(BCLog::NET, "Unknown command \"%s\" from peer=%d\n", SanitizeString(msg_type), pfrom.GetId());
     return;
@@ -6110,11 +7152,36 @@ bool PeerManagerImpl::SendMessages(CNode* pto)
                 // Check whether periodic sends should happen
                 bool fSendTrickle = pto->HasPermission(NetPermissionFlags::NoBan);
                 if (tx_relay->m_next_inv_send_time < current_time) {
+                    // If m_next_inv_send_time was 0 (never initialized), this is a newly
+                    // connected peer completing its first send cycle. Seed its inventory
+                    // from the mempool so it learns about existing transactions.
+                    // Without this, TXs that were RelayTransaction()'d before this peer
+                    // connected would be invisible until the wallet's 12-36h rebroadcast.
+                    const bool first_inv_cycle = (tx_relay->m_next_inv_send_time == 0s);
+
                     fSendTrickle = true;
                     if (pto->IsInboundConn()) {
                         tx_relay->m_next_inv_send_time = NextInvToInbounds(current_time, INBOUND_INVENTORY_BROADCAST_INTERVAL);
                     } else {
                         tx_relay->m_next_inv_send_time = GetExponentialRand(current_time, OUTBOUND_INVENTORY_BROADCAST_INTERVAL);
+                    }
+
+                    // Seed mempool TXs for new peers on their first inventory cycle.
+                    // Only when Dandelion is enabled — Dandelion's stempool/embargo path
+                    // doesn't call RelayTransaction() for new peers, so they miss TXs.
+                    // With Dandelion disabled, standard RelayTransaction() handles this.
+                    if (first_inv_cycle && gArgs.GetBoolArg("-dandelion", DEFAULT_DANDELION)) {
+                        auto vtxinfo = m_mempool.infoAll();
+                        for (const auto& txinfo : vtxinfo) {
+                            const uint256& hash = peer->m_wtxid_relay ? txinfo.tx->GetWitnessHash() : txinfo.tx->GetHash();
+                            if (!tx_relay->m_tx_inventory_known_filter.contains(hash)) {
+                                tx_relay->m_tx_inventory_to_send.insert(hash);
+                            }
+                        }
+                        if (!vtxinfo.empty()) {
+                            LogPrint(BCLog::NET, "Seeded %d mempool transactions for new peer=%d\n",
+                                     vtxinfo.size(), pto->GetId());
+                        }
                     }
                 }
 
@@ -6160,7 +7227,7 @@ bool PeerManagerImpl::SendMessages(CNode* pto)
                 {
                     LOCK(tx_relay->m_tx_inventory_mutex);
                     if (!tx_relay->vInventoryDandelionTxToSend.empty()) {
-                        LogPrintf("SendMessages: Processing %d Dandelion transactions for peer=%d (relay_txs=%s)\n", 
+                        LogPrint(BCLog::DANDELION, "SendMessages: Processing %d Dandelion transactions for peer=%d (relay_txs=%s)\n", 
                                  tx_relay->vInventoryDandelionTxToSend.size(), pto->GetId(), 
                                  tx_relay->m_relay_txs ? "true" : "false");
                     }
@@ -6174,13 +7241,20 @@ bool PeerManagerImpl::SendMessages(CNode* pto)
                                 known_hash = ptx->GetWitnessHash();
                             }
                         }
-                        tx_relay->setDandelionInventoryKnown.insert(known_hash);
+                        // Insert BOTH the txid and wtxid into the known set so that
+                        // PushDandelionInventory rejects re-queuing regardless of which
+                        // hash form is used. This prevents the infinite relay loop where
+                        // the txid was queued but only the wtxid was marked as known.
+                        tx_relay->setDandelionInventoryKnown.insert(hash);        // txid
+                        if (known_hash != hash) {
+                            tx_relay->setDandelionInventoryKnown.insert(known_hash);  // wtxid
+                        }
                         
                         if (!peer->fSupportsDandelion.load() && hash != DANDELION_DISCOVERYHASH) {
-                            LogPrintf("SendMessages: Peer %d doesn't support Dandelion, sending as regular TX\n", pto->GetId());
+                            LogPrint(BCLog::DANDELION, "SendMessages: Peer %d doesn't support Dandelion, sending as regular TX\n", pto->GetId());
                             vInv.push_back(CInv(MSG_TX, hash));
                         } else {
-                            LogPrintf("SendMessages: Sending MSG_DANDELION_TX %s to peer=%d\n", hash.ToString(), pto->GetId());
+                            LogPrint(BCLog::DANDELION, "SendMessages: Sending MSG_DANDELION_TX %s to peer=%d\n", hash.ToString(), pto->GetId());
                             
                             // For Dandelion stem phase, send the actual transaction immediately
                             // This is necessary because the transaction is embargoed and won't be
@@ -6189,23 +7263,20 @@ bool PeerManagerImpl::SendMessages(CNode* pto)
                             if (hash != DANDELION_DISCOVERYHASH) {
                                 CTransactionRef ptx = m_stempool.get(hash);
                                 if (ptx) {
-                                    // Use the appropriate hash based on peer's wtxid relay preference
-                                    uint256 inv_hash = peer->m_wtxid_relay ? ptx->GetWitnessHash() : ptx->GetHash();
-                                    // Add appropriate witness flag if peer wants wtxid
-                                    uint32_t inv_type = peer->m_wtxid_relay ? (MSG_DANDELION_TX | MSG_WITNESS_FLAG) : MSG_DANDELION_TX;
-                                    vInv.push_back(CInv(inv_type, inv_hash));
-                                    LogPrintf("SendMessages: Queuing Dandelion INV %s (type=%d) for peer=%d (wtxid_relay=%s)\n", 
-                                             inv_hash.ToString(), inv_type, pto->GetId(), peer->m_wtxid_relay ? "true" : "false");
-                                    
+                                    // Send the full transaction directly — Dandelion stem phase
+                                    // transactions are embargoed and won't be served via GETDATA,
+                                    // so we must push the full TX, not just an INV.
+                                    // Do NOT also send an INV — that would cause the peer to send
+                                    // a redundant GETDATA for a TX it already received.
                                     m_connman.PushMessage(pto, msgMaker.Make(NetMsgType::DANDELIONTX, *ptx));
-                                    LogPrintf("SendMessages: Sent Dandelion transaction %s to peer=%d\n", 
+                                    LogPrint(BCLog::DANDELION, "SendMessages: Sent Dandelion transaction %s to peer=%d\n", 
                                              hash.ToString(), pto->GetId());
                                 } else {
-                                    LogPrintf("SendMessages: Dandelion transaction %s not found in stempool for peer=%d\n", 
+                                    LogPrint(BCLog::DANDELION, "SendMessages: Dandelion transaction %s not found in stempool for peer=%d\n", 
                                              hash.ToString(), pto->GetId());
                                     // Check if it's in the regular mempool (might have been fluffed already)
                                     if (m_mempool.exists(hash)) {
-                                        LogPrintf("SendMessages: Transaction %s found in mempool instead of stempool\n", hash.ToString());
+                                        LogPrint(BCLog::DANDELION, "SendMessages: Transaction %s found in mempool instead of stempool\n", hash.ToString());
                                     }
                                 }
                             } else {

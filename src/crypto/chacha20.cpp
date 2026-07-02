@@ -1,5 +1,5 @@
 // Copyright (c) 2017-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -83,6 +83,9 @@ inline void ChaCha20Aligned::Keystream(Span<std::byte> output) noexcept
     j14 = input[10];
     j15 = input[11];
 
+    // Process full 64-byte blocks. The core is intentionally unrolled to match
+    // the RFC 8439 ChaCha20 block function while avoiding per-round loop
+    // overhead in this hot encryption/decryption path.
     for (;;) {
         x0 = 0x61707865;
         x1 = 0x3320646e;
@@ -102,6 +105,7 @@ inline void ChaCha20Aligned::Keystream(Span<std::byte> output) noexcept
         x15 = j15;
 
         // The 20 inner ChaCha20 rounds are unrolled here for performance.
+        // Ten double-rounds: column rounds followed by diagonal rounds.
         REPEAT10(
             QUARTERROUND( x0, x4, x8,x12);
             QUARTERROUND( x1, x5, x9,x13);
@@ -130,6 +134,7 @@ inline void ChaCha20Aligned::Keystream(Span<std::byte> output) noexcept
         x14 += j14;
         x15 += j15;
 
+        // Increment the 64-bit block counter stored in input words 8 and 9.
         ++j12;
         if (!j12) ++j13;
 
@@ -186,6 +191,9 @@ inline void ChaCha20Aligned::Crypt(Span<const std::byte> in_bytes, Span<std::byt
     j14 = input[10];
     j15 = input[11];
 
+    // Process full 64-byte blocks. The core is intentionally unrolled to match
+    // the RFC 8439 ChaCha20 block function while avoiding per-round loop
+    // overhead in this hot encryption/decryption path.
     for (;;) {
         x0 = 0x61707865;
         x1 = 0x3320646e;
@@ -205,6 +213,7 @@ inline void ChaCha20Aligned::Crypt(Span<const std::byte> in_bytes, Span<std::byt
         x15 = j15;
 
         // The 20 inner ChaCha20 rounds are unrolled here for performance.
+        // Ten double-rounds: column rounds followed by diagonal rounds.
         REPEAT10(
             QUARTERROUND( x0, x4, x8,x12);
             QUARTERROUND( x1, x5, x9,x13);

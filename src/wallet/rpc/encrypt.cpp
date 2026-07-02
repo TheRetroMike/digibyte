@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <rpc/util.h>
@@ -85,6 +85,9 @@ RPCHelpMan walletpassphrase()
         pwallet->nRelockTime = GetTime() + nSleepTime;
         relock_time = pwallet->nRelockTime;
     }
+
+    // Wallet is now unlocked by explicit user action. Safe to attempt oracle auto-start.
+    pwallet->TryAutoStartOracles();
 
     // rpcRunLater must be called without cs_wallet held otherwise a deadlock
     // can occur. The deadlock would happen when RPCRunLater removes the

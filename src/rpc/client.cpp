@@ -1,6 +1,6 @@
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <common/args.h>
@@ -302,6 +302,65 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "sendmsgtopeer", 0, "peer_id" },
     { "stop", 0, "wait" },
     { "addnode", 2, "v2transport" },
+    // DigiDollar RPC commands
+    { "getdcamultiplier", 0, "system_health" },
+    { "calculatecollateralrequirement", 0, "dd_amount_cents" },
+    { "calculatecollateralrequirement", 1, "lock_days" },
+    { "calculatecollateralrequirement", 2, "oracle_price" },
+    { "estimatecollateral", 0, "dd_amount" },
+    { "estimatecollateral", 1, "lock_tier" },
+    { "estimatecollateral", 2, "oracle_price_micro_usd" },
+    { "enablemockoracle", 0, "enable" },
+    // DigiDollar wallet/transaction RPC commands
+    { "mintdigidollar", 0, "dd_amount" },
+    { "mintdigidollar", 1, "lock_tier" },
+    { "mintdigidollar", 2, "fee_rate" },
+    { "senddigidollar", 1, "amount" },
+    { "senddigidollar", 3, "fee_rate" },
+    { "senddigidollar", 4, "selected_inputs" },
+    { "sendmanydigidollar", 1, "amounts" },
+    { "sendmanydigidollar", 3, "selected_inputs" },
+    { "listdigidollarunspent", 0, "minconf" },
+    { "listdigidollarunspent", 1, "maxconf" },
+    { "listdigidollarunspent", 2, "addresses" },
+    { "listdigidollarunspent", 3, "include_unsafe" },
+    { "listdigidollarutxos", 0, "minconf" },
+    { "listdigidollarutxos", 1, "maxconf" },
+    { "listdigidollarutxos", 2, "addresses" },
+    { "listdigidollarutxos", 3, "include_unsafe" },
+    { "redeemdigidollar", 1, "dd_amount" },
+    { "redeemdigidollar", 3, "fee_rate" },
+    { "getdigidollarbalance", 1, "minconf" },
+    { "getdigidollarbalance", 2, "include_watchonly" },
+    { "getredemptioninfo", 1, "dd_amount" },
+    { "listdigidollarpositions", 0, "active_only" },
+    { "listdigidollarpositions", 1, "tier_filter" },
+    { "listdigidollarpositions", 2, "min_amount" },
+    { "listdigidollarpositions", 3, "count" },
+    { "listdigidollarpositions", 4, "skip" },
+    { "listdigidollartxs", 0, "count" },
+    { "listdigidollartxs", 1, "skip" },
+    { "listdigidollaraddresses", 0, "include_watchonly" },
+    { "listdigidollaraddresses", 1, "min_balance" },
+    { "listdigidollaraddresses", 2, "include_empty" },
+    { "importdigidollaraddress", 2, "rescan" },
+    { "importdigidollaraddress", 3, "p2sh" },
+    // DigiDollar oracle RPC commands
+    { "createoraclekey", 0, "oracle_id" },
+    { "exportoracleprivkey", 0, "oracle_id" },
+    { "importoracleprivkey", 0, "oracle_id" },
+    { "importoracleprivkey", 2, "replace" },
+    { "startoracle", 0, "oracle_id" },
+    { "stoporacle", 0, "oracle_id" },
+    { "getoracles", 0, "active_only" },
+    { "getoracles", 1, "blocks" },
+    { "getoraclesigners", 0, "blocks" },
+
+    { "getoraclepubkey", 0, "oracle_id" },
+    { "getalloracleprices", 0, "blocks" },
+    // DigiDollar simulation/test RPC commands
+    { "setmockoracleprice", 0, "price" },
+    { "simulatepricevolatility", 0, "percent_change" },
 };
 // clang-format on
 

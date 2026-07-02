@@ -1548,6 +1548,8 @@ BOOST_AUTO_TEST_CASE(v2transport_test)
         tester.ReceiveMessage(uint8_t(3), msg_data_2); // "blocktxn" short id
     }
 
+    SelectParams(ChainType::MAIN);
+
     // Send correct network's V1 header
     {
         V2TransportTester tester(false);
@@ -1559,10 +1561,12 @@ BOOST_AUTO_TEST_CASE(v2transport_test)
     // Send wrong network's V1 header
     {
         V2TransportTester tester(false);
-        tester.SendV1Version(CChainParams::Main()->MessageStart());
+        tester.SendV1Version(CChainParams::RegTest({})->MessageStart());
         auto ret = tester.Interact();
         BOOST_CHECK(!ret);
     }
+
+    SelectParams(ChainType::REGTEST);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

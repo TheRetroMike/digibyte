@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef DIGIBYTE_WALLET_WALLET_H
@@ -63,6 +63,7 @@ class CKeyID;
 class CPubKey;
 class Coin;
 class SigningProvider;
+class DigiDollarWallet;
 enum class MemPoolRemovalReason;
 enum class SigningResult;
 enum class TransactionError;
@@ -284,6 +285,7 @@ inline std::string PurposeToString(AddressPurpose p)
     case AddressPurpose::RECEIVE: return "receive";
     case AddressPurpose::SEND: return "send";
     case AddressPurpose::REFUND: return "refund";
+    case AddressPurpose::DIGIDOLLAR: return "digidollar";
     } // no default case so the compiler will warn when a new enum as added
     assert(false);
 }
@@ -293,6 +295,7 @@ inline std::optional<AddressPurpose> PurposeFromString(std::string_view s)
     if (s == "receive") return AddressPurpose::RECEIVE;
     else if (s == "send") return AddressPurpose::SEND;
     else if (s == "refund") return AddressPurpose::REFUND;
+    else if (s == "digidollar") return AddressPurpose::DIGIDOLLAR;
     return {};
 }
 
@@ -429,6 +432,9 @@ private:
     // Must be the only method adding data to it.
     void AddScriptPubKeyMan(const uint256& id, std::unique_ptr<ScriptPubKeyMan> spkm_man);
 
+    // DigiDollar wallet functionality
+    std::unique_ptr<DigiDollarWallet> m_dd_wallet;
+
     /**
      * Catch wallet up to current chain, scanning new blocks, updating the best
      * block locator and m_last_block_processed, and registering for
@@ -460,18 +466,10 @@ public:
     unsigned int nMasterKeyMaxID = 0;
 
     /** Construct wallet with specified name and database implementation. */
-    CWallet(interfaces::Chain* chain, const std::string& name, std::unique_ptr<WalletDatabase> database)
-        : m_chain(chain),
-          m_name(name),
-          m_database(std::move(database))
-    {
-    }
+    CWallet(interfaces::Chain* chain, const std::string& name, std::unique_ptr<WalletDatabase> database);
 
-    ~CWallet()
-    {
-        // Should not have slots connected at this point.
-        assert(NotifyUnload.empty());
-    }
+    // Destructor declared here but defined in wallet.cpp to support unique_ptr with incomplete type
+    ~CWallet();
 
     bool IsCrypted() const;
     bool IsLocked() const override;
@@ -679,7 +677,7 @@ public:
      * @param[in] mapValue key-values to be set on the transaction.
      * @param[in] orderForm BIP 70 / BIP 21 order form details to be set on the transaction.
      */
-    void CommitTransaction(CTransactionRef tx, mapValue_t mapValue, std::vector<std::pair<std::string, std::string>> orderForm);
+    bool CommitTransaction(CTransactionRef tx, mapValue_t mapValue, std::vector<std::pair<std::string, std::string>> orderForm, std::string* err_string_out = nullptr);
 
     /** Pass this transaction to node for mempool insertion and relay to peers if flag set to true */
     bool SubmitTxMemoryPoolAndRelay(CWalletTx& wtx, std::string& err_string, bool relay) const
@@ -772,6 +770,7 @@ public:
 
     util::Result<CTxDestination> GetNewDestination(const OutputType type, const std::string label);
     util::Result<CTxDestination> GetNewChangeDestination(const OutputType type);
+    CKey GetHDKeyForDigiDollar(const std::string& label) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
 
     isminetype IsMine(const CTxDestination& dest) const EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
     isminetype IsMine(const CScript& script) const EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
@@ -865,6 +864,9 @@ public:
 
     /* Mark a transaction (and it in-wallet descendants) as abandoned so its inputs may be respent. */
     bool AbandonTransaction(const uint256& hashTx);
+
+    /** Mark unconfirmed, non-mempool DigiDollar redeem transactions abandoned. */
+    size_t AbandonStaleDigiDollarRedeems();
 
     /** Mark a transaction as replaced by another transaction. */
     bool MarkReplaced(const uint256& originalHash, const uint256& newHash);
@@ -1023,6 +1025,23 @@ public:
 
     //! Add a descriptor to the wallet, return a ScriptPubKeyMan & associated output type
     ScriptPubKeyMan* AddWalletDescriptor(WalletDescriptor& desc, const FlatSigningProvider& signing_provider, const std::string& label, bool internal) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
+
+    //! Get DigiDollar wallet instance
+    DigiDollarWallet* GetDDWallet() { return m_dd_wallet.get(); }
+    const DigiDollarWallet* GetDDWallet() const { return m_dd_wallet.get(); }
+
+    //! Lazily allocate the DigiDollar wallet sidecar. Production wallets get
+    //! this in CreateWalletFromFile; mock wallets built directly in unit tests
+    //! need to opt in explicitly.
+    void EnsureDDWallet();
+
+    // Oracle key management
+    bool HasOracleKey(uint32_t oracle_id) const;
+    bool StoreOracleKey(uint32_t oracle_id, const CKey& key);
+    bool GetOracleKey(uint32_t oracle_id, CKey& key_out);
+    bool GetOraclePubKey(uint32_t oracle_id, CPubKey& pubkey_out);
+    bool EncryptOracleKeys(const CKeyingMaterial& vMasterKeyIn, WalletBatch* encrypted_batch) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
+    void TryAutoStartOracles();
 
     /** Move all records from the BDB database to a new SQLite database for storage.
      * The original BDB file will be deleted and replaced with a new SQLite file.

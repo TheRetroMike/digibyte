@@ -1,0 +1,1701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DigiDollar - The World's First UTXO-Native Stablecoin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        /* ============================================
+           LIGHT THEME - DigiDollar Presentation
+           ============================================ */
+        :root {
+            /* Primary Colors */
+            --dgb-blue: #006FBB;
+            --dgb-blue-light: #0095FF;
+            --dgb-blue-dark: #004A7C;
+            --dd-gold: #B8860B;
+            --dd-gold-light: #D4AF37;
+            --dd-gold-dark: #8B6914;
+
+            /* Light Theme Backgrounds */
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --bg-card: rgba(255, 255, 255, 0.95);
+            --bg-card-hover: rgba(248, 249, 250, 1);
+            --bg-accent: #f0f4f8;
+
+            /* Text Colors - Dark for light backgrounds */
+            --text-primary: #1a1a2e;
+            --text-secondary: #4a5568;
+            --text-muted: #718096;
+
+            /* Status Colors */
+            --success: #10B981;
+            --warning: #F59E0B;
+            --danger: #EF4444;
+            --info: #3B82F6;
+
+            /* Gradients */
+            --gradient-blue: linear-gradient(135deg, #006FBB 0%, #0095FF 100%);
+            --gradient-gold: linear-gradient(135deg, #B8860B 0%, #D4AF37 100%);
+            --gradient-light: linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%);
+
+            /* Shadows */
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.12);
+            --shadow-blue: 0 4px 20px rgba(0, 111, 187, 0.25);
+            --shadow-gold: 0 4px 20px rgba(184, 134, 11, 0.25);
+
+            /* Typography */
+            --font-main: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: var(--font-main);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 16px;
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ============================================
+           PRESENTATION CONTAINER
+           ============================================ */
+        .presentation {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* ============================================
+           SLIDES
+           ============================================ */
+        .slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 60px 100px;
+            background: var(--bg-primary);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateX(100px);
+            transition: all 0.6s ease;
+            z-index: 1;
+            overflow: hidden;
+        }
+
+        .slide.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(0);
+            z-index: 10;
+        }
+
+        .slide.prev {
+            transform: translateX(-100px);
+        }
+
+        /* Slide Variants */
+        .slide--white {
+            background: var(--bg-primary);
+        }
+
+        .slide--light {
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 50%, #f0f4f8 100%);
+        }
+
+        .slide--accent-blue {
+            background: linear-gradient(135deg, rgba(0, 111, 187, 0.03) 0%, #ffffff 50%, rgba(0, 149, 255, 0.03) 100%);
+        }
+
+        .slide--accent-gold {
+            background: linear-gradient(135deg, rgba(184, 134, 11, 0.03) 0%, #ffffff 50%, rgba(212, 175, 55, 0.03) 100%);
+        }
+
+        .slide-content {
+            width: 100%;
+            max-width: 1200px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        /* ============================================
+           TYPOGRAPHY
+           ============================================ */
+        .slide-title {
+            font-size: clamp(2.5rem, 5vw, 3.5rem);
+            font-weight: 800;
+            text-align: center;
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+        }
+
+        .slide-title--gold {
+            background: var(--gradient-gold);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .slide-title--blue {
+            background: var(--gradient-blue);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .slide-subtitle {
+            font-size: clamp(1.1rem, 2vw, 1.4rem);
+            font-weight: 400;
+            color: var(--text-secondary);
+            text-align: center;
+            max-width: 800px;
+            margin-bottom: 1rem;
+        }
+
+        .hero-title {
+            font-size: clamp(3rem, 6vw, 5rem);
+            font-weight: 900;
+            text-align: center;
+            line-height: 1.1;
+            letter-spacing: -0.02em;
+        }
+
+        .highlight-gold {
+            color: var(--dd-gold);
+        }
+
+        .highlight-blue {
+            color: var(--dgb-blue);
+        }
+
+        /* ============================================
+           CARDS
+           ============================================ */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+        }
+
+        .card--blue {
+            border-color: rgba(0, 111, 187, 0.2);
+        }
+
+        .card--blue:hover {
+            box-shadow: var(--shadow-blue);
+        }
+
+        .card--gold {
+            border-color: rgba(184, 134, 11, 0.2);
+        }
+
+        .card--gold:hover {
+            box-shadow: var(--shadow-gold);
+        }
+
+        /* ============================================
+           GRIDS
+           ============================================ */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+            width: 100%;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            width: 100%;
+        }
+
+        .grid-4 {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            width: 100%;
+        }
+
+        /* ============================================
+           FLOW DIAGRAM
+           ============================================ */
+        .flow-diagram {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0;
+            width: 100%;
+            max-width: 1100px;
+        }
+
+        .flow-box {
+            flex: 1;
+            max-width: 200px;
+            padding: 1.25rem;
+            background: var(--bg-card);
+            border-radius: 16px;
+            text-align: center;
+            border: 2px solid rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .flow-box:hover {
+            border-color: var(--dgb-blue);
+            box-shadow: var(--shadow-blue);
+            transform: translateY(-5px);
+        }
+
+        .flow-box-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .flow-step-number {
+            display: inline-block;
+            width: 28px;
+            height: 28px;
+            background: var(--gradient-blue);
+            border-radius: 50%;
+            color: white;
+            font-weight: 700;
+            font-size: 0.9rem;
+            line-height: 28px;
+            margin-bottom: 0.5rem;
+        }
+
+        .flow-box h3 {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .flow-box p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .flow-connector {
+            width: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--success);
+            font-size: 1.75rem;
+        }
+
+        /* ============================================
+           COMPARISON
+           ============================================ */
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 2rem;
+            align-items: start;
+            width: 100%;
+            max-width: 1000px;
+        }
+
+        .comparison-side {
+            padding: 1.5rem;
+            border-radius: 16px;
+            text-align: center;
+        }
+
+        .comparison-side.bad {
+            background: rgba(239, 68, 68, 0.05);
+            border: 2px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .comparison-side.good {
+            background: rgba(16, 185, 129, 0.05);
+            border: 2px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .comparison-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .comparison-vs {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding-top: 2rem;
+        }
+
+        .vs-badge {
+            background: var(--text-primary);
+            color: white;
+            padding: 0.5rem 1.25rem;
+            border-radius: 30px;
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        .feature-list {
+            list-style: none;
+            text-align: left;
+            margin-top: 1rem;
+        }
+
+        .feature-list li {
+            padding: 0.5rem 0;
+            padding-left: 1.75rem;
+            position: relative;
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+        }
+
+        .feature-list li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: var(--success);
+            font-weight: bold;
+        }
+
+        .feature-list li.negative::before {
+            content: '✗';
+            color: var(--danger);
+        }
+
+        /* ============================================
+           PROTECTION VISUAL
+           ============================================ */
+        .protection-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 3rem;
+            align-items: center;
+            width: 100%;
+            max-width: 1000px;
+        }
+
+        .shield-visual {
+            position: relative;
+            width: 200px;
+            height: 240px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .shield-layer {
+            position: absolute;
+            border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .shield-layer-1 {
+            width: 200px;
+            height: 240px;
+            background: rgba(239, 68, 68, 0.1);
+            border: 2px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .shield-layer-2 {
+            width: 160px;
+            height: 195px;
+            background: rgba(245, 158, 11, 0.1);
+            border: 2px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .shield-layer-3 {
+            width: 120px;
+            height: 150px;
+            background: rgba(0, 111, 187, 0.1);
+            border: 2px solid rgba(0, 111, 187, 0.3);
+        }
+
+        .shield-layer-4 {
+            width: 80px;
+            height: 105px;
+            background: rgba(16, 185, 129, 0.15);
+            border: 2px solid rgba(16, 185, 129, 0.4);
+        }
+
+        .shield-center {
+            font-size: 1.5rem;
+            z-index: 10;
+        }
+
+        .protection-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .protection-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            padding: 1rem;
+            background: var(--bg-card);
+            border-radius: 12px;
+            border-left: 4px solid var(--dgb-blue);
+            transition: all 0.3s ease;
+        }
+
+        .protection-item:hover {
+            transform: translateX(5px);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .protection-item:nth-child(1) { border-color: #EF4444; }
+        .protection-item:nth-child(2) { border-color: #F59E0B; }
+        .protection-item:nth-child(3) { border-color: #006FBB; }
+        .protection-item:nth-child(4) { border-color: #10B981; }
+
+        .protection-icon {
+            font-size: 1.25rem;
+            width: 32px;
+        }
+
+        .protection-item h4 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .protection-item p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        /* ============================================
+           BENEFITS GRID
+           ============================================ */
+        .benefits-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.25rem;
+            width: 100%;
+            max-width: 1000px;
+        }
+
+        .benefit-card {
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border-radius: 16px;
+            text-align: center;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .benefit-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--success);
+            box-shadow: 0 4px 20px rgba(16, 185, 129, 0.25);
+        }
+
+        .benefit-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .benefit-card h3 {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .benefit-card p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        /* ============================================
+           STAT BOXES
+           ============================================ */
+        .stat-value {
+            font-size: clamp(2rem, 4vw, 3rem);
+            font-weight: 800;
+            color: var(--dgb-blue);
+            line-height: 1.2;
+        }
+
+        .stat-value--gold {
+            color: var(--dd-gold);
+        }
+
+        .stat-label {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        /* ============================================
+           SPECIAL ELEMENTS
+           ============================================ */
+        .quote-box {
+            font-size: 1.25rem;
+            font-weight: 500;
+            text-align: center;
+            padding: 1.5rem 2rem;
+            border-left: 4px solid var(--success);
+            background: rgba(16, 185, 129, 0.05);
+            border-radius: 0 12px 12px 0;
+            max-width: 700px;
+            color: var(--text-primary);
+        }
+
+        .glow-box {
+            border: 2px solid var(--dgb-blue);
+            border-radius: 16px;
+            padding: 1.25rem 2rem;
+            background: rgba(0, 111, 187, 0.03);
+            text-align: center;
+        }
+
+        .glow-box--gold {
+            border-color: var(--dd-gold);
+            background: rgba(184, 134, 11, 0.03);
+        }
+
+        .divider {
+            width: 80px;
+            height: 4px;
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+            border-radius: 2px;
+            margin: 0.75rem auto;
+        }
+
+        /* CTA */
+        .cta-container {
+            text-align: center;
+            max-width: 800px;
+        }
+
+        .cta-stats {
+            display: flex;
+            justify-content: center;
+            gap: 2.5rem;
+            margin: 1.5rem 0;
+            flex-wrap: wrap;
+        }
+
+        .cta-stat {
+            text-align: center;
+        }
+
+        .cta-stat-icon {
+            font-size: 2rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .cta-stat-label {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 1.5rem;
+        }
+
+        .cta-btn {
+            padding: 0.9rem 2rem;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .cta-btn-primary {
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+            color: white;
+            box-shadow: 0 4px 20px rgba(16, 185, 129, 0.25);
+        }
+
+        .cta-btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(16, 185, 129, 0.35);
+        }
+
+        .cta-btn-secondary {
+            background: transparent;
+            border: 2px solid var(--dgb-blue);
+            color: var(--dgb-blue);
+        }
+
+        .cta-btn-secondary:hover {
+            background: var(--dgb-blue);
+            color: white;
+        }
+
+        /* ============================================
+           ANIMATIONS
+           ============================================ */
+        .animate-fade-in-up {
+            opacity: 0;
+            transform: translateY(25px);
+            transition: all 0.5s ease;
+        }
+
+        .slide.active .animate-fade-in-up {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .animate-scale-in {
+            opacity: 0;
+            transform: scale(0.9);
+            transition: all 0.5s ease;
+        }
+
+        .slide.active .animate-scale-in {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        /* ============================================
+           NAVIGATION
+           ============================================ */
+        .progress-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            height: 4px;
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+            transition: width 0.3s ease;
+            z-index: 1000;
+        }
+
+        .slide-counter {
+            position: fixed;
+            bottom: 20px;
+            right: 30px;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            z-index: 1000;
+        }
+
+        .nav-hint {
+            position: fixed;
+            bottom: 20px;
+            left: 30px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            z-index: 1000;
+        }
+
+        .time-indicator {
+            position: fixed;
+            top: 20px;
+            left: 30px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            z-index: 1000;
+        }
+
+        /* ============================================
+           UTILITIES
+           ============================================ */
+        .text-gold { color: var(--dd-gold); }
+        .text-blue { color: var(--dgb-blue); }
+        .text-success { color: var(--success); }
+        .text-danger { color: var(--danger); }
+        .text-muted { color: var(--text-muted); }
+        .text-center { text-align: center; }
+
+        .mt-1 { margin-top: 0.5rem; }
+        .mt-2 { margin-top: 1rem; }
+        .mt-3 { margin-top: 1.5rem; }
+        .mt-4 { margin-top: 2rem; }
+        .mb-1 { margin-bottom: 0.5rem; }
+        .mb-2 { margin-bottom: 1rem; }
+
+        /* ============================================
+           SLIDE 1 HERO SPECIFIC
+           ============================================ */
+        .hero-logo {
+            width: 180px;
+            height: 180px;
+            margin-bottom: 1rem;
+        }
+
+        .hero-logo img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .brand-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .brand-dgb {
+            font-size: 3.5rem;
+            font-weight: 900;
+            letter-spacing: -0.02em;
+            background: var(--gradient-blue);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .brand-dgb .dollar {
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .brand-names {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+        }
+
+        .brand-names span {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .brand-names .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+
+        .tagline {
+            font-size: 1.5rem;
+            color: var(--text-primary);
+            text-align: center;
+            max-width: 600px;
+            line-height: 1.4;
+        }
+
+        .tagline strong {
+            color: var(--dgb-blue);
+        }
+
+        /* SLIDE 2 - Simple Explanation */
+        .explanation-card {
+            max-width: 800px;
+            padding: 2.5rem;
+            background: var(--bg-card);
+            border-radius: 20px;
+            border: 2px solid rgba(0, 111, 187, 0.15);
+            box-shadow: var(--shadow-md);
+            text-align: center;
+        }
+
+        .explanation-card p {
+            font-size: 1.35rem;
+            line-height: 1.7;
+            color: var(--text-primary);
+        }
+
+        .explanation-card strong {
+            color: var(--dgb-blue);
+        }
+
+        .explanation-highlight {
+            background: rgba(16, 185, 129, 0.1);
+            padding: 0.1rem 0.5rem;
+            border-radius: 4px;
+            color: #059669;
+        }
+
+        /* Silver Safe Visual */
+        .analogy-grid {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 2.5rem;
+            align-items: center;
+            width: 100%;
+            max-width: 1000px;
+        }
+
+        .safe-visual {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .safe-image {
+            width: 200px;
+            height: 200px;
+            background: linear-gradient(145deg, #e8e8e8 0%, #d0d0d0 100%);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 5rem;
+            box-shadow: var(--shadow-lg);
+            margin-bottom: 1rem;
+        }
+
+        .dd-logo-small {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            box-shadow: var(--shadow-md);
+        }
+
+        .safe-caption {
+            font-size: 1rem;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        .analogy-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .analogy-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            padding: 1rem;
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+        }
+
+        .analogy-step-icon {
+            font-size: 1.5rem;
+            width: 40px;
+            text-align: center;
+        }
+
+        .analogy-step h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.2rem;
+        }
+
+        .analogy-step p {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        @media (max-width: 900px) {
+            .analogy-grid,
+            .protection-grid {
+                grid-template-columns: 1fr;
+            }
+            .safe-visual,
+            .shield-visual {
+                margin: 0 auto;
+            }
+        }
+
+        /* ============================================
+           WALLET SCREENSHOT SLIDES
+           ============================================ */
+        .screenshot-slide {
+            background: var(--bg-primary);
+            padding: 40px 60px;
+        }
+
+        .screenshot-slide .slide-content {
+            gap: 0.75rem;
+        }
+
+        .screenshot-slide .slide-title {
+            font-size: clamp(1.8rem, 3.5vw, 2.5rem);
+            margin-bottom: 0;
+        }
+
+        .screenshot-slide .slide-title.slide-title--blue {
+            background: var(--gradient-blue);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .screenshot-slide .slide-subtitle {
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        .screenshot-container {
+            max-width: 880px;
+            width: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.08);
+            position: relative;
+        }
+
+        .screenshot-container img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .screenshot-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+            color: white;
+            padding: 0.4rem 0.9rem;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.75rem;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+        }
+
+        .testnet-banner {
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+            color: white;
+            padding: 0.5rem 1.5rem;
+            border-radius: 25px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            box-shadow: 0 4px 20px rgba(16, 185, 129, 0.3);
+            margin-bottom: 0.5rem;
+        }
+
+        .screenshot-features {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            margin-top: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .screenshot-feature {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .screenshot-feature-icon {
+            color: var(--success);
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <!-- Time indicator -->
+    <div class="time-indicator">5-Minute Overview</div>
+
+    <div class="presentation">
+
+        <!-- ============================================
+             SLIDE 1: ATTENTION - Brand Introduction
+             ============================================ -->
+        <section class="slide slide--white active">
+            <div class="slide-content">
+                <!-- Logo -->
+                <div class="hero-logo animate-fade-in-up">
+                    <img src="images/DigiDollar.jpg" alt="DigiDollar">
+                </div>
+
+                <!-- Brand Stack -->
+                <div class="brand-stack animate-fade-in-up" style="transition-delay: 0.1s;">
+                    <div class="brand-dgb">
+                        <span class="dollar">$</span>DGB DigiDollar
+                    </div>
+                    <div class="brand-names">
+                        <span>DigiByte</span>
+                        <span class="dot"></span>
+                        <span class="text-success" style="font-weight: 600;">DigiDollar</span>
+                        <span class="dot"></span>
+                        <span>Stablecoin</span>
+                    </div>
+                </div>
+
+                <div class="divider animate-fade-in-up" style="transition-delay: 0.2s;"></div>
+
+                <!-- Tagline -->
+                <p class="tagline animate-fade-in-up" style="transition-delay: 0.3s;">
+                    The world's first <strong>truly decentralized</strong> time-locked stablecoin<br>
+                    built natively on a UTXO blockchain
+                </p>
+
+                <p class="text-muted animate-fade-in-up" style="transition-delay: 0.4s; font-size: 1rem; margin-top: 0.5rem;">
+                    No company to trust. No smart contract to hack.<br>
+                    Just you, your keys, and mathematics.
+                </p>
+            </div>
+        </section>
+
+        <!-- ============================================
+             SLIDE 2: DISCLAIMER
+             ============================================ -->
+        <section class="slide slide--light">
+            <div class="slide-content" style="max-width: 900px;">
+                <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">&#9888;&#65039;</div>
+                <h2 class="slide-title animate-fade-in-up" style="font-size: 2.25rem; color: var(--danger);">Important Disclaimer</h2>
+
+                <div class="card animate-fade-in-up" style="padding: 1.5rem; border: 2px solid var(--warning); margin-top: 1rem; text-align: left; line-height: 1.8;">
+                    <p style="font-size: 1rem; margin-bottom: 1rem;">
+                        <strong>This is not financial advice.</strong> What I'm about to show you is an <strong>experimental new idea</strong> that is not yet deployed on mainnet. However, it is currently <strong>functioning on testnet</strong>.
+                    </p>
+                    <p style="font-size: 1rem; margin-bottom: 1rem;">
+                        We are using <strong>state-of-the-art AI technology</strong> to help code, audit, and attack the system for security vulnerabilities. But nothing I say implies or guarantees this will work &mdash; although in my genuine assessment, I believe it will. As with everything in life, <strong>nothing is guaranteed</strong>.
+                    </p>
+                    <p style="font-size: 1rem; margin-bottom: 1rem;">
+                        DigiDollar is <strong>active on testnet today</strong>, but it is not fully developed. We are rigorously testing and auditing for all security risks. The more people and eyes we get on this, the better &mdash; <strong>and that's the point of this presentation</strong>.
+                    </p>
+                    <p style="font-size: 1rem; font-weight: 600; color: var(--dgb-blue);">
+                        This is a <strong>truly decentralized effort</strong>. There is no company. There are no paid developers. We need your help to understand, test, and improve this. So here's the idea...
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================
+             SLIDE 3: ATTENTION - Simple Explanation
+             ============================================ -->
+        <section class="slide slide--light">
+            <div class="slide-content">
+                <h2 class="slide-title slide-title--blue animate-fade-in-up">What is DigiDollar?</h2>
+
+                <div class="explanation-card animate-fade-in-up" style="transition-delay: 0.2s;">
+                    <p>
+                        DigiDollar lets you <strong>lock your DGB</strong> to create
+                        <span class="explanation-highlight">stable, dollar-pegged DigiDollars</span>
+                        you can spend today &mdash; while your crypto stays safely
+                        time-locked in <strong>your own wallet</strong>.
+                    </p>
+                    <p style="margin-top: 1.25rem;">
+                        When the lock expires, <strong>burn your DigiDollars</strong> and
+                        get ALL your DGB back &mdash; including any price appreciation.
+                    </p>
+                </div>
+
+                <div class="quote-box animate-fade-in-up" style="transition-delay: 0.4s; margin-top: 1rem;">
+                    <strong>Your crypto never leaves your wallet. You're the bank.</strong>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================
+             SLIDE 4: INTEREST - Silver Safe Analogy
+             ============================================ -->
+        <section class="slide slide--accent-blue">
+            <div class="slide-content">
+                <h2 class="slide-title slide-title--blue animate-fade-in-up">The "Silver Safe" Analogy</h2>
+                <p class="slide-subtitle animate-fade-in-up">You're not borrowing from a bank. You're borrowing from YOURSELF.</p>
+
+                <div class="analogy-grid">
+                    <!-- Visual -->
+                    <div class="safe-visual animate-fade-in-up" style="transition-delay: 0.2s;">
+                        <div class="safe-image">
+                            <img src="images/DigiDollar.jpg" alt="DigiDollar" class="dd-logo-small" style="width: 100px; height: 100px;">
+                        </div>
+                        <p class="safe-caption">Your DGB stays in YOUR wallet<br>Time-locked, not given away</p>
+                    </div>
+
+                    <!-- Steps -->
+                    <div class="analogy-steps">
+                        <div class="analogy-step animate-fade-in-up" style="transition-delay: 0.2s;">
+                            <div class="analogy-step-icon">💎</div>
+                            <div>
+                                <h4 class="text-success">Your Wealth</h4>
+                                <p>$10,000 of DGB sits in YOUR wallet</p>
+                            </div>
+                        </div>
+
+                        <div class="analogy-step animate-fade-in-up" style="transition-delay: 0.3s;">
+                            <div class="analogy-step-icon">🔐</div>
+                            <div>
+                                <h4 class="text-blue">Lock It Away</h4>
+                                <p>Time-lock for 30 days to 10 years</p>
+                            </div>
+                        </div>
+
+                        <div class="analogy-step animate-fade-in-up" style="transition-delay: 0.4s;">
+                            <div class="analogy-step-icon">💵</div>
+                            <div>
+                                <h4 class="text-success">Spend Now</h4>
+                                <p>Get stable DigiDollars instantly</p>
+                            </div>
+                        </div>
+
+                        <div class="analogy-step animate-fade-in-up" style="transition-delay: 0.5s;">
+                            <div class="analogy-step-icon">📈</div>
+                            <div>
+                                <h4 class="text-success">Keep Potential Upside</h4>
+                                <p>Unlock later &amp; keep 100% of any appreciation</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================
+             SLIDE 5: INTEREST - How It Works
+             ============================================ -->
+        <section class="slide slide--accent-blue">
+            <div class="slide-content">
+                <h2 class="slide-title slide-title--blue animate-fade-in-up">How DigiDollar Works</h2>
+                <p class="slide-subtitle animate-fade-in-up">Four steps. Zero middlemen. Total control.</p>
+
+                <div class="flow-diagram mt-2">
+                    <div class="flow-box animate-fade-in-up" style="transition-delay: 0.2s;">
+                        <div class="flow-box-icon">💎</div>
+                        <div class="flow-step-number">1</div>
+                        <h3>Lock DGB</h3>
+                        <p>Choose 30 days to 10 years</p>
+                    </div>
+
+                    <div class="flow-connector animate-fade-in-up" style="transition-delay: 0.25s;">→</div>
+
+                    <div class="flow-box animate-fade-in-up" style="transition-delay: 0.3s;">
+                        <div class="flow-box-icon">💵</div>
+                        <div class="flow-step-number">2</div>
+                        <h3>Get DigiDollars</h3>
+                        <p>Stable, spendable DigiDollars</p>
+                    </div>
+
+                    <div class="flow-connector animate-fade-in-up" style="transition-delay: 0.35s;">→</div>
+
+                    <div class="flow-box animate-fade-in-up" style="transition-delay: 0.4s;">
+                        <div class="flow-box-icon">🌐</div>
+                        <div class="flow-step-number">3</div>
+                        <h3>Use &amp; Wait</h3>
+                        <p>Spend DD, DGB appreciates</p>
+                    </div>
+
+                    <div class="flow-connector animate-fade-in-up" style="transition-delay: 0.45s;">→</div>
+
+                    <div class="flow-box animate-fade-in-up" style="transition-delay: 0.5s;">
+                        <div class="flow-box-icon">🔓</div>
+                        <div class="flow-step-number">4</div>
+                        <h3>Redeem &amp; Unlock</h3>
+                        <p>Burn DD, get ALL DGB back</p>
+                    </div>
+                </div>
+
+                <div class="glow-box mt-3 animate-fade-in-up" style="transition-delay: 0.6s; max-width: 650px;">
+                    🔑 <strong>Critical Difference:</strong> Your private keys NEVER leave your possession. Ever.
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================
+             SLIDE 6: DESIRE - Why DigiByte
+             ============================================ -->
+        <section class="slide slide--light">
+            <div class="slide-content">
+                <h2 class="slide-title slide-title--blue animate-fade-in-up">Why DigiByte?</h2>
+                <p class="slide-subtitle animate-fade-in-up">The perfect foundation for a decentralized stablecoin</p>
+
+                <div class="grid-3 mt-2" style="max-width: 900px;">
+                    <div class="card card--blue animate-fade-in-up text-center" style="transition-delay: 0.2s;">
+                        <div class="stat-value">15s</div>
+                        <div class="stat-label">Block Time</div>
+                        <p class="text-muted mt-1" style="font-size: 0.85rem;">40x faster than Bitcoin</p>
+                    </div>
+
+                    <div class="card card--blue animate-fade-in-up text-center" style="transition-delay: 0.3s;">
+                        <div class="stat-value text-success">$0.01</div>
+                        <div class="stat-label">Transaction Fee</div>
+                        <p class="text-muted mt-1" style="font-size: 0.85rem;">Extremely inexpensive</p>
+                    </div>
+
+                    <div class="card card--blue animate-fade-in-up text-center" style="transition-delay: 0.4s;">
+                        <div class="stat-value">12yr</div>
+                        <div class="stat-label">Never Hacked</div>
+                        <p class="text-muted mt-1" style="font-size: 0.85rem;">Battle-tested security</p>
+                    </div>
+                </div>
+
+                <div class="card animate-fade-in-up mt-3" style="transition-delay: 0.5s; max-width: 700px; text-align: center; padding: 1.25rem 2rem;">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 1.5rem; flex-wrap: wrap;">
+                        <div>
+                            <div class="stat-value" style="font-size: 1.75rem;">21 Billion</div>
+                            <div class="text-muted" style="font-size: 0.9rem;">Max Supply</div>
+                        </div>
+                        <div style="font-size: 1.5rem; color: var(--text-muted);">=</div>
+                        <div>
+                            <div class="stat-value text-success" style="font-size: 1.75rem;">1.94 DGB</div>
+                            <div class="text-muted" style="font-size: 0.9rem;">Per Person on Earth</div>
+                        </div>
+                    </div>
+                    <p class="text-muted mt-2" style="font-size: 0.9rem;">That's not just scarcity. That's <strong class="text-success">extreme scarcity</strong>.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================
+             SLIDE 7: DESIRE - What Makes It Different
+             ============================================ -->
+        <section class="slide slide--white">
+            <div class="slide-content">
+                <h2 class="slide-title slide-title--blue animate-fade-in-up">What Makes DigiDollar Different?</h2>
+
+                <div class="comparison-grid mt-2">
+                    <!-- Traditional -->
+                    <div class="comparison-side bad animate-fade-in-up" style="transition-delay: 0.2s;">
+                        <div class="comparison-icon">❌</div>
+                        <h3 class="mb-1">USDT / USDC / PyUSD</h3>
+                        <ul class="feature-list">
+                            <li class="negative">Corporation controls your funds</li>
+                            <li class="negative">Can freeze your account anytime</li>
+                            <li class="negative">Your crypto is GONE (you sold it)</li>
+                            <li class="negative">Counterparty & regulatory risk</li>
+                            <li class="negative">Zero potential for appreciation</li>
+                        </ul>
+                    </div>
+
+                    <div class="comparison-vs animate-scale-in" style="transition-delay: 0.3s;">
+                        <div class="vs-badge">VS</div>
+                    </div>
+
+                    <!-- DigiDollar -->
+                    <div class="comparison-side good animate-fade-in-up" style="transition-delay: 0.4s;">
+                        <div class="comparison-icon">✅</div>
+                        <h3 class="mb-1">DigiDollar</h3>
+                        <ul class="feature-list">
+                            <li>YOU control your private keys</li>
+                            <li>Impossible to freeze or seize</li>
+                            <li>Your DGB stays in YOUR wallet</li>
+                            <li>No counterparty risk - trustless</li>
+                            <li>Keep 100% of potential upside</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="quote-box animate-fade-in-up mt-3" style="transition-delay: 0.5s; border-color: var(--success);">
+                    The world's first stablecoin where <strong>YOU hold the keys</strong> from start to finish.
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================
+             SLIDE 8: DESIRE - Four-Layer Protection
+             ============================================ -->
+        <section class="slide slide--accent-blue">
+            <div class="slide-content">
+                <h2 class="slide-title slide-title--blue animate-fade-in-up">Four-Layer Protection</h2>
+                <p class="slide-subtitle animate-fade-in-up">How DigiDollar prevents death spirals</p>
+
+                <div class="protection-grid mt-2">
+                    <!-- Shield Visual -->
+                    <div class="shield-visual animate-scale-in" style="transition-delay: 0.2s;">
+                        <div class="shield-layer shield-layer-1"></div>
+                        <div class="shield-layer shield-layer-2"></div>
+                        <div class="shield-layer shield-layer-3"></div>
+                        <div class="shield-layer shield-layer-4"></div>
+                        <div class="shield-center">🛡️</div>
+                    </div>
+
+                    <!-- Protection List -->
+                    <div class="protection-list">
+                        <div class="protection-item animate-fade-in-up" style="transition-delay: 0.25s;">
+                            <div class="protection-icon">🔴</div>
+                            <div>
+                                <h4>Layer 1: High Collateral</h4>
+                                <p>200-1000% collateral ratios absorb volatility</p>
+                            </div>
+                        </div>
+
+                        <div class="protection-item animate-fade-in-up" style="transition-delay: 0.35s;">
+                            <div class="protection-icon">🟠</div>
+                            <div>
+                                <h4>Layer 2: DCA (Dynamic Collateral Adjustment)</h4>
+                                <p>System automatically requires more collateral for new mints under stress</p>
+                            </div>
+                        </div>
+
+                        <div class="protection-item animate-fade-in-up" style="transition-delay: 0.45s;">
+                            <div class="protection-icon">🔵</div>
+                            <div>
+                                <h4>Layer 3: Emergency Redemption Ratio (ERR)</h4>
+                                <p>Auto-activates during market stress to balance network collateral and smooth fluctuations</p>
+                            </div>
+                        </div>
+
+                        <div class="protection-item animate-fade-in-up" style="transition-delay: 0.55s;">
+                            <div class="protection-icon">🟢</div>
+                            <div>
+                                <h4>Layer 4: Volatility Freeze</h4>
+                                <p>Automatic circuit breaker during extreme price swings</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glow-box animate-fade-in-up mt-3" style="transition-delay: 0.65s; max-width: 550px;">
+                    <strong>No forced liquidations.</strong> Your position rides out any storm.
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================
+             SLIDE 9: DESIRE - Benefits
+             ============================================ -->
+        <section class="slide slide--light">
+            <div class="slide-content">
+                <h2 class="slide-title slide-title--blue animate-fade-in-up">Real-World Benefits</h2>
+                <p class="slide-subtitle animate-fade-in-up">Finally, a stablecoin that works FOR you</p>
+
+                <div class="benefits-grid mt-2">
+                    <div class="benefit-card animate-fade-in-up" style="transition-delay: 0.1s;">
+                        <div class="benefit-icon">💎</div>
+                        <h3>Never Sell</h3>
+                        <p>Keep 100% of potential upside</p>
+                    </div>
+
+                    <div class="benefit-card animate-fade-in-up" style="transition-delay: 0.15s;">
+                        <div class="benefit-icon">🏛️</div>
+                        <h3>Tax-Efficient</h3>
+                        <p>Locking ≠ selling in most cases*</p>
+                    </div>
+
+                    <div class="benefit-card animate-fade-in-up" style="transition-delay: 0.2s;">
+                        <div class="benefit-icon">⚡</div>
+                        <h3>15 Seconds</h3>
+                        <p>Lightning-fast settlements</p>
+                    </div>
+
+                    <div class="benefit-card animate-fade-in-up" style="transition-delay: 0.25s;">
+                        <div class="benefit-icon">💰</div>
+                        <h3>Penny Fees</h3>
+                        <p>Extremely inexpensive transactions</p>
+                    </div>
+
+                    <div class="benefit-card animate-fade-in-up" style="transition-delay: 0.3s;">
+                        <div class="benefit-icon">🔑</div>
+                        <h3>Total Control</h3>
+                        <p>Your keys, always</p>
+                    </div>
+
+                    <div class="benefit-card animate-fade-in-up" style="transition-delay: 0.35s;">
+                        <div class="benefit-icon">🌍</div>
+                        <h3>No Borders</h3>
+                        <p>Works anywhere, anytime</p>
+                    </div>
+                </div>
+
+                <p class="text-muted animate-fade-in-up mt-2" style="transition-delay: 0.4s; font-size: 0.8rem;">
+                    *Tax laws vary by jurisdiction. Consult a tax professional.
+                </p>
+            </div>
+        </section>
+
+        <!-- ============================================
+             SLIDE 10: DEMO - DD Overview (Live on Testnet)
+             ============================================ -->
+        <section class="slide screenshot-slide">
+            <div class="slide-content">
+                <div class="testnet-banner animate-fade-in-up">
+                    🟢 LIVE ON TESTNET - USE IT TODAY
+                </div>
+
+                <h2 class="slide-title slide-title--blue animate-fade-in-up" style="transition-delay: 0.1s;">DigiDollar Overview</h2>
+                <p class="slide-subtitle animate-fade-in-up" style="transition-delay: 0.15s;">Real-time balances, network health, and transaction history at a glance</p>
+
+                <div class="screenshot-container animate-scale-in" style="transition-delay: 0.2s;">
+                    <img src="images/dd-overview.png" alt="DigiDollar Overview - Wallet balances and network status">
+                    <div class="screenshot-badge">✓ Functional</div>
+                </div>
+
+                <div class="screenshot-features animate-fade-in-up" style="transition-delay: 0.4s;">
+                    <div class="screenshot-feature">
+                        <span class="screenshot-feature-icon">✓</span>
+                        <span>Your DD Balance</span>
+                    </div>
+                    <div class="screenshot-feature">
+                        <span class="screenshot-feature-icon">✓</span>
+                        <span>Network Health Status</span>
+                    </div>
+                    <div class="screenshot-feature">
+                        <span class="screenshot-feature-icon">✓</span>
+                        <span>DCA & ERR Levels</span>
+                    </div>
+                    <div class="screenshot-feature">
+                        <span class="screenshot-feature-icon">✓</span>
+                        <span>Recent Transactions</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================
+             SLIDE 11: DEMO - DD Vault (Time-Locked Collateral)
+             ============================================ -->
+        <section class="slide screenshot-slide">
+            <div class="slide-content">
+                <div class="testnet-banner animate-fade-in-up">
+                    🔐 YOUR VAULTS - YOUR KEYS
+                </div>
+
+                <h2 class="slide-title slide-title--blue animate-fade-in-up" style="transition-delay: 0.1s;">DigiDollar Time-Lock Vaults</h2>
+                <p class="slide-subtitle animate-fade-in-up" style="transition-delay: 0.15s;">Manage your time-locked DGB collateral - from 30 days to 10 years</p>
+
+                <div class="screenshot-container animate-scale-in" style="transition-delay: 0.2s;">
+                    <img src="images/dd-vault.png" alt="DigiDollar Vault - Time-locked DGB collateral">
+                    <div class="screenshot-badge">✓ Functional</div>
+                </div>
+
+                <div class="screenshot-features animate-fade-in-up" style="transition-delay: 0.4s;">
+                    <div class="screenshot-feature">
+                        <span class="screenshot-feature-icon">✓</span>
+                        <span>Multiple Lock Periods</span>
+                    </div>
+                    <div class="screenshot-feature">
+                        <span class="screenshot-feature-icon">✓</span>
+                        <span>Vault Health Indicators</span>
+                    </div>
+                    <div class="screenshot-feature">
+                        <span class="screenshot-feature-icon">✓</span>
+                        <span>Time Remaining</span>
+                    </div>
+                    <div class="screenshot-feature">
+                        <span class="screenshot-feature-icon">✓</span>
+                        <span>One-Click Redeem</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================
+             SLIDE 12: DEMO - DD Transactions (Full History)
+             ============================================ -->
+        <section class="slide screenshot-slide">
+            <div class="slide-content">
+                <div class="testnet-banner animate-fade-in-up">
+                    📜 COMPLETE TRANSPARENCY
+                </div>
+
+                <h2 class="slide-title slide-title--blue animate-fade-in-up" style="transition-delay: 0.1s;">DigiDollar Transactions</h2>
+                <p class="slide-subtitle animate-fade-in-up" style="transition-delay: 0.15s;">Every mint, transfer, and redemption - fully tracked on-chain</p>
+
+                <div class="screenshot-container animate-scale-in" style="transition-delay: 0.2s;">
+                    <img src="images/dd-transactions.png" alt="DigiDollar Transactions - Full transaction history">
+                    <div class="screenshot-badge">✓ Functional</div>
+                </div>
+
+                <div class="screenshot-features animate-fade-in-up" style="transition-delay: 0.4s;">
+                    <div class="screenshot-feature">
+                        <span class="screenshot-feature-icon">✓</span>
+                        <span>Mint Transactions</span>
+                    </div>
+                    <div class="screenshot-feature">
+                        <span class="screenshot-feature-icon">✓</span>
+                        <span>Transfer History</span>
+                    </div>
+                    <div class="screenshot-feature">
+                        <span class="screenshot-feature-icon">✓</span>
+                        <span>Redemption Records</span>
+                    </div>
+                    <div class="screenshot-feature">
+                        <span class="screenshot-feature-icon">✓</span>
+                        <span>Searchable by TX ID</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================
+             SLIDE 13: ACTION - Call to Action
+             ============================================ -->
+        <section class="slide slide--white">
+            <div class="slide-content">
+                <div class="cta-container">
+                    <div class="hero-logo animate-fade-in-up" style="margin: 0 auto 0.75rem;">
+                        <img src="images/DigiDollar.jpg" alt="DigiDollar">
+                    </div>
+
+                    <h2 class="slide-title slide-title--blue animate-fade-in-up" style="transition-delay: 0.1s;">
+                        The Future of Decentralized Stablecoins
+                    </h2>
+
+                    <p class="slide-subtitle animate-fade-in-up" style="transition-delay: 0.15s;">
+                        Spend today. Stay sovereign forever.
+                    </p>
+
+                    <div class="cta-stats animate-fade-in-up" style="transition-delay: 0.2s;">
+                        <div class="cta-stat">
+                            <div class="cta-stat-icon">✅</div>
+                            <div class="cta-stat-label">UTXO Native</div>
+                        </div>
+                        <div class="cta-stat">
+                            <div class="cta-stat-icon">🔑</div>
+                            <div class="cta-stat-label">Your Keys</div>
+                        </div>
+                        <div class="cta-stat">
+                            <div class="cta-stat-icon">🛡️</div>
+                            <div class="cta-stat-label">4-Layer Protection</div>
+                        </div>
+                        <div class="cta-stat">
+                            <div class="cta-stat-icon">⚡</div>
+                            <div class="cta-stat-label">15-Second Settlement</div>
+                        </div>
+                    </div>
+
+                    <div class="divider animate-fade-in-up" style="transition-delay: 0.25s;"></div>
+
+                    <div class="quote-box animate-fade-in-up" style="transition-delay: 0.3s; margin-bottom: 1.5rem;">
+                        <strong style="font-size: 1.2rem;">Stop selling your future to pay for today.</strong>
+                    </div>
+
+                    <h3 class="animate-fade-in-up" style="transition-delay: 0.35s; font-size: 1.25rem; margin-bottom: 0.75rem; color: var(--text-primary);">
+                        Try it on Testnet Today
+                    </h3>
+
+                    <div class="cta-buttons animate-fade-in-up" style="transition-delay: 0.4s;">
+                        <a href="https://digibyte.org" class="cta-btn cta-btn-primary">
+                            📥 Download Wallet
+                        </a>
+                        <a href="#" class="cta-btn cta-btn-secondary">
+                            📖 Learn More
+                        </a>
+                    </div>
+
+                    <p class="text-muted mt-3 animate-fade-in-up" style="transition-delay: 0.45s; font-size: 0.9rem;">
+                        Liquidity without selling. Sovereignty without compromise.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-bar" id="progressBar"></div>
+
+    <!-- Slide Counter -->
+    <div class="slide-counter" id="slideCounter">1 / 12</div>
+
+    <!-- Navigation Hint -->
+    <div class="nav-hint">← → or Space to navigate</div>
+
+    <script>
+        // Presentation Navigation
+        const slides = document.querySelectorAll('.slide');
+        const progressBar = document.getElementById('progressBar');
+        const slideCounter = document.getElementById('slideCounter');
+        let currentSlide = 0;
+
+        function updateSlide(index) {
+            slides.forEach((slide, i) => {
+                slide.classList.remove('active', 'prev');
+                if (i < index) slide.classList.add('prev');
+                if (i === index) slide.classList.add('active');
+            });
+
+            // Update progress bar
+            const progress = ((index + 1) / slides.length) * 100;
+            progressBar.style.width = progress + '%';
+
+            // Update counter
+            slideCounter.textContent = `${index + 1} / ${slides.length}`;
+        }
+
+        function nextSlide() {
+            if (currentSlide < slides.length - 1) {
+                currentSlide++;
+                updateSlide(currentSlide);
+            }
+        }
+
+        function prevSlide() {
+            if (currentSlide > 0) {
+                currentSlide--;
+                updateSlide(currentSlide);
+            }
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') {
+                e.preventDefault();
+                nextSlide();
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                prevSlide();
+            }
+        });
+
+        // Click navigation
+        document.addEventListener('click', (e) => {
+            const x = e.clientX;
+            const width = window.innerWidth;
+            if (x > width * 0.6) {
+                nextSlide();
+            } else if (x < width * 0.4) {
+                prevSlide();
+            }
+        });
+
+        // Touch navigation
+        let touchStartX = 0;
+        document.addEventListener('touchstart', (e) => {
+            touchStartX = e.touches[0].clientX;
+        });
+
+        document.addEventListener('touchend', (e) => {
+            const touchEndX = e.changedTouches[0].clientX;
+            const diff = touchStartX - touchEndX;
+            if (Math.abs(diff) > 50) {
+                if (diff > 0) nextSlide();
+                else prevSlide();
+            }
+        });
+
+        // Initialize
+        updateSlide(0);
+    </script>
+</body>
+</html>

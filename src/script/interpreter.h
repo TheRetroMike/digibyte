@@ -1,11 +1,12 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef DIGIBYTE_SCRIPT_INTERPRETER_H
 #define DIGIBYTE_SCRIPT_INTERPRETER_H
 
+#include <consensus/amount.h>
 #include <hash.h>
 #include <script/script_error.h>
 #include <span.h>
@@ -141,10 +142,31 @@ enum : uint32_t {
     // Making unknown public key versions (in BIP 342 scripts) non-standard
     SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_PUBKEYTYPE = (1U << 20),
 
+    // Enable DigiDollar specific opcodes
+    SCRIPT_VERIFY_DIGIDOLLAR = (1U << 21),
+
     // Constants to point to the highest flag in use. Add new flags above this line.
     //
     SCRIPT_VERIFY_END_MARKER
 };
+
+/**
+ * Oracle consensus price provider hook.
+ *
+ * Node initialization (src/init.cpp) registers this pointer to delegate to
+ * `OracleBundleManager::GetInstance().GetLatestPrice()`. The script
+ * interpreter consults it when evaluating OP_CHECKPRICE.
+ *
+ * When the pointer is null (e.g., in the standalone libdigibyteconsensus.so
+ * build which has no access to OracleBundleManager), OP_CHECKPRICE treats
+ * the oracle price as 0 and fails closed — no hardcoded fallback of any
+ * kind is acceptable for a consensus-critical opcode.
+ *
+ * The hook is only consulted when `SCRIPT_VERIFY_DIGIDOLLAR` is set in
+ * flags (i.e., after BIP9 DEPLOYMENT_DIGIDOLLAR is active).
+ */
+using GetOracleConsensusPriceFn = CAmount (*)();
+extern GetOracleConsensusPriceFn g_get_oracle_consensus_price;
 
 bool CheckSignatureEncoding(const std::vector<unsigned char> &vchSig, unsigned int flags, ScriptError* serror);
 
@@ -346,8 +368,6 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
 bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const CScriptWitness* witness, unsigned int flags, const BaseSignatureChecker& checker, ScriptError* serror = nullptr);
 
 size_t CountWitnessSigOps(const CScript& scriptSig, const CScript& scriptPubKey, const CScriptWitness* witness, unsigned int flags);
-
-bool CheckMinimalPush(const std::vector<unsigned char>& data, opcodetype opcode);
 
 int FindAndDelete(CScript& script, const CScript& b);
 

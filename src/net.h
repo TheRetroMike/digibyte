@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef DIGIBYTE_NET_H
@@ -37,6 +37,7 @@
 #include <functional>
 #include <list>
 #include <map>
+#include <set>
 #include <memory>
 #include <optional>
 #include <queue>
@@ -597,6 +598,8 @@ private:
     const bool m_initiating;
     /** NodeId (for debug logging). */
     const NodeId m_nodeid;
+    /** Network magic used for V1 fallback detection. */
+    const MessageStartChars m_magic_bytes;
     /** Encapsulate a V1Transport to fall back to. */
     V1Transport m_v1_fallback;
 
@@ -1664,6 +1667,9 @@ public:
     // Dandelion++ functions
     mutable Mutex m_dandelion_embargo_mutex;
     std::map<uint256, std::chrono::microseconds> mDandelionEmbargo GUARDED_BY(m_dandelion_embargo_mutex);
+    /** Track which embargoed transactions have already been routed via Dandelion stem.
+     *  Prevents re-sending the same TX every second during the embargo period. */
+    std::set<uint256> m_dandelion_stem_routed GUARDED_BY(m_dandelion_embargo_mutex);
     bool insertDandelionEmbargo(const uint256& hash, std::chrono::microseconds& embargo);
     bool isDandelionInbound(const CNode* const pnode) const;
     bool isLocalDandelionDestinationSet() const;

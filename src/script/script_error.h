@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef DIGIBYTE_SCRIPT_SCRIPT_ERROR_H
@@ -81,6 +81,12 @@ typedef enum ScriptError_t
     /* Constant scriptCode */
     SCRIPT_ERR_OP_CODESEPARATOR,
     SCRIPT_ERR_SIG_FINDANDDELETE,
+
+    /* DigiDollar specific errors */
+    SCRIPT_ERR_INVALID_DD_AMOUNT,
+    SCRIPT_ERR_DD_VERIFY,
+    SCRIPT_ERR_ORACLE_PRICE_STALE,
+    SCRIPT_ERR_INSUFFICIENT_COLLATERAL,
 
     SCRIPT_ERR_ERROR_COUNT
 } ScriptError;

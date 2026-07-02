@@ -1,5 +1,5 @@
 // Copyright (c) 2012-2021 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <compressor.h>
@@ -45,6 +45,11 @@ BOOST_AUTO_TEST_CASE(compress_amounts)
     BOOST_CHECK(TestPair(         COIN,       0x9));
     BOOST_CHECK(TestPair(      50*COIN,      0x32));
     BOOST_CHECK(TestPair(21000000000*COIN, 0x4e3b29200));
+    BOOST_CHECK(TestPair(2049638230412172402ULL, 18446744073709551611ULL));
+    BOOST_CHECK(TestPair(2049638230412172403ULL, 1990723539175655182ULL));
+    BOOST_CHECK(TestPair(2049638230412172411ULL, 1890000000000000002ULL));
+    BOOST_CHECK(TestEncode(2097865012304223517ULL));
+    BOOST_CHECK(TestEncode(MAX_MONEY - 1));
 
     for (uint64_t i = 1; i <= NUM_MULTIPLES_UNIT; i++)
         BOOST_CHECK(TestEncode(i));

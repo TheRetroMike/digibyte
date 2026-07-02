@@ -95,15 +95,16 @@ EXTENDED_SCRIPTS = [
 BASE_SCRIPTS = [
     # Scripts that are run by default.
     # Longest test should go first, to favor running tests in parallel
+    'digidollar_listunspent.py --descriptors',
     
     # DigiByte: DISABLED TESTS
-    # The following tests are disabled because they require MultiAlgo PoW adaptation:
+    # The following test is disabled because it requires MultiAlgo PoW adaptation:
     # - feature_assumevalid.py (line 141)
-    # - feature_assumeutxo.py (line 357)
-    # These tests need DigiByte-specific snapshot hashes and PoW validation logic
+    # This test needs DigiByte-specific equivalent-work handling for assumevalid.
     
     # DigiByte: Multi-Algorithm Mining Tests
     'feature_digibyte_multialgo_mining.py',
+    'feature_digibyte_groestl_deactivation.py',
     
     # vv Tests less than 5m vv
     'feature_fee_estimation.py',
@@ -257,6 +258,95 @@ BASE_SCRIPTS = [
     # DigiByte-specific tests
     'p2p_dandelion.py',
     'rpc_getblockreward.py',
+    # DigiDollar tests
+    'digidollar_stress.py',
+    'digidollar_persistence.py',
+    'digidollar_network_tracking.py',
+    'digidollar_redeem.py',
+    'digidollar_redemption_e2e.py',
+    'digidollar_transactions.py',
+    'digidollar_wallet.py',
+    'digidollar_oracle.py',
+    'digidollar_mint.py',
+    'digidollar_oracle_price.py',
+    'digidollar_protection_status.py',
+    'digidollar_send.py',
+    'digidollar_transaction_fees.py',
+    'digidollar_validate_address.py',
+    'digidollar_transfer.py',
+    'digidollar_network_relay.py',
+    'digidollar_rpc.py',
+    'digidollar_redeem_stats.py',
+    'digidollar_stats_reorg.py',
+    'digidollar_stats_reordered_mint.py',
+    'digidollar_redemption_amounts.py',
+    'digidollar_protection.py',
+    'digidollar_health_restart_consensus.py',
+    'digidollar_activation.py',
+    'digidollar_basic.py',
+    'digidollar_tx_amounts_debug.py',
+    'digidollar_activation_boundary.py',
+    'digidollar_activation_multinode.py',
+    'digidollar_bug11_bug13_regression.py',
+    'digidollar_encrypted_wallet.py',
+    'digidollar_getoracles_consensus_field.py',
+    'digidollar_musig2_session_status.py',
+    'digidollar_oracle_block_rules_relay.py',
+    'digidollar_oracle_bundle_reject_matrix.py',
+    'digidollar_oracle_consistency.py',
+    'digidollar_oracle_signers.py',
+    'digidollar_listoracle_schema.py',
+    'digidollar_oracle_keygen.py',
+    'digidollar_gbt_optin.py',
+    'digidollar_oracle_gbt_stale_cache.py',
+    'digidollar_oracle_reorg_cache.py',
+    'digidollar_oracle_rpc_staleness.py',
+    'digidollar_testnet26_oracle_roster_rpc.py',
+    'digidollar_pending_position_status.py',
+    'digidollar_rpc_addresses.py',
+    'digidollar_rpc_amount_filters.py',
+    'digidollar_rpc_collateral.py',
+    'digidollar_rpc_dca.py',
+    'digidollar_rpc_deployment.py',
+    'digidollar_rpc_display_bugs.py',
+    'digidollar_rpc_estimate.py',
+    'digidollar_rpc_gating.py',
+    'digidollar_rpc_oracle.py',
+    'digidollar_rpc_position_fields.py',
+    'digidollar_rpc_protection.py',
+    'digidollar_rpc_redemption.py',
+    'digidollar_lock_tier_canonical.py',
+    'digidollar_collateral_spend_guards.py',
+    'digidollar_mempool_miner_parity.py',
+    'digidollar_verifychain_cache_side_effect.py',
+    'digidollar_wave14_multinode_ibd_reorg.py',
+    'digidollar_wave20_oracle_p2p.py',
+    'digidollar_wave21_musig2_p2p_dos.py',
+    'digidollar_wave21_dos_paging.py',
+    'digidollar_wave26_mixed_node_compat.py',
+    'digidollar_wallet_restore_redeem.py',
+    'digidollar_watchonly_rescan.py',
+    'feature_digidollar_pruning.py',
+    'feature_oracle_p2p.py',
+    'wallet_digidollar_active_restore_redeem.py',
+    'wallet_digidollar_backup.py',
+    'wallet_digidollar_descriptors.py --descriptors',
+    'wallet_digidollar_encrypted_received_redeem.py',
+    'wallet_digidollar_encryption.py',
+    'wallet_digidollar_mint_reorg.py',
+    'wallet_digidollar_mixed_output_accounting.py',
+    'wallet_digidollar_pending_redeem_restart.py',
+    'wallet_digidollar_rc33_regressions.py',
+    'wallet_digidollar_reindex.py',
+    'wallet_digidollar_reorg.py',
+    'wallet_digidollar_rescan.py',
+    'wallet_digidollar_persistence_restart.py --descriptors',
+    'wallet_digidollar_wave16_load_rescan.py',
+    'digidollar_wave17_spendability.py --descriptors',
+    'digidollar_wave18_rpc_matrix.py --descriptors',
+    'wallet_digidollar_transfer_ancestor_reorg.py',
+    'wallet_digidollar_transfer_reorg.py',
+    'wallet_digidollar_restore.py --descriptors',
     'rpc_net.py',
     'wallet_keypool.py --legacy-wallet',
     'wallet_keypool.py --descriptors',
@@ -355,8 +445,7 @@ BASE_SCRIPTS = [
     'wallet_coinbase_category.py --descriptors',
     'feature_filelock.py',
     'feature_loadblock.py',
-    # DigiByte: Disabled - requires MultiAlgo PoW adaptation for DGB specifics
-    # 'feature_assumeutxo.py',
+    'feature_assumeutxo.py',
     'p2p_dos_header_tree.py',
     'p2p_add_connections.py',
     'feature_bind_port_discover.py',
@@ -435,6 +524,7 @@ def main():
     parser.add_argument('--help', '-h', '-?', action='store_true', help='print help text and exit')
     parser.add_argument('--jobs', '-j', type=int, default=4, help='how many test scripts to run in parallel. Default=4.')
     parser.add_argument('--keepcache', '-k', action='store_true', help='the default behavior is to flush the cache directory on startup. --keepcache retains the cache from the previous testrun.')
+    parser.add_argument('--list', action='store_true', help='list selected test scripts and exit without running them')
     parser.add_argument('--quiet', '-q', action='store_true', help='only print dots, results summary and failure logs')
     parser.add_argument('--tmpdirprefix', '-t', default=tempfile.gettempdir(), help="Root directory for datadirs")
     parser.add_argument('--failfast', '-F', action='store_true', help='stop execution after the first test failure')
@@ -524,6 +614,12 @@ def main():
     if not test_list:
         print("No valid test scripts specified. Check that your test is in one "
               "of the test lists in test_runner.py, or run test_runner.py with no arguments to run all tests")
+        sys.exit(0)
+
+    if args.list:
+        for test in test_list:
+            print(test)
+        shutil.rmtree(tmpdir, ignore_errors=True)
         sys.exit(0)
 
     if args.help:
@@ -809,7 +905,7 @@ class TestResult():
 def check_script_prefixes():
     """Check that test scripts start with one of the allowed name prefixes."""
 
-    good_prefixes_re = re.compile("^(example|feature|interface|mempool|mining|p2p|rpc|wallet|tool)_")
+    good_prefixes_re = re.compile("^(example|feature|interface|mempool|mining|p2p|rpc|wallet|tool|digidollar)_")
     bad_script_names = [script for script in ALL_SCRIPTS if good_prefixes_re.match(script) is None]
 
     if bad_script_names:

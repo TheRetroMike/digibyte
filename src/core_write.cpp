@@ -1,11 +1,12 @@
 // Copyright (c) 2009-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <core_io.h>
 
 #include <common/system.h>
 #include <consensus/amount.h>
+#include <primitives/transaction.h>
 #include <consensus/consensus.h>
 #include <consensus/validation.h>
 #include <key_io.h>
@@ -181,6 +182,16 @@ void TxToUniv(const CTransaction& tx, const uint256& block_hash, UniValue& entry
     entry.pushKV("vsize", (GetTransactionWeight(tx) + WITNESS_SCALE_FACTOR - 1) / WITNESS_SCALE_FACTOR);
     entry.pushKV("weight", GetTransactionWeight(tx));
     entry.pushKV("locktime", (int64_t)tx.nLockTime);
+
+    // DigiDollar transaction information
+    if (IsDigiDollarTransaction(tx)) {
+        UniValue digidollar(UniValue::VOBJ);
+        digidollar.pushKV("type", GetDigiDollarTxTypeName(GetDigiDollarTxType(tx)));
+        digidollar.pushKV("type_id", static_cast<int>(GetDigiDollarTxType(tx)));
+        digidollar.pushKV("flags", static_cast<int>(GetDigiDollarFlags(tx)));
+        digidollar.pushKV("flags_hex", strprintf("0x%02x", GetDigiDollarFlags(tx)));
+        entry.pushKV("digidollar", digidollar);
+    }
 
     UniValue vin{UniValue::VARR};
 

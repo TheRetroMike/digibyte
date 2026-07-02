@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef DIGIBYTE_TEST_UTIL_NET_H
@@ -55,6 +55,24 @@ struct ConnmanTestMsg : public CConnman {
 
     bool ReceiveMsgFrom(CNode& node, CSerializedNetMsg&& ser_msg) const;
     void FlushSendBuffer(CNode& node) const;
+
+    // Dandelion test helpers
+    void AddDandelionOutboundTest(CNode* pnode)
+    {
+        LOCK(m_nodes_mutex);
+        vDandelionOutbound.push_back(pnode);
+    }
+
+    void AddDandelionInboundTest(CNode* pnode)
+    {
+        LOCK(m_nodes_mutex);
+        vDandelionInbound.push_back(pnode);
+    }
+
+    void DandelionShuffleTest()
+    {
+        DandelionShuffle();
+    }
 };
 
 constexpr ServiceFlags ALL_SERVICE_FLAGS[]{

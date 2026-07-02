@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <addrdb.h>
@@ -91,6 +91,16 @@ bool SerializeFileDB(const std::string& prefix, const fs::path& path, const Data
 template <typename Stream, typename Data>
 void DeserializeDB(Stream& stream, Data&& data, bool fCheckSum = true)
 {
+    if (!fCheckSum) {
+        MessageStartChars pchMsgTmp;
+        stream >> pchMsgTmp;
+        if (pchMsgTmp != Params().MessageStart()) {
+            throw std::runtime_error{"Invalid network magic number"};
+        }
+        stream >> data;
+        return;
+    }
+
     HashVerifier verifier{stream};
     // de-serialize file header (network specific magic number) and ..
     MessageStartChars pchMsgTmp;
@@ -147,7 +157,7 @@ bool CBanDB::Write(const banmap_t& banSet)
 bool CBanDB::Read(banmap_t& banSet)
 {
     if (fs::exists(m_banlist_dat)) {
-        LogPrintf("banlist.dat ignored because it can only be read by " PACKAGE_NAME " version 22.x. Remove %s to silence this warning.\n", fs::quoted(PathToString(m_banlist_dat)));
+        LogPrintf("banlist.dat ignored because it can only be read by %s version 22.x. Remove %s to silence this warning.\n", CLIENT_NAME, fs::quoted(PathToString(m_banlist_dat)));
     }
     // If the JSON banlist does not exist, then recreate it
     if (!fs::exists(m_banlist_json)) {

@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <chainparams.h>
@@ -106,9 +106,13 @@ bool BaseIndex::Init()
         // best chain, we will rewind to the fork point during index sync
         const CBlockIndex* locator_index{m_chainstate->m_blockman.LookupBlockIndex(locator.vHave.at(0))};
         if (!locator_index) {
-            return InitError(strprintf(Untranslated("%s: best block of the index not found. Please rebuild the index."), GetName()));
+            // Index references a block that doesn't exist in current chain (e.g., after backup restore).
+            // Auto-rebuild from genesis instead of failing.
+            LogPrintf("%s: best block of the index not found in chain (possibly after restore). Rebuilding index from genesis.\n", GetName());
+            SetBestBlockIndex(nullptr);
+        } else {
+            SetBestBlockIndex(locator_index);
         }
-        SetBestBlockIndex(locator_index);
     }
 
     // Child init

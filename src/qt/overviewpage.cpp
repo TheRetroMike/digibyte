@@ -1,5 +1,5 @@
 // Copyright (c) 2011-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <qt/overviewpage.h>
@@ -19,14 +19,16 @@
 #include <QAbstractItemDelegate>
 #include <QApplication>
 #include <QDateTime>
+#include <QHelpEvent>
 #include <QPainter>
 #include <QStatusTipEvent>
+#include <QToolTip>
 
 #include <algorithm>
 #include <map>
 
 #define DECORATION_SIZE 54
-#define NUM_ITEMS 5
+#define NUM_ITEMS 8
 
 Q_DECLARE_METATYPE(interfaces::WalletBalances)
 
@@ -61,9 +63,18 @@ public:
         QString address = index.data(Qt::DisplayRole).toString();
         qint64 amount = index.data(TransactionTableModel::AmountRole).toLongLong();
         bool confirmed = index.data(TransactionTableModel::ConfirmedRole).toBool();
+
+        // Get foreground color from model's ForegroundRole
+        // The model returns theme-aware colors (white for dark theme, dark blue for light theme)
         QVariant value = index.data(Qt::ForegroundRole);
-        QColor foreground = option.palette.color(QPalette::Text);
-        if(value.canConvert<QBrush>())
+        // Use explicit white as default for dark theme (fixes macOS stylesheet issue)
+        QColor foreground = isDarkTheme ? QColor(255, 255, 255) : QColor(0, 51, 102);
+        if(value.canConvert<QColor>())
+        {
+            // Prefer direct QColor conversion
+            foreground = value.value<QColor>();
+        }
+        else if(value.canConvert<QBrush>())
         {
             QBrush brush = qvariant_cast<QBrush>(value);
             foreground = brush.color();
@@ -101,8 +112,19 @@ public:
         QRect amount_bounding_rect;
         painter->drawText(amountRect, Qt::AlignRight | Qt::AlignVCenter, amountText, &amount_bounding_rect);
 
-        // Use theme-aware color for date text
+        // Get date color from model's Date column ForegroundRole for theme consistency
+        QModelIndex dateIndex = index.sibling(index.row(), TransactionTableModel::Date);
+        QVariant dateValue = dateIndex.data(Qt::ForegroundRole);
         QColor dateColor = isDarkTheme ? QColor(255, 255, 255) : QColor(0, 51, 102);
+        if(dateValue.canConvert<QColor>())
+        {
+            dateColor = dateValue.value<QColor>();
+        }
+        else if(dateValue.canConvert<QBrush>())
+        {
+            QBrush brush = qvariant_cast<QBrush>(dateValue);
+            dateColor = brush.color();
+        }
         painter->setPen(dateColor);
         QRect date_bounding_rect;
         painter->drawText(amountRect, Qt::AlignLeft | Qt::AlignVCenter, GUIUtil::dateTimeStr(date), &date_bounding_rect);
@@ -149,6 +171,22 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
 {
     ui->setupUi(this);
 
+    // Install event filter on balance labels for styled tooltips
+    ui->frame->installEventFilter(this);
+    ui->labelBalance->installEventFilter(this);
+    ui->labelUnconfirmed->installEventFilter(this);
+    ui->labelImmature->installEventFilter(this);
+    ui->labelTotal->installEventFilter(this);
+    ui->labelBalanceText->installEventFilter(this);
+    ui->labelPendingText->installEventFilter(this);
+    ui->labelImmatureText->installEventFilter(this);
+    ui->labelTotalText->installEventFilter(this);
+    // Watch-only labels
+    ui->labelWatchAvailable->installEventFilter(this);
+    ui->labelWatchPending->installEventFilter(this);
+    ui->labelWatchImmature->installEventFilter(this);
+    ui->labelWatchTotal->installEventFilter(this);
+
     // use a SingleColorIcon for the "out of sync warning" icon
     QIcon icon = m_platform_style->SingleColorIcon(QStringLiteral(":/icons/warning"));
     ui->labelTransactionsStatus->setIcon(icon);
@@ -157,7 +195,8 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
     // Recent transactions
     ui->listTransactions->setItemDelegate(txdelegate);
     ui->listTransactions->setIconSize(QSize(DECORATION_SIZE, DECORATION_SIZE));
-    ui->listTransactions->setMinimumHeight(NUM_ITEMS * (DECORATION_SIZE + 2));
+    // Reduced minimum height to allow window shrinking (was NUM_ITEMS * (DECORATION_SIZE + 2) = 280px)
+    ui->listTransactions->setMinimumHeight(100);
     ui->listTransactions->setAttribute(Qt::WA_MacShowFocusRect, false);
 
     connect(ui->listTransactions, &TransactionOverviewWidget::clicked, this, &OverviewPage::handleTransactionClicked);
@@ -264,9 +303,9 @@ void OverviewPage::setWalletModel(WalletModel *model)
     this->walletModel = model;
     if(model && model->getOptionsModel())
     {
-        // Check current theme and update delegate
+        // Check current theme and update delegate (empty defaults to dark, matching applyTheme())
         QString currentTheme = model->getOptionsModel()->data(model->getOptionsModel()->index(OptionsModel::Theme), Qt::EditRole).toString();
-        txdelegate->isDarkTheme = (currentTheme == "dark");
+        txdelegate->isDarkTheme = (currentTheme.isEmpty() || currentTheme == "dark");
         
         // Set up transaction list
         filter.reset(new TransactionFilterProxy());
@@ -332,9 +371,9 @@ void OverviewPage::updateDisplayUnit()
         // Update txdelegate->unit with the current unit
         txdelegate->unit = walletModel->getOptionsModel()->getDisplayUnit();
         
-        // Update theme too
+        // Update theme too (empty defaults to dark, matching applyTheme())
         QString currentTheme = walletModel->getOptionsModel()->data(walletModel->getOptionsModel()->index(OptionsModel::Theme), Qt::EditRole).toString();
-        txdelegate->isDarkTheme = (currentTheme == "dark");
+        txdelegate->isDarkTheme = (currentTheme.isEmpty() || currentTheme == "dark");
 
         ui->listTransactions->update();
     }
@@ -364,4 +403,26 @@ void OverviewPage::setMonospacedFont(bool use_embedded_font)
     ui->labelWatchPending->setFont(f);
     ui->labelWatchImmature->setFont(f);
     ui->labelWatchTotal->setFont(f);
+}
+
+bool OverviewPage::eventFilter(QObject *obj, QEvent *event)
+{
+    if (event->type() == QEvent::ToolTip) {
+        QWidget* widget = qobject_cast<QWidget*>(obj);
+        if (widget) {
+            QString tooltipText = widget->toolTip();
+            if (!tooltipText.isEmpty()) {
+                QHelpEvent* helpEvent = static_cast<QHelpEvent*>(event);
+                // Show tooltip with explicit HTML styling to ensure black text on yellow background
+                QString styledTooltip = QString(
+                    "<div style='color: #000000; background-color: #ffffdc; padding: 4px;'>"
+                    "%1"
+                    "</div>"
+                ).arg(GUIUtil::TooltipToHtml(tooltipText));
+                QToolTip::showText(helpEvent->globalPos(), styledTooltip, widget);
+                return true;
+            }
+        }
+    }
+    return QWidget::eventFilter(obj, event);
 }

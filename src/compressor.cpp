@@ -1,11 +1,14 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <compressor.h>
 
+#include <consensus/amount.h>
 #include <pubkey.h>
 #include <script/script.h>
+
+#include <limits>
 
 /*
  * These check for scripts for which a special case with a shorter encoding is defined.
@@ -145,7 +148,9 @@ bool DecompressScript(CScript& script, unsigned int nSize, const CompressedScrip
 // * if e==9, we only know the resulting number is not zero, so output 1 + 10*(n - 1) + 9
 // (this is decodable, as d is in [1-9] and e is in [0-9])
 
-uint64_t CompressAmount(uint64_t n)
+namespace {
+
+uint64_t LegacyCompressAmountUnchecked(uint64_t n)
 {
     if (n == 0)
         return 0;
@@ -164,7 +169,34 @@ uint64_t CompressAmount(uint64_t n)
     }
 }
 
-uint64_t DecompressAmount(uint64_t x)
+bool LegacyCompressAmount(uint64_t n, uint64_t& compressed)
+{
+    if (n == 0) {
+        compressed = 0;
+        return true;
+    }
+    int e = 0;
+    while (((n % 10) == 0) && e < 9) {
+        n /= 10;
+        e++;
+    }
+    __uint128_t result;
+    if (e < 9) {
+        int d = (n % 10);
+        assert(d >= 1 && d <= 9);
+        n /= 10;
+        result = 1 + ((__uint128_t{n} * 9 + d - 1) * 10) + e;
+    } else {
+        result = 1 + ((__uint128_t{n} - 1) * 10) + 9;
+    }
+    if (result > std::numeric_limits<uint64_t>::max()) {
+        return false;
+    }
+    compressed = static_cast<uint64_t>(result);
+    return true;
+}
+
+uint64_t LegacyDecompressAmount(uint64_t x)
 {
     // x = 0  OR  x = 1+10*(9*n + d - 1) + e  OR  x = 1+10*(n - 1) + 9
     if (x == 0)
@@ -188,4 +220,106 @@ uint64_t DecompressAmount(uint64_t x)
         e--;
     }
     return n;
+}
+
+constexpr uint64_t MAX_MONEY_U = static_cast<uint64_t>(MAX_MONEY);
+constexpr uint64_t U64_MAX = std::numeric_limits<uint64_t>::max();
+
+constexpr uint64_t UncompressibleMinAmountForDigit(uint64_t digit)
+{
+    return (((U64_MAX - (10 * digit) + 9) / 90) + 1) * 10 + digit;
+}
+
+constexpr uint64_t UncompressibleCountForDigit(uint64_t digit)
+{
+    const uint64_t min_amount = UncompressibleMinAmountForDigit(digit);
+    return min_amount <= MAX_MONEY_U ? ((MAX_MONEY_U - min_amount) / 10) + 1 : 0;
+}
+
+constexpr uint64_t UncompressibleCountBeforeDigit(uint64_t digit)
+{
+    uint64_t count = 0;
+    for (uint64_t d = 1; d < digit; ++d) {
+        count += UncompressibleCountForDigit(d);
+    }
+    return count;
+}
+
+constexpr uint64_t UncompressibleAmountCount()
+{
+    uint64_t count = 0;
+    for (uint64_t d = 1; d <= 9; ++d) {
+        count += UncompressibleCountForDigit(d);
+    }
+    return count;
+}
+
+constexpr uint64_t EXTENDED_AMOUNT_COUNT = UncompressibleAmountCount();
+constexpr uint64_t EXTENDED_AMOUNT_CODE_BASE = 1890000000000000002ULL;
+
+static_assert(EXTENDED_AMOUNT_COUNT == 45325592629044838ULL, "Unexpected DigiByte amount-compression extension size");
+static_assert(EXTENDED_AMOUNT_CODE_BASE % 10 == 2, "Extended amount codes must use the legacy e=1 code class");
+static_assert(EXTENDED_AMOUNT_CODE_BASE + ((EXTENDED_AMOUNT_COUNT - 1) * 10) <= U64_MAX, "Extended amount codes must fit uint64_t");
+
+uint64_t GetUncompressibleAmountRank(uint64_t amount)
+{
+    const uint64_t digit = amount % 10;
+    assert(digit >= 1 && digit <= 9);
+    const uint64_t min_amount = UncompressibleMinAmountForDigit(digit);
+    assert(amount >= min_amount);
+    return UncompressibleCountBeforeDigit(digit) + ((amount - min_amount) / 10);
+}
+
+uint64_t GetUncompressibleAmountForRank(uint64_t rank)
+{
+    for (uint64_t digit = 1; digit <= 9; ++digit) {
+        const uint64_t count = UncompressibleCountForDigit(digit);
+        if (rank < count) {
+            return UncompressibleMinAmountForDigit(digit) + (rank * 10);
+        }
+        rank -= count;
+    }
+    assert(false);
+    return 0;
+}
+
+bool IsExtendedAmountCode(uint64_t x, uint64_t& rank)
+{
+    if (x < EXTENDED_AMOUNT_CODE_BASE) {
+        return false;
+    }
+    const uint64_t delta = x - EXTENDED_AMOUNT_CODE_BASE;
+    if (delta % 10 != 0) {
+        return false;
+    }
+    rank = delta / 10;
+    return rank < EXTENDED_AMOUNT_COUNT;
+}
+
+} // namespace
+
+uint64_t CompressAmount(uint64_t n)
+{
+    uint64_t compressed;
+    if (LegacyCompressAmount(n, compressed)) {
+        return compressed;
+    }
+
+    if (n <= MAX_MONEY_U) {
+        return EXTENDED_AMOUNT_CODE_BASE + (GetUncompressibleAmountRank(n) * 10);
+    }
+
+    // Preserve the historical unchecked behavior outside the documented
+    // MoneyRange precondition.
+    return LegacyCompressAmountUnchecked(n);
+}
+
+uint64_t DecompressAmount(uint64_t x)
+{
+    uint64_t rank;
+    if (IsExtendedAmountCode(x, rank)) {
+        return GetUncompressibleAmountForRank(rank);
+    }
+
+    return LegacyDecompressAmount(x);
 }

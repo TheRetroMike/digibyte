@@ -53,7 +53,7 @@ class DandelionTest(DigiByteTestFramework):
         self.num_nodes = 3
         self.extra_args = []
         for i in range(self.num_nodes):
-            self.extra_args.append(["-dandelion=1"]) # ,"-debug=dandelion","-printtoconsole=1"
+            self.extra_args.append(["-dandelion=1", "-debug=dandelion"])
     
     def add_options(self, parser):
         self.add_wallet_options(parser)
@@ -150,6 +150,40 @@ class DandelionTest(DigiByteTestFramework):
 
         all_tests_passed = test_1_passed and test_2_passed and test_3_passed
         assert(all_tests_passed)
+
+        # Test 4: No duplicate Dandelion relay (regression test for infinite relay loop)
+        # Send a transaction and verify the debug.log doesn't show the same TX
+        # being sent to the same peer more than once per SendMessages cycle.
+        self.log.info('Test 4: No duplicate Dandelion relay...')
+        node0_txid2 = node0.sendtoaddress(node2.getnewaddress(), 0.5)
+
+        # Wait for the TX to propagate through Dandelion stem
+        time.sleep(5)
+
+        # Check debug.log for duplicate sends — the same TX should NOT appear
+        # in more than 2 "Sending MSG_DANDELION_TX" lines per peer
+        # (once is expected; twice could happen across cycles; 3+ is a loop bug)
+        import os
+        debug_log = os.path.join(node0.datadir_path, 'regtest', 'debug.log')
+        with open(debug_log, 'r') as f:
+            log_lines = f.readlines()
+
+        # Count how many times this specific txid was sent to each peer
+        send_count = {}
+        for line in log_lines:
+            if 'Sent Dandelion transaction' in line and node0_txid2[:16] in line:
+                # Extract peer id
+                parts = line.split('peer=')
+                if len(parts) > 1:
+                    peer_id = parts[1].strip().split()[0]
+                    send_count[peer_id] = send_count.get(peer_id, 0) + 1
+
+        for peer_id, count in send_count.items():
+            if count > 2:
+                self.log.info(f'FAIL: TX {node0_txid2[:16]} sent {count} times to peer={peer_id} (expected <= 2)')
+            assert count <= 2, f"Dandelion relay loop detected: TX sent {count} times to peer={peer_id}"
+
+        self.log.info('Success: no duplicate Dandelion relay')
 
 if __name__ == '__main__':
     DandelionTest().main()

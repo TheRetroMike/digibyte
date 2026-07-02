@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <script/script_error.h>
@@ -115,6 +115,14 @@ std::string ScriptErrorString(const ScriptError serror)
             return "Using OP_CODESEPARATOR in non-witness script";
         case SCRIPT_ERR_SIG_FINDANDDELETE:
             return "Signature is found in scriptCode";
+        case SCRIPT_ERR_INVALID_DD_AMOUNT:
+            return "Invalid DigiDollar amount";
+        case SCRIPT_ERR_DD_VERIFY:
+            return "DigiDollar verification failed";
+        case SCRIPT_ERR_ORACLE_PRICE_STALE:
+            return "Oracle price is stale";
+        case SCRIPT_ERR_INSUFFICIENT_COLLATERAL:
+            return "Insufficient collateral ratio";
         case SCRIPT_ERR_UNKNOWN_ERROR:
         case SCRIPT_ERR_ERROR_COUNT:
         default: break;

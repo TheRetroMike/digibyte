@@ -51,8 +51,8 @@ class RpcCreateMultiSigTest(DigiByteTestFramework):
     def run_test(self):
         node0, node1, node2 = self.nodes
 
+        self.import_deterministic_coinbase_privkeys()
         if self.is_bdb_compiled():
-            self.import_deterministic_coinbase_privkeys()
             self.check_addmultisigaddress_errors()
 
         self.log.info('Generating blocks ...')

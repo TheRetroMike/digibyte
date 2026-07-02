@@ -1,5 +1,5 @@
 // Copyright (c) 2010 Satoshi Nakamoto
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <rpc/blockchain.h>
@@ -83,12 +83,13 @@ double GetDifficulty(const CBlockIndex* tip, const CBlockIndex* blockindex, int 
             nBits = powLimit;
         else
         {
-            blockindex = GetLastBlockIndexForAlgo(tip, Params().GetConsensus(), algo);
+            // Use fast O(1) lookup instead of O(n) chain walking for RPC performance
+            blockindex = GetLastBlockIndexForAlgoFast(tip, Params().GetConsensus(), algo);
             if (blockindex == nullptr)
                 nBits = powLimit;
             else
                 nBits = blockindex->nBits;
-        }  
+        }
     }
     else
         nBits = blockindex->nBits;
@@ -1394,6 +1395,8 @@ UniValue DeploymentInfo(const CBlockIndex* blockindex, const ChainstateManager& 
     SoftForkDescPushBack(blockindex, softforks, chainman, Consensus::DEPLOYMENT_SEGWIT);
     SoftForkDescPushBack(blockindex, softforks, chainman, Consensus::DEPLOYMENT_TESTDUMMY);
     SoftForkDescPushBack(blockindex, softforks, chainman, Consensus::DEPLOYMENT_TAPROOT);
+    SoftForkDescPushBack(blockindex, softforks, chainman, Consensus::DEPLOYMENT_DIGIDOLLAR);
+    SoftForkDescPushBack(blockindex, softforks, chainman, Consensus::DEPLOYMENT_ALGOLOCK);
     return softforks;
 }
 } // anon namespace

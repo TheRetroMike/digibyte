@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef DIGIBYTE_QT_TRANSACTIONOVERVIEWWIDGET_H
@@ -8,6 +8,7 @@
 #include <QSize>
 
 QT_BEGIN_NAMESPACE
+class QHelpEvent;
 class QShowEvent;
 class QWidget;
 QT_END_NAMESPACE
@@ -22,6 +23,7 @@ public:
 
 protected:
     void showEvent(QShowEvent* event) override;
+    bool viewportEvent(QEvent* event) override;
 };
 
 #endif // DIGIBYTE_QT_TRANSACTIONOVERVIEWWIDGET_H

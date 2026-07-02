@@ -1,4 +1,4 @@
-[![Build Status](https://img.shields.io/github/workflow/status/DigiByte-Core/digibyte/Build%20and%20check/develop)](https://github.com/DigiByte-Core/digibyte/actions/workflows/ci-coverage.yml)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/DigiByte-Core/digibyte/ci.yml?branch=develop)](https://github.com/DigiByte-Core/digibyte/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/github/v/release/DigiByte-Core/digibyte?include_prereleases)](https://github.com/DigiByte-Core/digibyte/releases)
 [![Release date](https://img.shields.io/github/release-date/DigiByte-core/digibyte)](https://github.com/DigiByte-Core/digibyte/releases)
 [![Status](https://img.shields.io/badge/status-stable-brightgreen)](https://github.com/DigiByte-Core/digibyte/tree/develop)
@@ -131,7 +131,7 @@ Development Process
 -------------------
 
 The `master` branch is regularly built (see `doc/build-*.md` for instructions) and tested, but it is not guaranteed to be
-completely stable. [Tags](https://github.com/digibyte/digibyte/tags) are created
+completely stable. [Tags](https://github.com/DigiByte-Core/digibyte/tags) are created
 regularly from release branches to indicate new official, stable release versions of DigiByte Core.
 
 The https://github.com/digibyte-core/gui repository is used exclusively for the

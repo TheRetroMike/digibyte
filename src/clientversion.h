@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef DIGIBYTE_CLIENTVERSION_H
@@ -35,6 +35,7 @@ static const int CLIENT_VERSION =
                          +     100 * CLIENT_VERSION_MINOR
                          +       1 * CLIENT_VERSION_BUILD;
 
+inline constexpr const char* CLIENT_NAME_RAW{"DigiByte"};
 extern const std::string CLIENT_NAME;
 
 

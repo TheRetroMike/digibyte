@@ -1,9 +1,10 @@
 // Copyright (c) 2010 Satoshi Nakamoto
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <chain.h>
 #include <chainparams.h>
+#include <clientversion.h>
 #include <common/system.h>
 #include <consensus/amount.h>
 #include <consensus/consensus.h>
@@ -14,9 +15,11 @@
 #include <deploymentinfo.h>
 #include <deploymentstatus.h>
 #include <key_io.h>
+#include <logging.h>
 #include <net.h>
 #include <node/context.h>
 #include <node/miner.h>
+#include <oracle/bundle_manager.h>
 #include <pow.h>
 #include <rpc/blockchain.h>
 #include <rpc/mining.h>
@@ -51,6 +54,37 @@ using node::UpdateTime;
 
 // DigiByte: Default mining algorithm
 extern int miningAlgo;
+
+static const std::string DIGIDOLLAR_ORACLE_GBT_RULE{"digidollar-oracle"};
+
+static bool BlockTemplateHasExpiredOracleCommitment(const CBlock& block)
+{
+    if (block.vtx.empty() || !block.vtx[0] || !block.vtx[0]->IsCoinBase()) {
+        return false;
+    }
+
+    bool has_oracle_output = false;
+    for (const CTxOut& out : block.vtx[0]->vout) {
+        if (out.scriptPubKey.size() >= 2 &&
+            out.scriptPubKey[0] == OP_RETURN &&
+            out.scriptPubKey[1] == OP_ORACLE) {
+            has_oracle_output = true;
+            break;
+        }
+    }
+    if (!has_oracle_output) return false;
+
+    COracleBundle bundle;
+    OracleBundleManager& manager = OracleBundleManager::GetInstance();
+    if (!manager.ExtractOracleBundle(*block.vtx[0], bundle)) {
+        return true;
+    }
+
+    const int64_t block_time = block.GetBlockTime();
+    return bundle.timestamp <= 0 ||
+           bundle.timestamp > block_time + 60 ||
+           block_time - bundle.timestamp > ORACLE_MAX_AGE_SECONDS;
+}
 
 /**
  * Return average network hashes per second based on the last 'lookup' blocks,
@@ -311,7 +345,7 @@ static RPCHelpMan generatetoaddress()
          RPCExamples{
             "\nGenerate 11 blocks to myaddress\n"
             + HelpExampleCli("generatetoaddress", "11 \"myaddress\"")
-            + "If you are using the " PACKAGE_NAME " wallet, you can get a new address to send the newly generated digibyte to with:\n"
+            + "If you are using the " + CLIENT_NAME + " wallet, you can get a new address to send the newly generated digibyte to with:\n"
             + HelpExampleCli("getnewaddress", "")
                 },
         [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
@@ -523,7 +557,7 @@ static RPCHelpMan getmininginfo()
     const Consensus::Params& consensusParams = chainman.GetParams().GetConsensus();
     
     // Add current difficulty (for current mining algorithm)
-    obj.pushKV("difficulty",       (double)GetDifficulty(tip));
+    obj.pushKV("difficulty",       (double)GetDifficulty(tip, nullptr, miningAlgo));
     
     // Add difficulties for all algorithms
     UniValue difficulties(UniValue::VOBJ);
@@ -725,6 +759,10 @@ static RPCHelpMan getblocktemplate()
                 {
                     {RPCResult::Type::STR_HEX, "key", "values must be in the coinbase (keys may be ignored)"},
                 }},
+                {RPCResult::Type::OBJ, "coinbasetxn", /*optional=*/true, "pre-built coinbase transaction to use when the template carries mandatory coinbase data",
+                {
+                    {RPCResult::Type::STR_HEX, "data", "coinbase transaction encoded in hexadecimal without witness data"},
+                }},
                 {RPCResult::Type::NUM, "coinbasevalue", "maximum allowable input to coinbase transaction, including the generation award and transaction fees (in satoshis)"},
                 {RPCResult::Type::STR, "longpollid", "an id to include with a request to longpoll on an update to this template"},
                 {RPCResult::Type::STR, "target", "The hash target"},
@@ -742,8 +780,10 @@ static RPCHelpMan getblocktemplate()
                 {RPCResult::Type::NUM, "height", "The height of the next block"},
                 {RPCResult::Type::NUM, "pow_algo_id", "The mining algorithm ID (DigiByte multi-algo)"},
                 {RPCResult::Type::STR, "pow_algo", "The mining algorithm name (DigiByte multi-algo)"},
+                {RPCResult::Type::NUM, "odokey", /*optional=*/true, "The Odocrypt key for Odocrypt mining templates"},
                 {RPCResult::Type::STR_HEX, "signet_challenge", /*optional=*/true, "Only on signet"},
                 {RPCResult::Type::STR_HEX, "default_witness_commitment", /*optional=*/true, "a valid witness commitment for the unmodified block template"},
+                {RPCResult::Type::STR_HEX, "default_oracle_commitment", /*optional=*/true, "a valid DigiDollar oracle commitment for the unmodified block template"},
             }},
         },
         RPCExamples{
@@ -826,11 +866,11 @@ static RPCHelpMan getblocktemplate()
     if (!chainman.GetParams().IsTestChain()) {
         const CConnman& connman = EnsureConnman(node);
         if (connman.GetNodeCount(ConnectionDirection::Both) == 0) {
-            throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, PACKAGE_NAME " is not connected!");
+            throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, CLIENT_NAME + " is not connected!");
         }
 
         if (chainman.IsInitialBlockDownload()) {
-            throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, PACKAGE_NAME " is in initial sync and waiting for blocks...");
+            throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, CLIENT_NAME + " is in initial sync and waiting for blocks...");
         }
     }
 
@@ -896,15 +936,15 @@ static RPCHelpMan getblocktemplate()
         throw JSONRPCError(RPC_INVALID_PARAMETER, "getblocktemplate must be called with the segwit rule set (call with {\"rules\": [\"segwit\"]})");
     }
 
+    const bool client_supports_digidollar_oracle = setClientRules.count(DIGIDOLLAR_ORACLE_GBT_RULE) != 0;
+
     // Update block
     static CBlockIndex* pindexPrev;
     static int64_t time_start;
     static std::unique_ptr<CBlockTemplate> pblocktemplate;
     static int lastAlgo;  // DigiByte: Track algorithm changes
-    if (pindexPrev != active_chain.Tip() ||
-        (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && GetTime() - time_start > 5) ||
-        algo != lastAlgo)  // DigiByte: Regenerate template if algorithm changed
-    {
+    static bool lastDigiDollarOracleAware;
+    auto rebuild_template = [&]() {
         // Clear pindexPrev so future calls make a new block, despite any failures from here on
         pindexPrev = nullptr;
 
@@ -913,15 +953,27 @@ static RPCHelpMan getblocktemplate()
         CBlockIndex* pindexPrevNew = active_chain.Tip();
         time_start = GetTime();
         lastAlgo = algo;  // DigiByte: Store current algorithm
+        lastDigiDollarOracleAware = client_supports_digidollar_oracle;
 
         // Create new block
         CScript scriptDummy = CScript() << OP_TRUE;
-        pblocktemplate = BlockAssembler{active_chainstate, &mempool}.CreateNewBlock(scriptDummy, algo);
+        auto options{BlockAssembler::DefaultOptions()};
+        options.include_oracle_priced_digidollar_txs = client_supports_digidollar_oracle;
+        options.include_oracle_bundle = client_supports_digidollar_oracle;
+        pblocktemplate = BlockAssembler{active_chainstate, &mempool, options}.CreateNewBlock(scriptDummy, algo);
         if (!pblocktemplate)
             throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
 
         // Need to update only after we know CreateNewBlock succeeded
         pindexPrev = pindexPrevNew;
+    };
+
+    if (pindexPrev != active_chain.Tip() ||
+        (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && GetTime() - time_start > 5) ||
+        algo != lastAlgo ||
+        client_supports_digidollar_oracle != lastDigiDollarOracleAware)
+    {
+        rebuild_template();
     }
     CHECK_NONFATAL(pindexPrev);
     CBlock* pblock = &pblocktemplate->block; // pointer for convenience
@@ -929,6 +981,16 @@ static RPCHelpMan getblocktemplate()
     // Update nTime
     UpdateTime(pblock, consensusParams, pindexPrev, algo);
     pblock->nNonce = 0;
+
+    if (BlockTemplateHasExpiredOracleCommitment(*pblock)) {
+        LogPrint(BCLog::DIGIDOLLAR,
+                 "getblocktemplate: cached oracle-bearing template became stale after time update; rebuilding\n");
+        rebuild_template();
+        CHECK_NONFATAL(pindexPrev);
+        pblock = &pblocktemplate->block;
+        UpdateTime(pblock, consensusParams, pindexPrev, algo);
+        pblock->nNonce = 0;
+    }
 
     // NOTE: If at some point we support pre-segwit miners post-segwit-activation, this needs to take segwit support into consideration
     const bool fPreSegWit = !DeploymentActiveAfter(pindexPrev, chainman, Consensus::DEPLOYMENT_SEGWIT);
@@ -985,6 +1047,16 @@ static RPCHelpMan getblocktemplate()
     UniValue result(UniValue::VOBJ);
     result.pushKV("capabilities", aCaps);
 
+    bool has_oracle_commitment = false;
+    for (const auto& out : pblock->vtx[0]->vout) {
+        if (out.scriptPubKey.size() >= 2 &&
+            out.scriptPubKey[0] == OP_RETURN &&
+            out.scriptPubKey[1] == OP_ORACLE) {
+            has_oracle_commitment = true;
+            break;
+        }
+    }
+
     UniValue aRules(UniValue::VARR);
     aRules.push_back("csv");
     if (!fPreSegWit) aRules.push_back("!segwit");
@@ -992,6 +1064,9 @@ static RPCHelpMan getblocktemplate()
         // indicate to miner that they must understand signet rules
         // when attempting to mine with this template
         aRules.push_back("!signet");
+    }
+    if (has_oracle_commitment) {
+        aRules.push_back(strprintf("!%s", DIGIDOLLAR_ORACLE_GBT_RULE));
     }
 
     UniValue vbavailable(UniValue::VOBJ);
@@ -1042,6 +1117,7 @@ static RPCHelpMan getblocktemplate()
     result.pushKV("previousblockhash", pblock->hashPrevBlock.GetHex());
     result.pushKV("transactions", transactions);
     result.pushKV("coinbaseaux", aux);
+
     result.pushKV("coinbasevalue", (int64_t)pblock->vtx[0]->vout[0].nValue);
     result.pushKV("longpollid", active_chain.Tip()->GetBlockHash().GetHex() + ToString(nTransactionsUpdatedLast));
     result.pushKV("target", hashTarget.GetHex());
@@ -1080,6 +1156,16 @@ static RPCHelpMan getblocktemplate()
 
     if (!pblocktemplate->vchCoinbaseCommitment.empty()) {
         result.pushKV("default_witness_commitment", HexStr(pblocktemplate->vchCoinbaseCommitment));
+    }
+
+    // Oracle bundle commitment for DigiDollar-aware miners
+    for (const auto& out : pblock->vtx[0]->vout) {
+        if (out.scriptPubKey.size() >= 2 &&
+            out.scriptPubKey[0] == OP_RETURN &&
+            out.scriptPubKey[1] == OP_ORACLE) {
+            result.pushKV("default_oracle_commitment", HexStr(out.scriptPubKey));
+            break;
+        }
     }
 
     return result;

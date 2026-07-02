@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -21,11 +21,13 @@
 #include <util/trace.h>
 #include <util/translation.h>
 #include <wallet/coincontrol.h>
+#include <wallet/digidollarwallet.h>
 #include <wallet/fees.h>
 #include <wallet/receive.h>
 #include <wallet/spend.h>
 #include <wallet/transaction.h>
 #include <wallet/wallet.h>
+#include <primitives/transaction.h> // for IsDigiDollarTransaction, GetDigiDollarTxType
 
 #include <cmath>
 
@@ -261,6 +263,12 @@ util::Result<PreSelectedInputs> FetchSelectedInputs(const CWallet& wallet, const
     const bool can_grind_r = wallet.CanGrindR();
     std::map<COutPoint, CAmount> map_of_bump_fees = wallet.chain().CalculateIndividualBumpFees(coin_control.ListSelected(), coin_selection_params.m_effective_feerate);
     for (const COutPoint& outpoint : coin_control.ListSelected()) {
+        if (const DigiDollarWallet* dd_wallet = wallet.GetDDWallet()) {
+            if (dd_wallet->IsLockedByDD(outpoint)) {
+                return util::Error{strprintf(_("Pre-selected input %s is locked by DigiDollar; use DigiDollar transfer or redeem RPCs"), outpoint.ToString())};
+            }
+        }
+
         int input_bytes = -1;
         CTxOut txout;
         if (auto ptr_wtx = wallet.GetWalletTx(outpoint.hash)) {
@@ -268,7 +276,28 @@ util::Result<PreSelectedInputs> FetchSelectedInputs(const CWallet& wallet, const
             if (ptr_wtx->tx->vout.size() <= outpoint.n) {
                 return util::Error{strprintf(_("Invalid pre-selected input %s"), outpoint.ToString())};
             }
+            // NOTE (rh59 walk-back): a previous audit commit added an
+            // IsLockedCoin() check here, treating lockunspent as a hard
+            // restriction even against manually preselected coin-control
+            // inputs. That contradicts Bitcoin Core's documented behavior
+            // (see wallet_basic.py:188 — "The lock on a manually selected
+            // output is ignored") and broke a dozen functional tests that
+            // exercise fundrawtransaction / walletcreatefundedpsbt / send /
+            // sendall / bumpfee with pre-locked inputs. Manual selection
+            // is itself the user overriding their own lockunspent hint,
+            // so the check is intentionally absent here — the auto-
+            // selection path at AvailableCoins still filters locked
+            // outputs via params.skip_locked=true.
             txout = ptr_wtx->tx->vout.at(outpoint.n);
+            if (IsDigiDollarTransaction(*ptr_wtx->tx)) {
+                const DigiDollarTxType dd_type = GetDigiDollarTxType(*ptr_wtx->tx);
+                if (dd_type == DD_TX_MINT && outpoint.n < 3) {
+                    return util::Error{strprintf(_("Pre-selected input %s is a DigiDollar mint collateral/token/metadata output; use DigiDollar transfer or redeem RPCs"), outpoint.ToString())};
+                }
+                if ((dd_type == DD_TX_TRANSFER || dd_type == DD_TX_REDEEM) && txout.nValue == 0) {
+                    return util::Error{strprintf(_("Pre-selected input %s is a DigiDollar token/metadata output; use DigiDollar transfer or redeem RPCs"), outpoint.ToString())};
+                }
+            }
             input_bytes = CalculateMaximumSignedInputSize(txout, &wallet, &coin_control);
         } else {
             // The input is external. We did not find the tx in mapWallet.
@@ -392,6 +421,28 @@ CoinsResult AvailableCoins(const CWallet& wallet,
 
             if (wallet.IsLockedCoin(outpoint) && params.skip_locked)
                 continue;
+
+            // CRITICAL FIX: Skip outputs from DigiDollar transactions that are
+            // NOT regular DGB change. DD mint transactions have:
+            //   vout[0] = Collateral (locked DGB, P2TR with timelock - NOT spendable)
+            //   vout[1] = DD token output (0 DGB value)
+            //   vout[2] = OP_RETURN metadata
+            //   vout[3+] = DGB change (spendable)
+            // Only the change output(s) at index >= 3 should be available for
+            // regular DGB coin selection. The collateral is time-locked and must
+            // not be spent until the lock expires via the redemption path.
+            // DD transfer/redeem transactions also have non-spendable DD outputs.
+            if (IsDigiDollarTransaction(*wtx.tx)) {
+                DigiDollarTxType ddType = GetDigiDollarTxType(*wtx.tx);
+                if (ddType == DD_TX_MINT && i < 3) {
+                    // Skip collateral (0), DD token (1), and OP_RETURN (2)
+                    continue;
+                }
+                if ((ddType == DD_TX_TRANSFER || ddType == DD_TX_REDEEM) && output.nValue == 0) {
+                    // Skip 0-value DD token outputs in transfer/redeem TXs
+                    continue;
+                }
+            }
 
             if (wallet.IsSpent(outpoint))
                 continue;

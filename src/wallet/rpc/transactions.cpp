@@ -1,6 +1,7 @@
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
+#include <consensus/digidollar.h>
 #include <core_io.h>
 #include <key_io.h>
 #include <policy/rbf.h>
@@ -770,7 +771,30 @@ RPCHelpMan gettransaction()
     CAmount nCredit = CachedTxGetCredit(*pwallet, wtx, filter);
     CAmount nDebit = CachedTxGetDebit(*pwallet, wtx, filter);
     CAmount nNet = nCredit - nDebit;
-    CAmount nFee = (CachedTxIsFromMe(*pwallet, wtx, filter) ? wtx.tx->GetValueOut() - nDebit : 0);
+    CAmount nFee = 0;
+    if (CachedTxIsFromMe(*pwallet, wtx, filter)) {
+        // Bug #17 fix: For DD redemption transactions, the standard fee calculation
+        // (GetValueOut() - nDebit) is incorrect because IsMine() may not recognize the
+        // collateral P2TR input (NUMS internal key), causing nDebit to exclude the large
+        // collateral amount. Instead, sum ALL input values from mapWallet (bypassing
+        // IsMine) to compute the true miner fee = total_inputs - total_outputs.
+        if (DigiDollar::GetDigiDollarTxType(*wtx.tx) == DD_TX_REDEEM) {
+            CAmount nTotalIn = 0;
+            LOCK(pwallet->cs_wallet);
+            for (const auto& txin : wtx.tx->vin) {
+                auto mi = pwallet->mapWallet.find(txin.prevout.hash);
+                if (mi != pwallet->mapWallet.end()) {
+                    const CWalletTx& prev = mi->second;
+                    if (txin.prevout.n < prev.tx->vout.size()) {
+                        nTotalIn += prev.tx->vout[txin.prevout.n].nValue;
+                    }
+                }
+            }
+            nFee = wtx.tx->GetValueOut() - nTotalIn; // Negative = fee paid
+        } else {
+            nFee = wtx.tx->GetValueOut() - nDebit;
+        }
+    }
 
     entry.pushKV("amount", ValueFromAmount(nNet - nFee));
     if (CachedTxIsFromMe(*pwallet, wtx, filter))

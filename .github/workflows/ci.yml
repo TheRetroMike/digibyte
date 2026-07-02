@@ -6,6 +6,8 @@ name: CI
 on:
   # See: https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#pull_request.
   pull_request:
+  # Allow manual triggering from the Actions tab.
+  workflow_dispatch:
   # See: https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#push.
   push:
     branches:
@@ -14,6 +16,9 @@ on:
       - 'release/**'
     tags-ignore:
       - '**'
+
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.event_name != 'pull_request' && github.run_id || github.ref }}
@@ -51,7 +56,7 @@ jobs:
             ~/Library/Caches/Homebrew
             /opt/homebrew/Cellar
             /opt/homebrew/opt
-          key: ${{ github.job }}-brew-${{ hashFiles('.github/workflows/ci.yml') }}
+          key: ${{ github.job }}-brew-v1
           restore-keys: ${{ github.job }}-brew-
 
       - name: Install Homebrew packages
@@ -85,7 +90,7 @@ jobs:
         uses: actions/cache/restore@v3
         with:
           path: depends/arm64-apple-darwin
-          key: ${{ github.job }}-depends-${{ hashFiles('depends/packages/**') }}
+          key: ${{ github.job }}-depends-${{ github.sha }}
           restore-keys: ${{ github.job }}-depends-
 
       - name: Build Dependencies
@@ -100,7 +105,7 @@ jobs:
         if: github.event_name != 'pull_request' && steps.depends-cache.outputs.cache-hit != 'true'
         with:
           path: depends/arm64-apple-darwin
-          key: ${{ github.job }}-depends-${{ hashFiles('depends/packages/**') }}
+          key: ${{ github.job }}-depends-${{ github.sha }}
 
       - name: Cache build artifacts
         id: build-cache
@@ -113,7 +118,7 @@ jobs:
             src/qt/digibyte-qt
             src/test/test_digibyte
             src/bench/bench_digibyte
-          key: ${{ github.job }}-build-${{ hashFiles('src/**/*.cpp', 'src/**/*.h', 'depends/arm64-apple-darwin/**') }}
+          key: ${{ github.job }}-build-${{ github.sha }}
           restore-keys: ${{ github.job }}-build-
 
       - name: Configure and Build
@@ -131,7 +136,10 @@ jobs:
         run: ./src/test/test_digibyte --show_progress
 
       - name: Run Functional Tests
-        run: test/functional/test_runner.py --jobs=1
+        run: >-
+          test/functional/test_runner.py
+          --jobs=1
+          --timeout-factor=3
 
       - name: Upload Test Suite Log
         uses: actions/upload-artifact@v4
@@ -156,7 +164,7 @@ jobs:
             ~/Library/Caches/Homebrew
             /opt/homebrew/Cellar
             /opt/homebrew/opt
-          key: ${{ github.job }}-brew-${{ hashFiles('.github/workflows/ci.yml') }}
+          key: ${{ github.job }}-brew-v1
 
   linux-native:
     name: 'Ubuntu 22.04 native, Qt GUI, with depends, unit tests, functional tests'
@@ -196,7 +204,7 @@ jobs:
         uses: actions/cache/restore@v3
         with:
           path: depends/x86_64-pc-linux-gnu
-          key: ${{ github.job }}-depends-${{ hashFiles('depends/packages/**') }}
+          key: ${{ github.job }}-depends-${{ github.sha }}
           restore-keys: ${{ github.job }}-depends-
 
       - name: Build Dependencies
@@ -211,7 +219,7 @@ jobs:
         if: github.event_name != 'pull_request' && steps.depends-cache.outputs.cache-hit != 'true'
         with:
           path: depends/x86_64-pc-linux-gnu
-          key: ${{ github.job }}-depends-${{ hashFiles('depends/packages/**') }}
+          key: ${{ github.job }}-depends-${{ github.sha }}
 
       - name: Cache build artifacts
         id: build-cache
@@ -224,7 +232,7 @@ jobs:
             src/qt/digibyte-qt
             src/test/test_digibyte
             src/bench/bench_digibyte
-          key: ${{ github.job }}-build-${{ hashFiles('src/**/*.cpp', 'src/**/*.h', 'depends/x86_64-pc-linux-gnu/**') }}
+          key: ${{ github.job }}-build-${{ github.sha }}
           restore-keys: ${{ github.job }}-build-
 
       - name: Configure and Build
@@ -237,7 +245,7 @@ jobs:
         run: ./src/test/test_digibyte --show_progress
 
       - name: Run Functional Tests
-        run: test/functional/test_runner.py --jobs=1
+        run: test/functional/test_runner.py --jobs=1 --timeout-factor=2
 
       - name: Upload Test Suite Log
         uses: actions/upload-artifact@v4

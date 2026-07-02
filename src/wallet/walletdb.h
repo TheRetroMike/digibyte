@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef DIGIBYTE_WALLET_WALLETDB_H
@@ -19,6 +19,10 @@ class CScript;
 class uint160;
 class uint256;
 struct CBlockLocator;
+struct DDTransaction;
+struct WalletCollateralPosition;
+struct WalletDDBalance;
+struct CDigiDollarOutput;
 
 namespace wallet {
 class CKeyPool;
@@ -88,6 +92,19 @@ extern const std::string WALLETDESCRIPTORCKEY;
 extern const std::string WALLETDESCRIPTORKEY;
 extern const std::string WATCHMETA;
 extern const std::string WATCHS;
+
+// DigiDollar database keys
+extern const std::string DD_POSITION;              // "ddposition" - DDTimeLocks (time-locked DGB backing DigiDollars)
+extern const std::string DD_TRANSACTION;           // "ddtx"       - DD transaction history
+extern const std::string DD_BALANCE;               // "ddbalance"  - DD balance per address
+extern const std::string DD_OUTPUT;                // "ddutxo"     - DD UTXO tracking
+extern const std::string DD_METADATA;              // "ddmeta"     - DD wallet metadata
+extern const std::string DD_ADDRESS_KEY;           // "ddaddrkey"  - DD address keys for received tokens (plaintext)
+extern const std::string DD_OWNER_KEY;             // "ddownerkey" - DD owner keys for minted tokens (plaintext)
+extern const std::string DD_CRYPTED_ADDRESS_KEY;   // "ddcaddrkey" - encrypted DD address keys
+extern const std::string DD_CRYPTED_OWNER_KEY;     // "ddcownerkey" - encrypted DD owner keys
+extern const std::string ORACLE_KEY;               // "oraclekey"  - Oracle private keys by oracle_id
+extern const std::string ORACLE_CRYPTED_KEY;       // "oracleckey" - encrypted Oracle private keys by oracle_id
 
 // Keys in this set pertain only to the legacy wallet (LegacyScriptPubKeyMan) and are removed during migration from legacy to descriptors.
 extern const std::unordered_set<std::string> LEGACY_TYPES;
@@ -266,6 +283,73 @@ public:
     bool WriteLockedUTXO(const COutPoint& output);
     bool EraseLockedUTXO(const COutPoint& output);
 
+    // DigiDollar UTXO persistence methods (Fix #5)
+    bool WriteDDUTXO(const COutPoint& outpoint, const CAmount& dd_amount);
+    bool ReadDDUTXO(const COutPoint& outpoint, CAmount& dd_amount);
+    bool EraseDDUTXO(const COutPoint& outpoint);
+
+    // DigiDollar persistence write methods
+    bool WriteDDTimeLock(const WalletCollateralPosition& position);
+    bool WriteDDTransaction(const DDTransaction& ddtx);
+    bool WriteDDBalance(const std::string& address, const WalletDDBalance& balance);
+    bool WriteDDOutput(const uint256& output_id, const CDigiDollarOutput& output);
+    bool WriteDDMetadata(const std::string& key, const std::string& value);
+
+    // DigiDollar persistence read methods
+    bool ReadDDTimeLock(const uint256& dd_timelock_id, WalletCollateralPosition& position);
+    bool ReadDDTransaction(const uint256& txid, DDTransaction& ddtx);
+    bool ReadDDBalance(const std::string& address, WalletDDBalance& balance);
+    bool ReadDDOutput(const uint256& output_id, CDigiDollarOutput& output);
+    bool ReadDDMetadata(const std::string& key, std::string& value);
+
+    // DigiDollar persistence erase methods
+    bool EraseDDTimeLock(const uint256& dd_timelock_id);
+    bool EraseDDTransaction(const uint256& txid);
+    bool EraseDDBalance(const std::string& address);
+    bool EraseDDOutput(const uint256& output_id);
+
+    // DigiDollar address key persistence (for received DD tokens)
+    bool WriteDDAddressKey(const std::array<unsigned char, 32>& output_key, const CKey& key);
+    bool ReadDDAddressKey(const std::array<unsigned char, 32>& output_key, CKey& key);
+    bool EraseDDAddressKey(const std::array<unsigned char, 32>& output_key);
+
+    // DigiDollar owner key persistence (for minted DD token vault redemption)
+    bool WriteDDOwnerKey(const uint256& dd_timelock_id, const CKey& key);
+    bool ReadDDOwnerKey(const uint256& dd_timelock_id, CKey& key);
+    bool EraseDDOwnerKey(const uint256& dd_timelock_id);
+
+    // Encrypted DigiDollar address key persistence (T4-03a: wallet encryption support)
+    bool WriteCryptedDDAddressKey(const std::array<unsigned char, 32>& output_key,
+                                  const CPubKey& pubkey,
+                                  const std::vector<unsigned char>& vchCryptedSecret);
+    bool ReadCryptedDDAddressKey(const std::array<unsigned char, 32>& output_key,
+                                  CPubKey& pubkey,
+                                  std::vector<unsigned char>& vchCryptedSecret);
+    bool EraseCryptedDDAddressKey(const std::array<unsigned char, 32>& output_key);
+
+    // Encrypted DigiDollar owner key persistence (T4-03a: wallet encryption support)
+    bool WriteCryptedDDOwnerKey(const uint256& dd_timelock_id,
+                                const CPubKey& pubkey,
+                                const std::vector<unsigned char>& vchCryptedSecret);
+    bool ReadCryptedDDOwnerKey(const uint256& dd_timelock_id,
+                                CPubKey& pubkey,
+                                std::vector<unsigned char>& vchCryptedSecret);
+    bool EraseCryptedDDOwnerKey(const uint256& dd_timelock_id);
+
+    // Oracle key persistence
+    bool WriteOracleKey(uint32_t oracle_id, const CKey& key);
+    bool HasOracleKey(uint32_t oracle_id);
+    bool ReadOracleKey(uint32_t oracle_id, CKey& key);
+    bool EraseOracleKey(uint32_t oracle_id);
+    bool WriteCryptedOracleKey(uint32_t oracle_id,
+                               const CPubKey& pubkey,
+                               const std::vector<unsigned char>& vchCryptedSecret);
+    bool HasCryptedOracleKey(uint32_t oracle_id);
+    bool ReadCryptedOracleKey(uint32_t oracle_id,
+                              CPubKey& pubkey,
+                              std::vector<unsigned char>& vchCryptedSecret);
+    bool EraseCryptedOracleKey(uint32_t oracle_id);
+
     bool WriteAddressPreviouslySpent(const CTxDestination& dest, bool previously_spent);
     bool WriteAddressReceiveRequest(const CTxDestination& dest, const std::string& id, const std::string& receive_request);
     bool EraseAddressReceiveRequest(const CTxDestination& dest, const std::string& id);
@@ -291,6 +375,10 @@ public:
     bool TxnCommit();
     //! Abort current transaction
     bool TxnAbort();
+
+    //! Get database cursor for iteration
+    std::unique_ptr<DatabaseCursor> GetNewCursor() { return m_batch->GetNewCursor(); }
+
 private:
     std::unique_ptr<DatabaseBatch> m_batch;
     WalletDatabase& m_database;

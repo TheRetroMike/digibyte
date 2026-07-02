@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <chainparams.h>
@@ -22,6 +22,10 @@ const std::vector<std::shared_ptr<CBlock>>* g_chain;
 
 void initialize_chain()
 {
+    // DigiByte: SelectParams must be called before CreateBlockChain because
+    // the free function GetPoWAlgoHash() calls Params() internally to get
+    // consensus params for multi-algo PoW hash selection.
+    SelectParams(ChainType::REGTEST);
     const auto params{CreateChainParams(ArgsManager{}, ChainType::REGTEST)};
     static const auto chain{CreateBlockChain(2 * COINBASE_MATURITY, *params)};
     g_chain = &chain;

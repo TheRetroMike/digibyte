@@ -370,12 +370,19 @@ class DigiByteMultiAlgoTest(DigiByteTestFramework):
         # Should use default algorithm (scrypt)
         assert_equal(block['pow_algo'], 'scrypt')
 
+    def test_getmininginfo_difficulty_algorithm(self):
+        """Regression test for issue #346: difficulty field must match current algorithm."""
+        self.log.info("Testing getmininginfo difficulty matches current algorithm (issue #346)...")
+
+        info = self.nodes[0].getmininginfo()
+        assert_equal(info['difficulty'], info['difficulties'][info['pow_algo']])
+
     def test_mining_info_comprehensive(self):
         """Comprehensive test of getmininginfo output."""
         self.log.info("Testing comprehensive getmininginfo output...")
-        
+
         node = self.nodes[0]
-        
+
         # Get mining info
         info = node.getmininginfo()
         
@@ -437,11 +444,14 @@ class DigiByteMultiAlgoTest(DigiByteTestFramework):
         
         # Test 7: Comprehensive mining info
         self.test_mining_info_comprehensive()
-        
-        # Test 8: Difficulty adjustment
+
+        # Test 8: getmininginfo difficulty matches algorithm (issue #346 regression test)
+        self.test_getmininginfo_difficulty_algorithm()
+
+        # Test 9: Difficulty adjustment
         self.test_difficulty_adjustment()
-        
-        # Test 9: Odocrypt activation (if height permits)
+
+        # Test 10: Odocrypt activation (if height permits)
         if ODOCRYPT_HEIGHT < 1000:  # Only test if reasonable for regtest
             self.test_odocrypt_activation()
         

@@ -1,0 +1,127 @@
+// Copyright (c) 2026 The DigiByte Core developers
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
+#include <boost/test/unit_test.hpp>
+
+#include <key.h>
+#include <test/util/setup_common.h>
+#include <uint256.h>
+#include <util/strencodings.h>
+#include <wallet/digidollarwallet.h>
+#include <wallet/test/util.h>
+#include <wallet/test/wallet_test_fixture.h>
+#include <wallet/wallet.h>
+
+#include <fstream>
+#include <iterator>
+#include <string>
+#include <vector>
+
+BOOST_FIXTURE_TEST_SUITE(digidollar_wallet_hd_tests, wallet::WalletTestingSetup)
+
+namespace {
+
+std::string ReadRepoFile(const std::vector<std::string>& candidates)
+{
+    for (const std::string& path : candidates) {
+        std::ifstream in(path);
+        if (in) {
+            return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+        }
+    }
+    BOOST_FAIL("could not read repository source file for Qt/RPC wallet-path test");
+    return {};
+}
+
+} // namespace
+
+BOOST_AUTO_TEST_CASE(wave1_qt_and_rpc_mint_paths_use_hd_owner_derivation)
+{
+    const std::string qt_source = ReadRepoFile({"src/qt/walletmodel.cpp", "qt/walletmodel.cpp"});
+    const std::string rpc_source = ReadRepoFile({"src/rpc/digidollar.cpp", "rpc/digidollar.cpp"});
+
+    BOOST_CHECK_NE(qt_source.find("GetHDKeyForDigiDollar(\"dd-owner\")"), std::string::npos);
+    BOOST_CHECK_NE(rpc_source.find("GetHDKeyForDigiDollar(\"dd-owner\")"), std::string::npos);
+}
+
+BOOST_AUTO_TEST_CASE(wave1_qt_persists_owner_key_before_broadcast)
+{
+    const std::string qt_source = ReadRepoFile({"src/qt/walletmodel.cpp", "qt/walletmodel.cpp"});
+
+    const size_t mint_pos = qt_source.find("WalletModel::mintDigiDollar");
+    BOOST_REQUIRE_NE(mint_pos, std::string::npos);
+    const size_t next_method_pos = qt_source.find("\nWalletModel::", mint_pos + 1);
+    const std::string mint_source = next_method_pos == std::string::npos
+        ? qt_source.substr(mint_pos)
+        : qt_source.substr(mint_pos, next_method_pos - mint_pos);
+
+    const size_t commit_pos = mint_source.find("CommitTransaction(txRef");
+    const size_t store_pos = mint_source.find("StoreOwnerKey(positionId, ownerKey)");
+
+    BOOST_REQUIRE_NE(commit_pos, std::string::npos);
+    BOOST_REQUIRE_NE(store_pos, std::string::npos);
+    BOOST_CHECK_MESSAGE(store_pos < commit_pos,
+        "Qt mint path stores DD owner key after broadcast; StoreOwnerKey offset="
+        << store_pos << " commitTransaction offset=" << commit_pos);
+}
+
+BOOST_AUTO_TEST_CASE(wave1_non_hd_wallet_fails_clearly_for_dd_owner_key)
+{
+    wallet::CWallet non_hd_wallet(m_node.chain.get(), "wave1-non-hd", wallet::CreateMockableWalletDatabase());
+    non_hd_wallet.LoadWallet();
+    non_hd_wallet.SetWalletFlag(wallet::WALLET_FLAG_DISABLE_PRIVATE_KEYS);
+
+    CKey owner_key;
+    {
+        LOCK(non_hd_wallet.cs_wallet);
+        owner_key = non_hd_wallet.GetHDKeyForDigiDollar("dd-owner");
+    }
+
+    BOOST_CHECK_MESSAGE(!owner_key.IsValid(),
+        "non-HD/private-key-disabled wallet produced a random valid DD owner key instead of failing clearly");
+}
+
+BOOST_AUTO_TEST_CASE(wave1_legacy_wallet_dd_owner_derivation_is_unreachable)
+{
+    const std::string wallet_source = ReadRepoFile({"src/wallet/wallet.cpp", "wallet/wallet.cpp"});
+    const size_t helper_pos = wallet_source.find("CKey CWallet::GetHDKeyForDigiDollar");
+    BOOST_REQUIRE_NE(helper_pos, std::string::npos);
+    const size_t helper_end = wallet_source.find("\n}", helper_pos);
+    BOOST_REQUIRE_NE(helper_end, std::string::npos);
+    const std::string helper_source = wallet_source.substr(helper_pos, helper_end - helper_pos);
+
+    const size_t descriptor_guard = helper_source.find("!IsWalletFlagSet(WALLET_FLAG_DESCRIPTORS)");
+    const size_t legacy_fallback = helper_source.find("LegacyScriptPubKeyMan");
+    BOOST_REQUIRE_NE(descriptor_guard, std::string::npos);
+    BOOST_REQUIRE_NE(legacy_fallback, std::string::npos);
+    BOOST_CHECK_MESSAGE(descriptor_guard < legacy_fallback,
+        "DigiDollar owner/address derivation can still reach a legacy wallet key fallback");
+}
+
+BOOST_AUTO_TEST_CASE(wave1_persisted_qt_minted_owner_key_recovers_after_wallet_reload)
+{
+    m_wallet.EnsureDDWallet();
+    DigiDollarWallet* dd_wallet = m_wallet.GetDDWallet();
+    BOOST_REQUIRE(dd_wallet != nullptr);
+
+    const uint256 position_id = uint256S("00000000000000000000000000000000000000000000000000000000dd000001");
+    CKey owner_key;
+    owner_key.MakeNewKey(true);
+    dd_wallet->StoreOwnerKey(position_id, owner_key);
+
+    auto restored_db = wallet::DuplicateMockDatabase(m_wallet.GetDatabase());
+    wallet::CWallet restored_wallet(m_node.chain.get(), "wave1-restored", std::move(restored_db));
+    restored_wallet.LoadWallet();
+    restored_wallet.EnsureDDWallet();
+
+    DigiDollarWallet* restored_dd_wallet = restored_wallet.GetDDWallet();
+    BOOST_REQUIRE(restored_dd_wallet != nullptr);
+    BOOST_CHECK_GE(restored_dd_wallet->LoadDDOwnerKeys(), 1U);
+
+    CKey recovered_key;
+    BOOST_REQUIRE(restored_dd_wallet->GetOwnerKey(position_id, recovered_key));
+    BOOST_CHECK(recovered_key.GetPubKey() == owner_key.GetPubKey());
+}
+
+BOOST_AUTO_TEST_SUITE_END()

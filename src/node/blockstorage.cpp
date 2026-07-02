@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <node/blockstorage.h>
@@ -333,7 +333,12 @@ CBlockIndex* BlockManager::AddToBlockIndex(const CBlockHeader& block, CBlockInde
     // Use memcpy to copy the entire array at once.
     if (pindexNew->pprev) {
         memcpy(pindexNew->lastAlgoBlocks, pindexNew->pprev->lastAlgoBlocks, sizeof(pindexNew->lastAlgoBlocks));
-        pindexNew->lastAlgoBlocks[pindexNew->GetAlgo()] = pindexNew;
+        // DGB-BUG-011 FIX: Check bounds before array access to prevent crash
+        // when GetAlgo() returns ALGO_UNKNOWN (-1) for unrecognized block versions
+        int algo = pindexNew->GetAlgo();
+        if (algo >= 0 && algo < NUM_ALGOS_IMPL) {
+            pindexNew->lastAlgoBlocks[algo] = pindexNew;
+        }
     }
     pindexNew->nTimeMax = (pindexNew->pprev ? std::max(pindexNew->pprev->nTimeMax, pindexNew->nTime) : pindexNew->nTime);
     pindexNew->nChainWork = (pindexNew->pprev ? pindexNew->pprev->nChainWork : 0) + GetBlockProof(*pindexNew);
@@ -564,7 +569,12 @@ bool BlockManager::LoadBlockIndex(const std::optional<uint256>& snapshot_blockha
         // Use memcpy to copy the entire array at once.
         if (pindex->pprev) {
             memcpy(pindex->lastAlgoBlocks, pindex->pprev->lastAlgoBlocks, sizeof(pindex->lastAlgoBlocks));
-            pindex->lastAlgoBlocks[pindex->GetAlgo()] = pindex;
+            // DGB-BUG-011 FIX: Check bounds before array access to prevent crash
+            // when GetAlgo() returns ALGO_UNKNOWN (-1) for unrecognized block versions
+            int algo = pindex->GetAlgo();
+            if (algo >= 0 && algo < NUM_ALGOS_IMPL) {
+                pindex->lastAlgoBlocks[algo] = pindex;
+            }
         }
         pindex->nChainWork = (pindex->pprev ? pindex->pprev->nChainWork : 0) + GetBlockProof(*pindex);
         pindex->nTimeMax = (pindex->pprev ? std::max(pindex->pprev->nTimeMax, pindex->nTime) : pindex->nTime);
@@ -1157,7 +1167,6 @@ bool BlockManager::WriteUndoDataForBlock(const CBlockUndo& blockundo, BlockValid
 
 bool BlockManager::ReadBlockFromDisk(CBlock& block, const FlatFilePos& pos) const
 {
-    LogPrintf("ReadBlockFromDisk: Called with pos=%s\n", pos.ToString());
     block.SetNull();
 
     // Open history file to read

@@ -1,5 +1,5 @@
 // Copyright (c) 2011-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <qt/guiutil.h>
@@ -51,6 +51,7 @@
 #include <QFontDatabase>
 #include <QFontMetrics>
 #include <QGuiApplication>
+#include <QHelpEvent>
 #include <QJsonObject>
 #include <QKeyEvent>
 #include <QKeySequence>
@@ -70,7 +71,9 @@
 #include <QStandardPaths>
 #include <QString>
 #include <QTextDocument> // for Qt::mightBeRichText
+#include <QTextDocumentFragment>
 #include <QThread>
+#include <QToolTip>
 #include <QUrlQuery>
 #include <QtGlobal>
 
@@ -92,6 +95,36 @@ using namespace std::chrono_literals;
 
 
 namespace GUIUtil {
+
+namespace {
+QString StyledToolTipHtml(const QString& tooltip)
+{
+    return QStringLiteral("<div style='color: #000000; background-color: #ffffdc; padding: 4px;'>%1</div>")
+        .arg(TooltipToHtml(tooltip));
+}
+
+bool ShowStyledTooltip(QWidget* widget, QHelpEvent* event, const QString& tooltip)
+{
+    if (tooltip.isEmpty()) return false;
+    QToolTip::showText(event->globalPos(), StyledToolTipHtml(tooltip), widget);
+    return true;
+}
+
+bool ShowItemViewTooltip(QWidget* widget, QHelpEvent* event)
+{
+    QAbstractItemView* view = qobject_cast<QAbstractItemView*>(widget);
+    if (!view && widget->parentWidget()) {
+        view = qobject_cast<QAbstractItemView*>(widget->parentWidget());
+    }
+    if (!view || !view->viewport()) return false;
+
+    const QPoint viewport_pos = view->viewport()->mapFromGlobal(event->globalPos());
+    const QModelIndex index = view->indexAt(viewport_pos);
+    if (!index.isValid()) return false;
+
+    return ShowStyledTooltip(view, event, index.data(Qt::ToolTipRole).toString());
+}
+} // namespace
 
 QString dateTimeStr(const QDateTime &date)
 {
@@ -260,6 +293,21 @@ QString HtmlEscape(const QString& str, bool fMultiLine)
 QString HtmlEscape(const std::string& str, bool fMultiLine)
 {
     return HtmlEscape(QString::fromStdString(str), fMultiLine);
+}
+
+QString TooltipToHtml(const QString& tooltip)
+{
+    static const QRegularExpression qtEnvelope(
+        QStringLiteral(R"(^\s*<qt[^>]*>(.*)</qt>\s*$)"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    const QRegularExpressionMatch match = qtEnvelope.match(tooltip);
+    if (match.hasMatch()) {
+        return HtmlEscape(QTextDocumentFragment::fromHtml(match.captured(1)).toPlainText(), true);
+    }
+    if (tooltip.trimmed().startsWith(QLatin1Char('<')) && Qt::mightBeRichText(tooltip)) {
+        return HtmlEscape(QTextDocumentFragment::fromHtml(tooltip).toPlainText(), true);
+    }
+    return HtmlEscape(tooltip, true);
 }
 
 void copyEntryData(const QAbstractItemView *view, int column, int role)
@@ -469,6 +517,15 @@ ToolTipToRichTextFilter::ToolTipToRichTextFilter(int _size_threshold, QObject *p
 
 bool ToolTipToRichTextFilter::eventFilter(QObject *obj, QEvent *evt)
 {
+    if (evt->type() == QEvent::ToolTip) {
+        QWidget* widget = qobject_cast<QWidget*>(obj);
+        if (widget) {
+            QHelpEvent* help_event = static_cast<QHelpEvent*>(evt);
+            if (ShowItemViewTooltip(widget, help_event)) return true;
+            if (ShowStyledTooltip(widget, help_event, widget->toolTip())) return true;
+        }
+    }
+
     if(evt->type() == QEvent::ToolTipChange)
     {
         QWidget *widget = static_cast<QWidget*>(obj);

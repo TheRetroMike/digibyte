@@ -19,8 +19,10 @@ from test_framework.wallet import MiniWallet
 class MerkleBlockTest(DigiByteTestFramework):
     def set_test_params(self):
         self.num_nodes = 2
+        # DigiByte defaults -txindex on; node 0 is the "no txindex" node this test uses to
+        # check that a proof can't be fetched without -txindex, so disable it explicitly.
         self.extra_args = [
-            ["-dandelion=0"],
+            ["-txindex=0", "-dandelion=0"],
             ["-txindex", "-dandelion=0"],
         ]
 

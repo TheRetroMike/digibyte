@@ -9,6 +9,7 @@ between a node running the coinstatsindex and a node without
 the index.
 """
 
+import socket
 from decimal import Decimal
 
 from test_framework.blocktools import (
@@ -29,6 +30,9 @@ from test_framework.test_framework import DigiByteTestFramework
 from test_framework.util import (
     assert_equal,
     assert_raises_rpc_error,
+    p2p_port,
+    rpc_port,
+    PortSeed,
 )
 from test_framework.wallet import (
     MiniWallet,
@@ -41,10 +45,57 @@ class CoinStatsIndexTest(DigiByteTestFramework):
         self.setup_clean_chain = True
         self.num_nodes = 2
         self.supports_cli = False
+        self.rpc_timeout = 900  # Needs extra time for reindexing under parallel load
+        self.rpc_host = "::1"
+        self.rpc_args = [f"-rpcbind={self.rpc_host}", "-rpcallowip=::1/128"]
+        self.base_args = ["-dandelion=0", "-minrelaytxfee=0.00000001"] + self.rpc_args
         self.extra_args = [
-            ["-dandelion=0", "-minrelaytxfee=0.00000001"],
-            ["-coinstatsindex", "-dandelion=0", "-minrelaytxfee=0.00000001"]
+            self.base_args,
+            ["-coinstatsindex"] + self.base_args
         ]
+
+    def _port_available(self, port, host="127.0.0.1"):
+        """Check if a TCP port is available to bind on loopback."""
+        family = socket.AF_INET6 if ":" in host else socket.AF_INET
+        try:
+            with socket.socket(family, socket.SOCK_STREAM) as s:
+                if family == socket.AF_INET6:
+                    s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+                s.bind((host, port))
+            return True
+        except OSError:
+            return False
+
+    def setup_nodes(self):
+        """Check that assigned ports are free; bump PortSeed if not.
+
+        When running in parallel, the assigned RPC/P2P ports may collide with
+        other services on the machine.  Detect this early and shift to a free
+        port range so the nodes can actually start.
+        """
+        original_seed = PortSeed.n
+        for attempt in range(50):
+            ports_ok = True
+            for i in range(self.num_nodes):
+                if not self._port_available(rpc_port(i), self.rpc_host) or not self._port_available(p2p_port(i)):
+                    ports_ok = False
+                    break
+            if ports_ok:
+                break
+            # Try next seed
+            PortSeed.n = original_seed + attempt + 1
+            self.log.info(f"Port conflict detected, trying PortSeed {PortSeed.n}")
+        else:
+            self.log.warning("Could not find free port range after 50 attempts")
+
+        if PortSeed.n != original_seed:
+            # Re-initialize datadir configs with new ports
+            from test_framework.util import initialize_datadir
+            for i in range(self.num_nodes):
+                initialize_datadir(self.options.tmpdir, i, self.chain, self.disable_autoconnect)
+
+        self.add_nodes(self.num_nodes, self.extra_args, rpchost=self.rpc_host)
+        self.start_nodes()
 
     def run_test(self):
         self.wallet = MiniWallet(self.nodes[0])
@@ -62,7 +113,7 @@ class CoinStatsIndexTest(DigiByteTestFramework):
         )
 
     def sync_index_node(self):
-        self.wait_until(lambda: self.nodes[1].getindexinfo()['coinstatsindex']['synced'] is True)
+        self.wait_until(lambda: self.nodes[1].getindexinfo()['coinstatsindex']['synced'] is True, timeout=900)
 
     def _test_coin_stats_index(self):
         node = self.nodes[0]
@@ -230,14 +281,14 @@ class CoinStatsIndexTest(DigiByteTestFramework):
 
         self.log.info("Test that the index works with -reindex")
 
-        self.restart_node(1, extra_args=["-coinstatsindex", "-reindex"])
+        self.restart_node(1, extra_args=["-coinstatsindex", "-reindex"] + self.base_args)
         self.sync_index_node()
         res11 = index_node.gettxoutsetinfo('muhash')
         assert_equal(res11, res10)
 
         self.log.info("Test that the index works with -reindex-chainstate")
 
-        self.restart_node(1, extra_args=["-coinstatsindex", "-reindex-chainstate"])
+        self.restart_node(1, extra_args=["-coinstatsindex", "-reindex-chainstate"] + self.base_args)
         self.sync_index_node()
         res12 = index_node.gettxoutsetinfo('muhash')
         assert_equal(res12, res10)
@@ -307,7 +358,7 @@ class CoinStatsIndexTest(DigiByteTestFramework):
         self.sync_index_node()
 
         # Restart without index
-        self.restart_node(1, extra_args=[])
+        self.restart_node(1, extra_args=self.base_args)
         self.connect_nodes(0, 1)
         index_node.invalidateblock(block)
         self.generatetoaddress(index_node, 5, getnewdestination()[2])

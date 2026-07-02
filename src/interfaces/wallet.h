@@ -1,5 +1,5 @@
 // Copyright (c) 2018-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef DIGIBYTE_INTERFACES_WALLET_H
@@ -28,6 +28,7 @@
 
 class CFeeRate;
 class CKey;
+class DigiDollarWallet;
 enum class FeeReason;
 enum class OutputType;
 enum class TransactionError;
@@ -314,6 +315,9 @@ public:
 
     //! Return pointer to internal wallet class, useful for testing.
     virtual wallet::CWallet* wallet() { return nullptr; }
+
+    //! Get DigiDollar wallet instance
+    virtual class DigiDollarWallet* getDigiDollarWallet() = 0;
 };
 
 //! Wallet chain client that in addition to having chain client methods for

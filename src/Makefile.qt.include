@@ -18,6 +18,7 @@ QT_FORMS_UI = \
   qt/forms/addressbookpage.ui \
   qt/forms/askpassphrasedialog.ui \
   qt/forms/coincontroldialog.ui \
+  qt/forms/digidollarcoincontroldialog.ui \
   qt/forms/createwalletdialog.ui \
   qt/forms/editaddressdialog.ui \
   qt/forms/helpmessagedialog.ui \
@@ -49,6 +50,7 @@ QT_MOC_CPP = \
   qt/moc_clientmodel.cpp \
   qt/moc_coincontroldialog.cpp \
   qt/moc_coincontroltreewidget.cpp \
+  qt/moc_digidollarcoincontroldialog.cpp \
   qt/moc_csvmodelwriter.cpp \
   qt/moc_editaddressdialog.cpp \
   qt/moc_guiutil.cpp \
@@ -88,7 +90,17 @@ QT_MOC_CPP = \
   qt/moc_walletcontroller.cpp \
   qt/moc_walletframe.cpp \
   qt/moc_walletmodel.cpp \
-  qt/moc_walletview.cpp
+  qt/moc_walletview.cpp \
+  qt/moc_digidollartab.cpp \
+  qt/moc_digidollarmintwidget.cpp \
+  qt/moc_digidollaroverviewwidget.cpp \
+  qt/moc_digidollarpositionswidget.cpp \
+  qt/moc_digidollarreceiverequest.cpp \
+  qt/moc_ddaddressbookpage.cpp \
+  qt/moc_digidollarreceivewidget.cpp \
+  qt/moc_digidollarredeemwidget.cpp \
+  qt/moc_digidollarsendwidget.cpp \
+  qt/moc_digidollartransactionswidget.cpp
 
 DIGIBYTE_MM = \
   qt/macdockiconhandler.mm \
@@ -119,6 +131,7 @@ DIGIBYTE_QT_H = \
   qt/clientmodel.h \
   qt/coincontroldialog.h \
   qt/coincontroltreewidget.h \
+  qt/digidollarcoincontroldialog.h \
   qt/createwalletdialog.h \
   qt/csvmodelwriter.h \
   qt/editaddressdialog.h \
@@ -167,7 +180,18 @@ DIGIBYTE_QT_H = \
   qt/walletmodel.h \
   qt/walletmodeltransaction.h \
   qt/walletview.h \
-  qt/winshutdownmonitor.h
+  qt/winshutdownmonitor.h \
+  qt/digidollartab.h \
+  qt/digidollar_qt_translate.h \
+  qt/digidollarmintwidget.h \
+  qt/ddaddressbookpage.h \
+  qt/digidollaroverviewwidget.h \
+  qt/digidollarpositionswidget.h \
+  qt/digidollarreceiverequest.h \
+  qt/digidollarreceivewidget.h \
+  qt/digidollarredeemwidget.h \
+  qt/digidollarsendwidget.h \
+  qt/digidollartransactionswidget.h
 
 QT_RES_FONTS = \
   qt/res/fonts/RobotoMono-Bold.ttf
@@ -255,6 +279,7 @@ DIGIBYTE_QT_WALLET_CPP = \
   qt/askpassphrasedialog.cpp \
   qt/coincontroldialog.cpp \
   qt/coincontroltreewidget.cpp \
+  qt/digidollarcoincontroldialog.cpp \
   qt/createwalletdialog.cpp \
   qt/editaddressdialog.cpp \
   qt/openuridialog.cpp \
@@ -279,7 +304,17 @@ DIGIBYTE_QT_WALLET_CPP = \
   qt/walletframe.cpp \
   qt/walletmodel.cpp \
   qt/walletmodeltransaction.cpp \
-  qt/walletview.cpp
+  qt/walletview.cpp \
+  qt/ddaddressbookpage.cpp \
+  qt/digidollartab.cpp \
+  qt/digidollarmintwidget.cpp \
+  qt/digidollaroverviewwidget.cpp \
+  qt/digidollarpositionswidget.cpp \
+  qt/digidollarreceiverequest.cpp \
+  qt/digidollarreceivewidget.cpp \
+  qt/digidollarredeemwidget.cpp \
+  qt/digidollarsendwidget.cpp \
+  qt/digidollartransactionswidget.cpp
 
 DIGIBYTE_QT_CPP = $(DIGIBYTE_QT_BASE_CPP)
 if TARGET_WINDOWS
@@ -334,7 +369,7 @@ digibyte_qt_ldadd += $(LIBDIGIBYTE_ZMQ) $(ZMQ_LIBS)
 endif
 digibyte_qt_ldadd += $(LIBDIGIBYTE_CLI) $(LIBDIGIBYTE_COMMON) $(LIBDIGIBYTE_UTIL) $(LIBDIGIBYTE_CONSENSUS) $(LIBDIGIBYTE_CRYPTO) $(LIBUNIVALUE) $(LIBLEVELDB) $(LIBMEMENV) \
   $(QT_LIBS) $(QT_DBUS_LIBS) $(QR_LIBS) $(BDB_LIBS) $(MINIUPNPC_LIBS) $(NATPMP_LIBS) $(LIBSECP256K1) \
-  $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(SQLITE_LIBS)
+  $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(SQLITE_LIBS) $(LIBCURL_LIBS)
 digibyte_qt_ldflags = $(RELDFLAGS) $(AM_LDFLAGS) $(QT_LDFLAGS) $(LIBTOOL_APP_LDFLAGS) $(PTHREAD_FLAGS)
 digibyte_qt_libtoolflags = $(AM_LIBTOOLFLAGS) --tag CXX
 

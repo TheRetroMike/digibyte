@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef DIGIBYTE_WALLET_SCRIPTPUBKEYMAN_H
@@ -643,6 +643,9 @@ public:
     bool CanGetAddresses(bool internal = false) const override;
 
     std::unique_ptr<SigningProvider> GetSolvingProvider(const CScript& script) const override;
+
+    //! Get a signing provider that includes private keys for signing (DigiDollar support)
+    std::unique_ptr<FlatSigningProvider> GetSigningProviderWithKeys(const CScript& script) const;
 
     bool CanProvide(const CScript& script, SignatureData& sigdata) override;
 

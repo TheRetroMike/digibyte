@@ -112,9 +112,11 @@ def main():
     test_list_error = list(set(args.target).difference(set(test_list_all)))
     if test_list_error:
         logging.error("Unknown fuzz targets selected: {}".format(test_list_error))
+        sys.exit(1)
     test_list_selection = list(set(test_list_all).intersection(set(args.target)))
     if not test_list_selection:
         logging.error("No fuzz targets selected")
+        sys.exit(1)
     if args.exclude:
         for excluded_target in args.exclude.split(","):
             if excluded_target not in test_list_selection:
@@ -141,7 +143,7 @@ def main():
             logging.info("Please consider adding a fuzz corpus at https://github.com/digibyte-core/qa-assets")
 
     try:
-        help_output = subprocess.run(
+        help_result = subprocess.run(
             args=[
                 os.path.join(config["environment"]["BUILDDIR"], 'src', 'test', 'fuzz', 'fuzz'),
                 '-help=1',
@@ -149,9 +151,11 @@ def main():
             env=get_fuzz_env(target=test_list_selection[0], source_dir=config['environment']['SRCDIR']),
             timeout=20,
             check=False,
+            stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-        ).stderr
+        )
+        help_output = help_result.stdout + help_result.stderr
         using_libfuzzer = "libFuzzer" in help_output
         if (args.generate or args.m_dir) and not using_libfuzzer:
             logging.error("Must be built with libFuzzer")
@@ -331,6 +335,11 @@ def run_once(*, fuzz_pool, corpus, test_list, src_dir, build_dir, using_libfuzze
                     corpus_path,
                 ]
         else:
+            if empty_min_time and empty_dir:
+                logging.error(
+                    "Target \"{}\" has an empty corpus; --empty_min_time requires libFuzzer".format(t)
+                )
+                sys.exit(1)
             args += [corpus_path]
         if use_valgrind:
             args = ['valgrind', '--quiet', '--error-exitcode=1'] + args

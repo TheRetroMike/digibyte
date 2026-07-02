@@ -1,5 +1,5 @@
 // Copyright (c) 2011-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef DIGIBYTE_QT_DIGIBYTEGUI_H
@@ -137,6 +137,7 @@ private:
     QAction* overviewAction = nullptr;
     QAction* historyAction = nullptr;
     QAction* digiDollarAction = nullptr;
+    QAction* m_current_wallet_tab_action = nullptr;
     // Commenting out Mint and Redeem actions as they are not functional yet
     // QAction* mintAction = nullptr;
     // QAction* redeemAction = nullptr;
@@ -219,6 +220,11 @@ private:
     /** Open the OptionsDialog on the specified tab index */
     void openOptionsDialogWithTab(OptionsDialog::Tab tab);
 
+#ifdef ENABLE_WALLET
+    bool confirmDigiDollarExperimentalWarning();
+    void restoreCurrentWalletTabAction();
+#endif
+
 Q_SIGNALS:
     void quitRequested();
     /** Signal raised when a URI was entered or dragged to the GUI */
@@ -289,6 +295,8 @@ public Q_SLOTS:
     void gotoReceiveCoinsPage();
     /** Switch to send coins page */
     void gotoSendCoinsPage(QString addr = "");
+    /** Switch to DigiDollar page */
+    void gotoDigiDollarPage();
 
     /** Show Sign/Verify Message dialog and switch to sign message tab */
     void gotoSignMessageTab(QString addr = "");

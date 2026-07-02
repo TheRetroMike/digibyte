@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 //! @file Public type definitions that are used inside and outside of the wallet
@@ -60,6 +60,7 @@ enum class AddressPurpose {
     RECEIVE,
     SEND,
     REFUND, //!< Never set in current code may be present in older wallet databases
+    DIGIDOLLAR, //!< DigiDollar receive addresses (DD/TD/RD prefix)
 };
 } // namespace wallet
 

@@ -1,5 +1,5 @@
 // Copyright (c) 2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef DIGIBYTE_KERNEL_CHAINSTATEMANAGER_OPTS_H
@@ -20,7 +20,7 @@
 class CChainParams;
 
 static constexpr bool DEFAULT_CHECKPOINTS_ENABLED{true};
-static constexpr auto DEFAULT_MAX_TIP_AGE{24h};
+static constexpr auto DEFAULT_MAX_TIP_AGE{1h};  // Reduced from 24h for faster testnet sync
 
 namespace kernel {
 

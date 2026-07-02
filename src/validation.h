@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef DIGIBYTE_VALIDATION_H
@@ -110,6 +110,13 @@ extern const std::vector<std::string> CHECKLEVEL_DOC;
 void StartScriptCheckWorkerThreads(int threads_num);
 /** Stop all of the script checking worker threads */
 void StopScriptCheckWorkerThreads();
+
+/** Get oracle price for DigiDollar transaction validation.
+ *  @param blockOraclePrice  If > 0, use this deterministic price extracted from the
+ *                           current block's coinbase (ConnectBlock path). Falls back to
+ *                           P2P/mock oracle only when blockOraclePrice is 0 (mempool path).
+ */
+CAmount GetOraclePriceForTransaction(const CTransaction& tx, int nHeight = 0, CAmount blockOraclePrice = 0);
 
 CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams);
 
@@ -698,7 +705,8 @@ public:
         LOCKS_EXCLUDED(::cs_main);
 
     // Block (dis)connection on a given view:
-    DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* pindex, CCoinsViewCache& view)
+    DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* pindex, CCoinsViewCache& view,
+                                     bool fJustCheck = false)
         EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
     bool ConnectBlock(const CBlock& block, BlockValidationState& state, CBlockIndex* pindex,
                       CCoinsViewCache& view, bool fJustCheck = false) EXCLUSIVE_LOCKS_REQUIRED(cs_main);

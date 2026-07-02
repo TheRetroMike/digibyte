@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <consensus/validation.h>
@@ -141,7 +141,7 @@ FUZZ_TARGET(tx_package_eval, .init = initialize_tx_pool)
     std::map<COutPoint, CAmount> outpoints_value;
     for (const auto& outpoint : g_outpoints_coinbase_init_mature) {
         Assert(mempool_outpoints.insert(outpoint).second);
-        outpoints_value[outpoint] = 8000 * COIN;  // DigiByte Period III reward
+        outpoints_value[outpoint] = 72000 * COIN;  // DigiByte Period I reward (heights < 1440 on regtest)
     }
 
     auto outpoints_updater = std::make_shared<OutpointsUpdater>(mempool_outpoints);

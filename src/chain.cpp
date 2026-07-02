@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <chain.h>
@@ -121,15 +121,18 @@ CBlockIndex* CChain::FindEarliestAtLeast(int64_t nTime, int height) const
  */
 int CBlockIndex::GetAlgo() const
 {
-    // For blocks below the multi-algo height, always return ALGO_SCRYPT
-    // This handles early blocks before multi-algo was implemented
-    // Note: This uses mainnet height (145000). For proper chain-specific behavior,
-    // use GetAlgoForBlockIndex() with consensus parameters instead.
-    if (nHeight < 145000) {
-        return ALGO_SCRYPT;
-    }
-
-    // Otherwise, parse from version bits:
+    // Parse algorithm from version bits.
+    // Pre-multi-algo blocks (mainnet <145000, testnet <100) have version bits
+    // that naturally map to BLOCK_VERSION_SCRYPT (algo bits = 0x0000), so no
+    // special height check is needed.
+    //
+    // CRITICAL FIX: Previously this had a hardcoded `if (nHeight < 145000)`
+    // check that forced ALGO_SCRYPT for all blocks below mainnet's multi-algo
+    // height. This broke testnet/regtest where multi-algo activates much earlier
+    // (block 100), causing the lastAlgoBlocks[] index to only track Scrypt.
+    // As a result, GetLastBlockIndexForAlgoFast() returned NULL for all non-Scrypt
+    // algos, and DigiShield V4 fell back to InitialDifficulty (powLimit) every
+    // time — difficulty never adjusted for Qubit, Skein, SHA256D, or Odocrypt.
     switch (nVersion & BLOCK_VERSION_ALGO) {
         case BLOCK_VERSION_SCRYPT:   return ALGO_SCRYPT;
         case BLOCK_VERSION_SHA256D:  return ALGO_SHA256D;
@@ -139,9 +142,10 @@ int CBlockIndex::GetAlgo() const
         case BLOCK_VERSION_ODO:      return ALGO_ODO;
     }
 
-    // If still not recognized:
-    LogPrintf("Warning: block at height=%d has unrecognized nVersion=0x%08x\n", nHeight, nVersion);
-    return ALGO_UNKNOWN;
+    // Unrecognized algo bits — should not happen for valid blocks.
+    // Default to Scrypt as it was the original algorithm on all networks.
+    LogPrintf("Warning: block at height=%d has unrecognized algo bits in nVersion=0x%08x, defaulting to Scrypt\n", nHeight, nVersion);
+    return ALGO_SCRYPT;
 }
 
 // Helper function that uses consensus parameters to determine algorithm correctly for any chain

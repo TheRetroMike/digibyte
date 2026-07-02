@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <script/script.h>
@@ -143,6 +143,13 @@ std::string GetOpName(opcodetype opcode)
 
     // Opcode added by BIP 342 (Tapscript)
     case OP_CHECKSIGADD            : return "OP_CHECKSIGADD";
+
+    // DigiDollar specific opcodes
+    case OP_DIGIDOLLAR             : return "OP_DIGIDOLLAR";
+    case OP_DDVERIFY               : return "OP_DDVERIFY";
+    case OP_CHECKPRICE             : return "OP_CHECKPRICE";
+    case OP_CHECKCOLLATERAL        : return "OP_CHECKCOLLATERAL";
+    case OP_ORACLE                 : return "OP_ORACLE";
 
     case OP_INVALIDOPCODE          : return "OP_INVALIDOPCODE";
 
@@ -335,6 +342,10 @@ bool GetScriptOp(CScriptBase::const_iterator& pc, CScriptBase::const_iterator en
 
 bool IsOpSuccess(const opcodetype& opcode)
 {
+    // BIP342 raw OP_SUCCESSx set. DigiDollar uses 0xbb..0xbf, which are in
+    // this range, as future-upgrade Tapscript opcodes. They remain OP_SUCCESSx
+    // until SCRIPT_VERIFY_DIGIDOLLAR is active; the interpreter applies that
+    // activation flag when deciding whether to short-circuit or execute them.
     return opcode == 80 || opcode == 98 || (opcode >= 126 && opcode <= 129) ||
            (opcode >= 131 && opcode <= 134) || (opcode >= 137 && opcode <= 138) ||
            (opcode >= 141 && opcode <= 142) || (opcode >= 149 && opcode <= 153) ||

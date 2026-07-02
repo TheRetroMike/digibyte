@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 // NOTE: This file is intended to be customised by the end user, and includes only local node policy logic
@@ -10,7 +10,9 @@
 #include <coins.h>
 #include <consensus/amount.h>
 #include <consensus/consensus.h>
+#include <consensus/digidollar.h>
 #include <consensus/validation.h>
+#include <logging.h>
 #include <policy/feerate.h>
 #include <primitives/transaction.h>
 #include <script/interpreter.h>
@@ -22,6 +24,20 @@
 #include <algorithm>
 #include <cstddef>
 #include <vector>
+
+namespace {
+
+bool IsDigiDollarDustExemptOutput(const CTxOut& txout)
+{
+    // DigiDollar token outputs intentionally carry zero DGB value. Ordinary
+    // positive-value DGB outputs in the same DD transaction must still obey
+    // normal dust policy.
+    return txout.nValue == 0 &&
+           txout.scriptPubKey.size() == 34 &&
+           txout.scriptPubKey[0] == OP_1;
+}
+
+} // namespace
 
 CAmount GetDustThreshold(const CTxOut& txout, const CFeeRate& dustRelayFeeIn)
 {
@@ -93,9 +109,23 @@ bool IsStandard(const CScript& scriptPubKey, const std::optional<unsigned>& max_
 
 bool IsStandardTx(const CTransaction& tx, const std::optional<unsigned>& max_datacarrier_bytes, bool permit_bare_multisig, const CFeeRate& dust_relay_fee, std::string& reason)
 {
-    if (tx.nVersion > TX_MAX_STANDARD_VERSION || tx.nVersion < 1) {
+    // Allow DigiDollar transactions with special version markers
+    // Check lower 16 bits for 0x0770 marker (consensus layer format)
+    const bool hasDigiDollarMarker = DigiDollar::HasDigiDollarMarker(tx);
+    const bool isDigiDollar = hasDigiDollarMarker &&
+                              DigiDollar::GetDigiDollarTxType(tx) != DigiDollar::DD_TX_NONE;
+
+    LogPrintf("IsStandardTx: version=%d, isDigiDollar=%d, TX_MAX_STANDARD_VERSION=%d\n",
+              tx.nVersion, isDigiDollar, TX_MAX_STANDARD_VERSION);
+
+    if (!isDigiDollar && (tx.nVersion > TX_MAX_STANDARD_VERSION || tx.nVersion < 1)) {
+        LogPrintf("IsStandardTx: REJECTED - version out of range\n");
         reason = "version";
         return false;
+    }
+
+    if (isDigiDollar) {
+        LogPrintf("IsStandardTx: ALLOWED - DigiDollar transaction detected\n");
     }
 
     // Extremely large transactions with lots of inputs can cost the network
@@ -142,8 +172,13 @@ bool IsStandardTx(const CTransaction& tx, const std::optional<unsigned>& max_dat
             reason = "bare-multisig";
             return false;
         } else if (IsDust(txout, dust_relay_fee)) {
-            reason = "dust";
-            return false;
+            // Skip dust only for zero-value DigiDollar token outputs. Collateral
+            // outputs and ordinary DGB change/payment outputs must still satisfy
+            // the normal DGB dust threshold.
+            if (!isDigiDollar || !IsDigiDollarDustExemptOutput(txout)) {
+                reason = "dust";
+                return false;
+            }
         }
     }
 

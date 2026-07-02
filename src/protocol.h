@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef __cplusplus
@@ -11,6 +11,7 @@
 #include <kernel/messagestartchars.h> // IWYU pragma: export
 #include <netaddress.h>
 #include <primitives/transaction.h>
+#include <primitives/oracle.h>
 #include <serialize.h>
 #include <streams.h>
 #include <uint256.h>
@@ -271,6 +272,37 @@ extern const char* DANDELIONTX;
  * txreconciliation, as described by BIP 330.
  */
 extern const char* SENDTXRCNCL;
+/**
+ * The oracleprice message transmits an oracle price report from a single oracle node.
+ * Part of the DigiDollar Oracle System.
+ */
+extern const char* ORACLEPRICE;
+/**
+ * The oraclebundle message transmits a collection of oracle messages for consensus.
+ * Part of the DigiDollar Oracle System.
+ */
+extern const char* ORACLEBUNDLE;
+/**
+ * The getoracles message requests oracle data from peers.
+ * Part of the DigiDollar Oracle System.
+ */
+extern const char* GETORACLES;
+/**
+ * The oracleconsensus message broadcasts computed consensus values (epoch, price, timestamp)
+ * so remote oracle nodes can sign and attest to the same values.
+ * Part of the DigiDollar Oracle System — Phase 2 Round 2 protocol.
+ */
+extern const char* ORACLECONSENSUS;
+/**
+ * The oracleattestation message carries a single oracle's Schnorr signature
+ * over consensus values (oracle_id, consensus_price, consensus_timestamp).
+ * Part of the DigiDollar Oracle System — Phase 2 Round 2 protocol.
+ */
+extern const char* ORACLEATTESTATION;
+extern const char* ORACLEMUSIGNONCE;
+extern const char* ORACLEMUSIGCONTEXT;
+extern const char* ORACLEMUSIGPARTIALSIG;
+extern const char* ORACLEHEARTBEAT;
 }; // namespace NetMsgType
 
 /* Get a vector of all valid message types (see above) */
@@ -492,6 +524,17 @@ enum GetDataMsg : uint32_t {
     // MSG_FILTERED_WITNESS_BLOCK is defined in BIP144 as reserved for future
     // use and remains unused.
     // MSG_FILTERED_WITNESS_BLOCK = MSG_FILTERED_BLOCK | MSG_WITNESS_FLAG,
+
+    // DigiDollar Oracle Messages
+    MSG_ORACLE_PRICE = 0x40000000,
+    MSG_ORACLE_BUNDLE = 0x40000001,
+    MSG_GET_ORACLE_DATA = 0x40000002,
+    MSG_ORACLE_CONSENSUS = 0x40000003,
+    MSG_ORACLE_ATTESTATION = 0x40000004,
+    MSG_ORACLE_MUSIG_NONCE = 0x40000005,
+    MSG_ORACLE_MUSIG_PARTIALSIG = 0x40000006,
+    MSG_ORACLE_MUSIG_CONTEXT = 0x40000007,
+    MSG_ORACLE_HEARTBEAT = 0x40000008,
 };
 
 /** inv message data */
@@ -529,6 +572,13 @@ public:
     {
         return type == MSG_DANDELION_TX || type == MSG_DANDELION_WITNESS_TX;
     }
+    bool IsOracleMsg() const
+    {
+        return type == MSG_ORACLE_PRICE || type == MSG_ORACLE_BUNDLE || type == MSG_GET_ORACLE_DATA ||
+               type == MSG_ORACLE_CONSENSUS || type == MSG_ORACLE_ATTESTATION ||
+               type == MSG_ORACLE_MUSIG_NONCE || type == MSG_ORACLE_MUSIG_PARTIALSIG ||
+               type == MSG_ORACLE_MUSIG_CONTEXT || type == MSG_ORACLE_HEARTBEAT;
+    }
 
     uint32_t type;
     uint256 hash;
@@ -536,5 +586,155 @@ public:
 
 /** Convert a TX/WITNESS_TX/WTX CInv to a GenTxid. */
 GenTxid ToGenTxid(const CInv& inv);
+
+/**
+ * Oracle Price Message for P2P Network
+ * Wraps COraclePriceMessage for network transmission
+ */
+class OraclePriceMsg
+{
+public:
+    COraclePriceMessage price_message;
+
+    SERIALIZE_METHODS(OraclePriceMsg, obj)
+    {
+        READWRITE(obj.price_message);
+    }
+
+    uint256 GetHash() const;
+};
+
+/**
+ * Oracle Bundle Message for P2P Network
+ * Wraps COracleBundle for network transmission
+ */
+class OracleBundleMsg
+{
+public:
+    COracleBundle bundle;
+    uint256 block_hash; // Block this bundle is for
+
+    SERIALIZE_METHODS(OracleBundleMsg, obj)
+    {
+        READWRITE(obj.bundle);
+        READWRITE(obj.block_hash);
+    }
+
+    uint256 GetHash() const;
+};
+
+/**
+ * Get Oracle Data Message for P2P Network
+ * Request oracle data from peers
+ */
+class GetOracleDataMsg
+{
+public:
+    int32_t epoch;
+    uint32_t oracle_id; // Optional: specific oracle ID, 0xFFFFFFFF for all
+
+    SERIALIZE_METHODS(GetOracleDataMsg, obj)
+    {
+        READWRITE(obj.epoch);
+        READWRITE(obj.oracle_id);
+    }
+};
+
+/**
+ * Oracle Consensus Proposal Message for P2P Network
+ * Broadcasts computed consensus values so remote oracles can attest.
+ * Phase 2 Round 2 protocol — Step 1.
+ */
+class OracleConsensusMsg
+{
+public:
+    int32_t epoch{0};
+    uint64_t consensus_price{0};       // IQR-filtered median price in micro-USD
+    int64_t consensus_timestamp{0};    // Median timestamp from individual messages
+
+    SERIALIZE_METHODS(OracleConsensusMsg, obj)
+    {
+        READWRITE(obj.epoch);
+        READWRITE(obj.consensus_price);
+        READWRITE(obj.consensus_timestamp);
+    }
+
+    uint256 GetHash() const
+    {
+        CHashWriter hasher(0);
+        hasher << std::string{"oracle-consensus-v1"};
+        hasher << epoch;
+        hasher << consensus_price;
+        hasher << consensus_timestamp;
+        return hasher.GetHash();
+    }
+};
+
+/**
+ * Oracle Attestation Message for P2P Network
+ * Carries a single oracle's Schnorr signature over consensus values.
+ * Phase 2 Round 2 protocol — Step 2.
+ */
+class OracleAttestationMsg
+{
+public:
+    COraclePriceMessage attestation;  // price_micro_usd = consensus_price, timestamp = consensus_timestamp
+
+    SERIALIZE_METHODS(OracleAttestationMsg, obj)
+    {
+        READWRITE(obj.attestation);
+    }
+
+    uint256 GetHash() const
+    {
+        CHashWriter hasher(0);
+        hasher << std::string{"oracle-attestation-v1"};
+        hasher << attestation.oracle_id;
+        hasher << attestation.price_micro_usd;
+        hasher << attestation.timestamp;
+        hasher << attestation.schnorr_sig;
+        return hasher.GetHash();
+    }
+};
+
+class OracleVersionHeartbeatMsg
+{
+public:
+    uint8_t heartbeat_version{1};
+    uint32_t oracle_id{0};
+    int64_t timestamp{0};
+    uint64_t nonce{0};
+    int32_t client_version{0};
+    int32_t p2p_protocol_version{0};
+    uint8_t oracle_protocol_version{1};
+    uint8_t musig2_context_version{0};
+    std::string software_version;
+    std::string subversion;
+    std::vector<unsigned char> signature;
+
+    SERIALIZE_METHODS(OracleVersionHeartbeatMsg, obj)
+    {
+        READWRITE(obj.heartbeat_version, obj.oracle_id, obj.timestamp, obj.nonce,
+                  obj.client_version, obj.p2p_protocol_version,
+                  obj.oracle_protocol_version, obj.musig2_context_version,
+                  LIMITED_STRING(obj.software_version, 128),
+                  LIMITED_STRING(obj.subversion, 128),
+                  obj.signature);
+    }
+
+    bool IsValid() const
+    {
+        return heartbeat_version == 1 &&
+               oracle_id < 255 &&
+               software_version.size() <= 128 &&
+               subversion.size() <= 128 &&
+               signature.size() == 64;
+    }
+
+    uint256 GetHash() const;
+    uint256 GetSignatureHash() const;
+    bool Sign(const CKey& key);
+    bool VerifySignature(const XOnlyPubKey& pubkey) const;
+};
 
 #endif // DIGIBYTE_PROTOCOL_H

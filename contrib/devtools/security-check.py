@@ -12,6 +12,41 @@ from typing import List
 
 import lief
 
+def _compat_attr(root, legacy_name, modern_path):
+    if hasattr(root, legacy_name):
+        return getattr(root, legacy_name)
+    value = root
+    for attr in modern_path:
+        value = getattr(value, attr)
+    return value
+
+def _enum_name(value) -> str:
+    name = getattr(value, 'name', None)
+    if name is not None:
+        return str(name)
+    return str(value).rsplit('.', 1)[-1]
+
+def _arch_name(value) -> str:
+    arch = _enum_name(value)
+    aliases = {
+        'I386': 'X86',
+        'X86_64': 'X86',
+        'AMD64': 'X86',
+        'AARCH64': 'ARM64',
+        'POWERPC': 'PPC',
+    }
+    if arch.startswith('RISCV'):
+        return 'RISCV'
+    return aliases.get(arch, arch)
+
+EXE_FORMATS = _compat_attr(lief, 'EXE_FORMATS', ('Binary', 'FORMATS'))
+ELF_SEGMENT_TYPES = _compat_attr(lief.ELF, 'SEGMENT_TYPES', ('Segment', 'TYPE'))
+ELF_SEGMENT_FLAGS = _compat_attr(lief.ELF, 'SEGMENT_FLAGS', ('Segment', 'FLAGS'))
+ELF_DYNAMIC_TAGS = _compat_attr(lief.ELF, 'DYNAMIC_TAGS', ('DynamicEntry', 'TAG'))
+ELF_DYNAMIC_FLAGS = _compat_attr(lief.ELF, 'DYNAMIC_FLAGS', ('DynamicEntryFlags', 'FLAG'))
+PE_DLL_CHARACTERISTICS = _compat_attr(lief.PE, 'DLL_CHARACTERISTICS', ('OptionalHeader', 'DLL_CHARACTERISTICS'))
+MACHO_HEADER_FLAGS = _compat_attr(lief.MachO, 'HEADER_FLAGS', ('Header', 'FLAGS'))
+
 def check_ELF_RELRO(binary) -> bool:
     '''
     Check for read-only relocations.
@@ -26,13 +61,13 @@ def check_ELF_RELRO(binary) -> bool:
         # However, the dynamic linker need to write to this area so these are RW.
         # Glibc itself takes care of mprotecting this area R after relocations are finished.
         # See also https://marc.info/?l=binutils&m=1498883354122353
-        if segment.type == lief.ELF.SEGMENT_TYPES.GNU_RELRO:
+        if segment.type == ELF_SEGMENT_TYPES.GNU_RELRO:
             have_gnu_relro = True
 
     have_bindnow = False
     try:
-        flags = binary.get(lief.ELF.DYNAMIC_TAGS.FLAGS)
-        if flags.value & lief.ELF.DYNAMIC_FLAGS.BIND_NOW:
+        flags = binary.get(ELF_DYNAMIC_TAGS.FLAGS)
+        if int(flags.value) & int(ELF_DYNAMIC_FLAGS.BIND_NOW):
             have_bindnow = True
     except Exception:
         have_bindnow = False
@@ -51,9 +86,9 @@ def check_ELF_separate_code(binary):
     based on their permissions. This checks for missing -Wl,-z,separate-code
     and potentially other problems.
     '''
-    R = lief.ELF.SEGMENT_FLAGS.R
-    W = lief.ELF.SEGMENT_FLAGS.W
-    E = lief.ELF.SEGMENT_FLAGS.X
+    R = ELF_SEGMENT_FLAGS.R
+    W = ELF_SEGMENT_FLAGS.W
+    E = ELF_SEGMENT_FLAGS.X
     EXPECTED_FLAGS = {
         # Read + execute
         '.init': R | E,
@@ -88,14 +123,14 @@ def check_ELF_separate_code(binary):
         '.data': R | W,
         '.bss': R | W,
     }
-    if binary.header.machine_type == lief.ELF.ARCH.PPC64:
+    if _enum_name(binary.header.machine_type) == 'PPC64':
         # .plt is RW on ppc64 even with separate-code
         EXPECTED_FLAGS['.plt'] = R | W
     # For all LOAD program headers get mapping to the list of sections,
     # and for each section, remember the flags of the associated program header.
     flags_per_section = {}
     for segment in binary.segments:
-        if segment.type ==  lief.ELF.SEGMENT_TYPES.LOAD:
+        if segment.type == ELF_SEGMENT_TYPES.LOAD:
             for section in segment.sections:
                 flags_per_section[section.name] = segment.flags
     # Spot-check ELF LOAD program header flags per section
@@ -119,13 +154,13 @@ def check_ELF_control_flow(binary) -> bool:
 
 def check_PE_DYNAMIC_BASE(binary) -> bool:
     '''PIE: DllCharacteristics bit 0x40 signifies dynamicbase (ASLR)'''
-    return lief.PE.DLL_CHARACTERISTICS.DYNAMIC_BASE in binary.optional_header.dll_characteristics_lists
+    return PE_DLL_CHARACTERISTICS.DYNAMIC_BASE in binary.optional_header.dll_characteristics_lists
 
 # Must support high-entropy 64-bit address space layout randomization
 # in addition to DYNAMIC_BASE to have secure ASLR.
 def check_PE_HIGH_ENTROPY_VA(binary) -> bool:
     '''PIE: DllCharacteristics bit 0x20 signifies high-entropy ASLR'''
-    return lief.PE.DLL_CHARACTERISTICS.HIGH_ENTROPY_VA in binary.optional_header.dll_characteristics_lists
+    return PE_DLL_CHARACTERISTICS.HIGH_ENTROPY_VA in binary.optional_header.dll_characteristics_lists
 
 def check_PE_RELOC_SECTION(binary) -> bool:
     '''Check for a reloc section. This is required for functional ASLR.'''
@@ -156,7 +191,7 @@ def check_MACHO_NOUNDEFS(binary) -> bool:
     '''
     Check for no undefined references.
     '''
-    return binary.header.has(lief.MachO.HEADER_FLAGS.NOUNDEFS)
+    return binary.header.has(MACHO_HEADER_FLAGS.NOUNDEFS)
 
 def check_MACHO_FIXUP_CHAINS(binary) -> bool:
     '''
@@ -218,21 +253,22 @@ BASE_MACHO = [
 ]
 
 CHECKS = {
-    lief.EXE_FORMATS.ELF: {
-        lief.ARCHITECTURES.X86: BASE_ELF + [('CONTROL_FLOW', check_ELF_control_flow)],
-        lief.ARCHITECTURES.ARM: BASE_ELF,
-        lief.ARCHITECTURES.ARM64: BASE_ELF,
-        lief.ARCHITECTURES.PPC: BASE_ELF,
-        lief.ARCHITECTURES.RISCV: BASE_ELF,
+    'ELF': {
+        'X86': BASE_ELF + [('CONTROL_FLOW', check_ELF_control_flow)],
+        'ARM': BASE_ELF,
+        'ARM64': BASE_ELF,
+        'PPC': BASE_ELF,
+        'PPC64': BASE_ELF,
+        'RISCV': BASE_ELF,
     },
-    lief.EXE_FORMATS.PE: {
-        lief.ARCHITECTURES.X86: BASE_PE,
+    'PE': {
+        'X86': BASE_PE,
     },
-    lief.EXE_FORMATS.MACHO: {
-        lief.ARCHITECTURES.X86: BASE_MACHO + [('PIE', check_PIE),
-                                              ('NX', check_NX),
-                                              ('CONTROL_FLOW', check_MACHO_control_flow)],
-        lief.ARCHITECTURES.ARM64: BASE_MACHO,
+    'MACHO': {
+        'X86': BASE_MACHO + [('PIE', check_PIE),
+                             ('NX', check_NX),
+                             ('CONTROL_FLOW', check_MACHO_control_flow)],
+        'ARM64': BASE_MACHO,
     }
 }
 
@@ -241,21 +277,26 @@ if __name__ == '__main__':
     for filename in sys.argv[1:]:
         try:
             binary = lief.parse(filename)
-            etype = binary.format
-            arch = binary.abstract.header.architecture
+            etype = _enum_name(binary.format)
+            arch = _arch_name(binary.abstract.header.architecture)
             binary.concrete
 
-            if etype == lief.EXE_FORMATS.UNKNOWN:
+            if etype == _enum_name(EXE_FORMATS.UNKNOWN):
                 print(f'{filename}: unknown executable format')
                 retval = 1
                 continue
 
-            if arch == lief.ARCHITECTURES.NONE:
+            if arch == 'NONE':
                 print(f'{filename}: unknown architecture')
                 retval = 1
                 continue
 
             failed: List[str] = []
+            if etype not in CHECKS or arch not in CHECKS[etype]:
+                print(f'{filename}: unsupported executable format/architecture {etype}/{arch}')
+                retval = 1
+                continue
+
             for (name, func) in CHECKS[etype][arch]:
                 if not func(binary):
                     failed.append(name)
@@ -266,4 +307,3 @@ if __name__ == '__main__':
             print(f'{filename}: cannot open')
             retval = 1
     sys.exit(retval)
-

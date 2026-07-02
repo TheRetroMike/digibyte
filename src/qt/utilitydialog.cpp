@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2020 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #if defined(HAVE_CONFIG_H)
@@ -35,11 +35,11 @@ HelpMessageDialog::HelpMessageDialog(QWidget *parent, bool about) :
 {
     ui->setupUi(this);
 
-    QString version = QString{PACKAGE_NAME} + " " + tr("version") + " " + QString::fromStdString(FormatFullVersion());
+    QString version = QString::fromStdString(CLIENT_NAME) + " " + tr("version") + " " + QString::fromStdString(FormatFullVersion());
 
     if (about)
     {
-        setWindowTitle(tr("About %1").arg(PACKAGE_NAME));
+        setWindowTitle(tr("About %1").arg(QString::fromStdString(CLIENT_NAME)));
 
         std::string licenseInfo = LicenseInfo();
         /// HTML-format the license message from the core
@@ -81,8 +81,10 @@ HelpMessageDialog::HelpMessageDialog(QWidget *parent, bool about) :
         bold.setFontWeight(QFont::Bold);
 
         for (const QString &line : coreOptions.split("\n")) {
-            if (line.startsWith("  -"))
+            if (line.startsWith("  -") || (line.startsWith("  ") && !line.startsWith("   ") && line.trimmed().length() > 0))
             {
+                // Lines starting with "  -" are startup options (e.g. "-digidollar")
+                // Lines starting with exactly "  " + non-space are RPC commands (e.g. "  mintdigidollar")
                 cursor.currentTable()->appendRows(1);
                 cursor.movePosition(QTextCursor::PreviousCell);
                 cursor.movePosition(QTextCursor::NextRow);
@@ -103,6 +105,11 @@ HelpMessageDialog::HelpMessageDialog(QWidget *parent, bool about) :
         ui->helpMessage->moveCursor(QTextCursor::Start);
         ui->scrollArea->setVisible(false);
         ui->aboutLogo->setVisible(false);
+        ui->frame->setVisible(false);
+        // Collapse the left logo layout so help text uses full width
+        ui->verticalLayoutLogo->setContentsMargins(0, 0, 0, 0);
+        ui->aboutLogo->setMaximumSize(0, 0);
+        ui->frame->setMaximumSize(0, 0);
     }
 
     GUIUtil::handleCloseWindowShortcut(this);
@@ -140,9 +147,10 @@ void HelpMessageDialog::on_okButton_accepted()
 ShutdownWindow::ShutdownWindow(QWidget *parent, Qt::WindowFlags f):
     QWidget(parent, f)
 {
+    setObjectName("shutdownWindow");
     QVBoxLayout *layout = new QVBoxLayout();
     layout->addWidget(new QLabel(
-        tr("%1 is shutting down…").arg(PACKAGE_NAME) + "<br /><br />" +
+        tr("%1 is shutting down…").arg(QString::fromStdString(CLIENT_NAME)) + "<br /><br />" +
         tr("Do not shut down the computer until this window disappears.")));
     setLayout(layout);
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <chain.h>
@@ -19,6 +19,7 @@
 #include <util/time.h>
 #include <util/translation.h>
 #include <wallet/rpc/util.h>
+#include <wallet/digidollarwallet.h>
 #include <wallet/wallet.h>
 
 #include <cstdint>
@@ -764,7 +765,7 @@ RPCHelpMan dumpwallet()
     std::sort(vKeyBirth.begin(), vKeyBirth.end());
 
     // produce output
-    file << strprintf("# Wallet dump created by %s %s\n", PACKAGE_NAME, FormatFullVersion());
+    file << strprintf("# Wallet dump created by %s %s\n", CLIENT_NAME, FormatFullVersion());
     file << strprintf("# * Created on %s\n", FormatISO8601DateTime(GetTime()));
     file << strprintf("# * Best block at time of backup was %i (%s),\n", wallet.GetLastBlockHeight(), wallet.GetLastBlockHash().ToString());
     file << strprintf("#   mined on %s\n", FormatISO8601DateTime(block_time));
@@ -1221,6 +1222,9 @@ static UniValue ProcessImport(CWallet& wallet, const UniValue& data, const int64
         }
 
         result.pushKV("success", UniValue(true));
+        if (auto* dd_wallet = wallet.GetDDWallet()) {
+            dd_wallet->ClearDDOwnershipCache();
+        }
     } catch (const UniValue& e) {
         result.pushKV("success", UniValue(false));
         result.pushKV("error", e);
@@ -1580,6 +1584,9 @@ static UniValue ProcessDescriptorImport(CWallet& wallet, const UniValue& data, c
         }
 
         result.pushKV("success", UniValue(true));
+        if (auto* dd_wallet = wallet.GetDDWallet()) {
+            dd_wallet->ClearDDOwnershipCache();
+        }
     } catch (const UniValue& e) {
         result.pushKV("success", UniValue(false));
         result.pushKV("error", e);
@@ -1646,10 +1653,6 @@ RPCHelpMan importdescriptors()
     if (!pwallet) return UniValue::VNULL;
     CWallet& wallet{*pwallet};
 
-    // Make sure the results are valid at least up to the most recent block
-    // the user could have gotten from another RPC command prior to now
-    wallet.BlockUntilSyncedToCurrentChain();
-
     //  Make sure wallet is a descriptor wallet
     if (!pwallet->IsWalletFlagSet(WALLET_FLAG_DESCRIPTORS)) {
         throw JSONRPCError(RPC_WALLET_ERROR, "importdescriptors is not available for non-descriptor wallets");
@@ -1659,6 +1662,12 @@ RPCHelpMan importdescriptors()
     if (!reserver.reserve(/*with_passphrase=*/true)) {
         throw JSONRPCError(RPC_WALLET_ERROR, "Wallet is currently rescanning. Abort existing rescan or wait.");
     }
+
+    // Make sure the results are valid at least up to the most recent block
+    // the user could have gotten from another RPC command prior to now. Reserve
+    // the rescan slot first so overlapping imports fail before this wait can
+    // block behind scan-related wallet notifications.
+    wallet.BlockUntilSyncedToCurrentChain();
 
     // Ensure that the wallet is not locked for the remainder of this RPC, as
     // the passphrase is used to top up the keypool.

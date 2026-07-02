@@ -51,7 +51,8 @@ FUZZ_SUITE_LD_COMMON = \
  $(LIBSECP256K1) \
  $(MINISKETCH_LIBS) \
  $(EVENT_LIBS) \
- $(EVENT_PTHREADS_LIBS)
+ $(EVENT_PTHREADS_LIBS) \
+ $(LIBCURL_LIBS)
 
 if USE_UPNP
 FUZZ_SUITE_LD_COMMON += $(MINIUPNPC_LIBS)
@@ -72,6 +73,147 @@ DIGIBYTE_TESTS =\
   test/base32_tests.cpp \
   test/base58_tests.cpp \
   test/base64_tests.cpp \
+  test/digidollar_activation_tests.cpp \
+  test/digidollar_activation_wave12_tests.cpp \
+  test/digidollar_wave26_compat_tests.cpp \
+  test/digidollar_wave13_parity_tests.cpp \
+  test/digidollar_wave14_reorg_replay_tests.cpp \
+  test/digidollar_wave14_ibd_security_tests.cpp \
+  test/digidollar_wave15_parser_tests.cpp \
+  test/digidollar_wave20_p2p_pending_tests.cpp \
+  test/digidollar_wave21_dos_resource_tests.cpp \
+  test/digidollar_address_tests.cpp \
+  test/digidollar_burn_enforcement_tests.cpp \
+  test/digidollar_consensus_tests.cpp \
+  test/digidollar_rh49_find_opreturn_tests.cpp \
+  test/digidollar_dca_tests.cpp \
+  test/digidollar_err_attack_tests.cpp \
+  test/digidollar_rh32_collateral_dca_tests.cpp \
+  test/digidollar_rh33_mempool_relay_tests.cpp \
+  test/digidollar_rh34_multiblock_state_tests.cpp \
+  test/digidollar_err_tests.cpp \
+  test/digidollar_health_dca_tests.cpp \
+  test/digidollar_health_tests.cpp \
+  test/digidollar_t2_05_tests.cpp \
+  test/digidollar_opcodes_tests.cpp \
+  test/digidollar_script_attacks_tests.cpp \
+  test/digidollar_oracle_tests.cpp \
+  test/digidollar_oracle_musig2_tests.cpp \
+  test/digidollar_oracle_bundle_matrix_tests.cpp \
+  test/digidollar_oracle_domain_separation_tests.cpp \
+  test/digidollar_oracle_quorum_domain_tests.cpp \
+  test/digidollar_oracle_roster_tests.cpp \
+  test/digidollar_musig2_session_state_tests.cpp \
+  test/digidollar_oracle_feeds_wave11_tests.cpp \
+  test/digidollar_hot_path_logging_tests.cpp \
+  test/musig2_net_processing_tests.cpp \
+  test/rh50_oracle_keyset_alignment_tests.cpp \
+  test/rh51_checkphase3_v1_split_tests.cpp \
+  test/rh52_bip34_scriptnum_escape_tests.cpp \
+  test/rh53_op_checkprice_mock_weaponization_tests.cpp \
+  test/rh54_op_oracle_opsuccess_tests.cpp \
+  test/rh55_musig2_partial_sig_unverified_aggregation_tests.cpp \
+  test/rh56_oversized_bitmap_message_inflation_tests.cpp \
+  test/rh57_musig2_trim_aggregate_toctou_tests.cpp \
+  test/rh58_pending_partialsigs_unbounded_growth_tests.cpp \
+  test/rh60_mempool_dd_scriptnum_escape_tests.cpp \
+  test/rh61_coinbase_price_cache_poisoning_tests.cpp \
+  test/rh62_senddigidollar_amount_parser_tests.cpp \
+  test/rh63_oracle_validator_escape_hatches_tests.cpp \
+  test/rh64_dca_table_disagreement_tests.cpp \
+  test/rh65_mainnet_testnet_validator_parity_tests.cpp \
+  test/musig2_aggregator_tests.cpp \
+  test/oracle_bundle_manager_tests.cpp \
+  test/oracle_bundle_timing_tests.cpp \
+  test/oracle_price_staleness_tests.cpp \
+  test/digidollar_no_partial_redeem_tests.cpp \
+  test/digidollar_rh07_redemption_attacks_tests.cpp \
+  test/digidollar_rh12_script_attacks_tests.cpp \
+  test/oracle_block_validation_tests.cpp \
+  test/oracle_config_tests.cpp \
+  test/oracle_exchange_tests.cpp \
+  test/oracle_integration_tests.cpp \
+  test/oracle_message_tests.cpp \
+  test/oracle_price_feed_rh09_tests.cpp \
+  test/digidollar_oracle_feed_safety_tests.cpp \
+  test/oracle_miner_tests.cpp \
+  test/rh05_bundle_validation_attacks_tests.cpp \
+  test/oracle_p2p_tests.cpp \
+  test/oracle_rpc_tests.cpp \
+  test/oracle_wallet_key_tests.cpp \
+  test/oracle_wallet_autostart_tests.cpp \
+  test/oracle_phase2_tests.cpp \
+  test/musig2_basic_tests.cpp \
+  test/musig2_bundle_creation_tests.cpp \
+  test/musig2_bundle_format_tests.cpp \
+  test/musig2_bundle_manager_tests.cpp \
+  test/musig2_p2p_collection_tests.cpp \
+  test/musig2_p2p_handling_tests.cpp \
+  test/musig2_p2p_ingestion_tests.cpp \
+  test/musig2_p2p_message_tests.cpp \
+  test/musig2_oracle_node_tests.cpp \
+  test/musig2_session_tests.cpp \
+  test/musig2_orchestration_tests.cpp \
+  test/musig2_orchestrator_exploits_tests.cpp \
+  test/musig2_p2p_network_attacks_tests.cpp \
+  test/musig2_activation_tests.cpp \
+  test/musig2_phase3_activation_tests.cpp \
+  test/musig2_signing_orchestration_tests.cpp \
+  test/musig2_bundle_mining_tests.cpp \
+  test/redteam_phase2_audit_tests.cpp \
+  test/oracle_consensus_threshold_tests.cpp \
+  test/digidollar_p2p_tests.cpp \
+  test/digidollar_rh46_rpc_input_validation_tests.cpp \
+  test/digidollar_rpc_tests.cpp \
+  test/digidollar_integration_attack_tests.cpp \
+  test/digidollar_redteam_tests.cpp \
+  test/digidollar_rh26_tests.cpp \
+  test/digidollar_rh28_wallet_chains_tests.cpp \
+  test/rh29_coinbase_oracle_manipulation_tests.cpp \
+  test/rh39_eclipse_attack_tests.cpp \
+  test/digidollar_rh21_boundary_tests.cpp \
+  test/digidollar_rh25_serialization_cache_tests.cpp \
+  test/rh15_crypto_primitives_tests.cpp \
+  test/digidollar_rh11_consensus_tests.cpp \
+  test/digidollar_rh31_consensus_fork_tests.cpp \
+  test/digidollar_rh47_consensus_fork_deep_tests.cpp \
+  test/digidollar_rh35_chaos_tests.cpp \
+  test/digidollar_rh42_formal_invariant_tests.cpp \
+  test/digidollar_rh44_thread_safety_tests.cpp \
+  test/digidollar_rh40_regression_tests.cpp \
+  test/digidollar_rh13_economic_tests.cpp \
+  test/digidollar_rh16_reorg_attacks_tests.cpp \
+  test/digidollar_rh19_serialization_tests.cpp \
+  test/digidollar_rh20_time_ordering_tests.cpp \
+  test/digidollar_rh41_timewarp_difficulty_tests.cpp \
+  test/digidollar_rh18_cross_feature_tests.cpp \
+  test/digidollar_rh43_digiassets_interaction_tests.cpp \
+  test/digidollar_rh17_mempool_attacks_tests.cpp \
+  test/digidollar_rh06_mint_attacks_tests.cpp \
+  test/digidollar_scripts_tests.cpp \
+  test/digidollar_skip_oracle_tests.cpp \
+  test/digidollar_qt_translate_tests.cpp \
+  test/digidollar_structures_tests.cpp \
+  test/digidollar_transaction_tests.cpp \
+  test/digidollar_transfer_tests.cpp \
+  test/digidollar_change_tests.cpp \
+  test/digidollar_txbuilder_tests.cpp \
+  test/digidollar_validation_tests.cpp \
+  test/digidollar_txindex_tests.cpp \
+  test/digidollar_volatility_tests.cpp \
+  test/digidollar_wave6_health_dca_volatility_tests.cpp \
+  test/digidollar_wallet_tests.cpp \
+  test/digidollar_utxo_lifecycle_tests.cpp \
+  test/digidollar_mint_tests.cpp \
+  test/digidollar_persistence_serialization_tests.cpp \
+  test/digidollar_persistence_keys_tests.cpp \
+  test/digidollar_persistence_walletbatch_tests.cpp \
+  test/digidollar_key_encryption_tests.cpp \
+  test/digidollar_redeem_tests.cpp \
+  test/digidollar_restore_tests.cpp \
+  test/digidollar_timelock_tests.cpp \
+  test/digidollar_lock_height_tests.cpp \
+  test/digidollar_locktier_tests.cpp \
   test/bech32_tests.cpp \
   test/bip32_tests.cpp \
   test/blockchain_tests.cpp \
@@ -89,6 +231,7 @@ DIGIBYTE_TESTS =\
   test/crypto_tests.cpp \
   test/cuckoocache_tests.cpp \
   test/dbwrapper_tests.cpp \
+  test/dandelion_tests.cpp \
   test/denialofservice_tests.cpp \
   test/descriptor_tests.cpp \
   test/flatfile_tests.cpp \
@@ -105,6 +248,7 @@ DIGIBYTE_TESTS =\
   test/mempool_tests.cpp \
   test/merkle_tests.cpp \
   test/merkleblock_tests.cpp \
+  test/miner_dd_validation_tests.cpp \
   test/miner_tests.cpp \
   test/miniminer_tests.cpp \
   test/miniscript_tests.cpp \
@@ -182,7 +326,16 @@ DIGIBYTE_TESTS += \
   wallet/test/rpc_util_tests.cpp \
   wallet/test/scriptpubkeyman_tests.cpp \
   wallet/test/walletload_tests.cpp \
-  wallet/test/group_outputs_tests.cpp
+  wallet/test/group_outputs_tests.cpp \
+  wallet/test/digidollar_persistence_wallet_tests.cpp \
+  wallet/test/digidollar_wallet_security_tests.cpp \
+  wallet/test/rh59_coincontrol_dd_lock_bypass_tests.cpp \
+  wallet/test/digidollar_wave16_persistence_tests.cpp \
+  wallet/test/digidollar_wave17_spendability_tests.cpp \
+  wallet/test/digidollar_wave17_helper_asymmetry_tests.cpp \
+  test/digidollar_rpc_unit_tests.cpp \
+  test/digidollar_wave18_rpc_schema_tests.cpp \
+  test/digidollar_wallet_hd_tests.cpp
 
 FUZZ_SUITE_LD_COMMON +=\
  $(SQLITE_LIBS) \
@@ -222,7 +375,7 @@ test_test_digibyte_LDADD += $(LIBDIGIBYTE_NODE) $(LIBDIGIBYTE_CLI) $(LIBDIGIBYTE
   $(LIBLEVELDB) $(LIBMEMENV) $(LIBSECP256K1) $(EVENT_LIBS) $(EVENT_PTHREADS_LIBS) $(MINISKETCH_LIBS)
 test_test_digibyte_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 
-test_test_digibyte_LDADD += $(BDB_LIBS) $(MINIUPNPC_LIBS) $(NATPMP_LIBS) $(SQLITE_LIBS)
+test_test_digibyte_LDADD += $(BDB_LIBS) $(MINIUPNPC_LIBS) $(NATPMP_LIBS) $(SQLITE_LIBS) $(LIBCURL_LIBS)
 test_test_digibyte_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS) $(PTHREAD_FLAGS) -static
 
 if ENABLE_ZMQ
@@ -238,6 +391,7 @@ test_fuzz_fuzz_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS) $(PTH
 test_fuzz_fuzz_SOURCES = \
  $(FUZZ_WALLET_SRC) \
  test/fuzz/addition_overflow.cpp \
+ test/fuzz/addrdb.cpp \
  test/fuzz/addrman.cpp \
  test/fuzz/asmap.cpp \
  test/fuzz/asmap_direct.cpp \
@@ -245,6 +399,7 @@ test_fuzz_fuzz_SOURCES = \
  test/fuzz/banman.cpp \
  test/fuzz/base_encode_decode.cpp \
  test/fuzz/bech32.cpp \
+ test/fuzz/bip324.cpp \
  test/fuzz/bitdeque.cpp \
  test/fuzz/block.cpp \
  test/fuzz/block_header.cpp \
@@ -256,6 +411,7 @@ test_fuzz_fuzz_SOURCES = \
  test/fuzz/coins_view.cpp \
  test/fuzz/coinscache_sim.cpp \
  test/fuzz/connman.cpp \
+ test/fuzz/dandelion.cpp \
  test/fuzz/crypto.cpp \
  test/fuzz/crypto_aes256.cpp \
  test/fuzz/crypto_aes256cbc.cpp \
@@ -267,7 +423,27 @@ test_fuzz_fuzz_SOURCES = \
  test/fuzz/cuckoocache.cpp \
  test/fuzz/decode_tx.cpp \
  test/fuzz/descriptor_parse.cpp \
+ test/fuzz/digibyte_pow.cpp \
  test/fuzz/deserialize.cpp \
+ test/fuzz/fuzz_multishield_v4.cpp \
+ test/fuzz/fuzz_multishield_eras.cpp \
+ test/fuzz/fuzz_algo_selection.cpp \
+ test/fuzz/fuzz_algo_work_factor.cpp \
+ test/fuzz/fuzz_local_target_adjustment.cpp \
+ test/fuzz/fuzz_pow_all_algos.cpp \
+ test/fuzz/fuzz_block_algo_routing.cpp \
+ test/fuzz/fuzz_dandelion_epoch.cpp \
+ test/fuzz/fuzz_dandelion_routing.cpp \
+ test/fuzz/fuzz_dandelion_stem.cpp \
+ test/fuzz/fuzz_difficulty_clamping.cpp \
+ test/fuzz/fuzz_odocrypt_cipher.cpp \
+ test/fuzz/fuzz_odocrypt_keccak.cpp \
+ test/fuzz/fuzz_odocrypt_keygen.cpp \
+ test/fuzz/digidollar_consensus.cpp \
+ test/fuzz/digidollar_integer_math.cpp \
+ test/fuzz/digidollar_logic.cpp \
+ test/fuzz/digidollar_validation_deep.cpp \
+ test/fuzz/digishield.cpp \
  test/fuzz/eval_script.cpp \
  test/fuzz/fee_rate.cpp \
  test/fuzz/fees.cpp \
@@ -278,6 +454,7 @@ test_fuzz_fuzz_SOURCES = \
  test/fuzz/hex.cpp \
  test/fuzz/http_request.cpp \
  test/fuzz/integer.cpp \
+ test/fuzz/i2p.cpp \
  test/fuzz/key.cpp \
  test/fuzz/key_io.cpp \
  test/fuzz/kitchen_sink.cpp \
@@ -313,6 +490,7 @@ test_fuzz_fuzz_SOURCES = \
  test/fuzz/protocol.cpp \
  test/fuzz/psbt.cpp \
  test/fuzz/random.cpp \
+ test/fuzz/rbf.cpp \
  test/fuzz/rolling_bloom_filter.cpp \
  test/fuzz/rpc.cpp \
  test/fuzz/script.cpp \
@@ -347,7 +525,34 @@ test_fuzz_fuzz_SOURCES = \
  test/fuzz/utxo_snapshot.cpp \
  test/fuzz/utxo_total_supply.cpp \
  test/fuzz/validation_load_mempool.cpp \
- test/fuzz/versionbits.cpp
+ test/fuzz/versionbits.cpp \
+ test/fuzz/digidollar_txbuilder.cpp \
+ test/fuzz/digidollar_txbuilder_validate.cpp \
+ test/fuzz/digidollar_health.cpp \
+ test/fuzz/digidollar_dca_volatility.cpp \
+ test/fuzz/digidollar_lock_tier.cpp \
+ test/fuzz/digidollar_prune_blockdb.cpp \
+ test/fuzz/digidollar_scripts.cpp \
+ test/fuzz/digidollar_wave15_parsers.cpp \
+ test/fuzz/oracle_bundle_validation.cpp \
+ test/fuzz/oracle_bundle_hash_domain_sep.cpp \
+ test/fuzz/oracle_validate_block_data.cpp \
+ test/fuzz/oracle_bundle_version_reject.cpp \
+ test/fuzz/oracle_price_message.cpp \
+ test/fuzz/oracle_script_parsing.cpp \
+ test/fuzz/oracle_musig2_nonce_msg.cpp \
+ test/fuzz/oracle_musig2_partialsig_msg.cpp \
+ test/fuzz/oracle_musig2_auth_signature_domain.cpp \
+ test/fuzz/oracle_musig2_bundle.cpp \
+ test/fuzz/oracle_musig2_bitmap.cpp \
+ test/fuzz/oracle_musig2_bitmap_invariants.cpp \
+ test/fuzz/oracle_id_bitmap_mutations.cpp \
+ test/fuzz/oracle_musig2_aggregation.cpp \
+ test/fuzz/oracle_musig2_session_state.cpp \
+ test/fuzz/oracle_musig2_session_real.cpp \
+ test/fuzz/oracle_musig2_session_manager_drive.cpp \
+ test/fuzz/oracle_price_aggregator.cpp \
+ test/fuzz/oracle_p2p_wire_messages.cpp
 endif # ENABLE_FUZZ_BINARY
 
 nodist_test_test_digibyte_SOURCES = $(GENERATED_TEST_FILES)
@@ -385,7 +590,7 @@ if TARGET_WINDOWS
 else
 if ENABLE_BENCH
 	@echo "Running bench/bench_digibyte (one iteration sanity check, only high priority)..."
-	$(BENCH_BINARY) -sanity-check -priority-level=high
+	$(BENCH_BINARY) -sanity-check -filter="SHA256_32b"
 endif
 endif
 	$(AM_V_at)$(MAKE) $(AM_MAKEFLAGS) -C secp256k1 check
@@ -410,7 +615,7 @@ endif
 	@echo Running tests: $$(\
 	  cat $< | \
 	  grep -E "(BOOST_FIXTURE_TEST_SUITE\\(|BOOST_AUTO_TEST_SUITE\\()" | \
-	  cut -d '(' -f 2 | cut -d ',' -f 1 | cut -d ')' -f 1\
+	  cut -d '(' -f 2 | cut -d ',' -f 1 | cut -d ')' -f 1 | paste -sd, -\
 	) from $<
 	$(AM_V_at)export TEST_LOGFILE=$(abs_builddir)/$$(\
 	  echo $< | grep -E -o "(wallet/test/.*\.cpp|test/.*\.cpp)" | $(SED) -e s/\.cpp/.log/ \
@@ -418,7 +623,7 @@ endif
 	$(TEST_BINARY) --catch_system_errors=no -l test_suite -t "$$(\
 	  cat $< | \
 	  grep -E "(BOOST_FIXTURE_TEST_SUITE\\(|BOOST_AUTO_TEST_SUITE\\()" | \
-	  cut -d '(' -f 2 | cut -d ',' -f 1 | cut -d ')' -f 1\
+	  cut -d '(' -f 2 | cut -d ',' -f 1 | cut -d ')' -f 1 | paste -sd, -\
 	)" -- DEBUG_LOG_OUT > "$$TEST_LOGFILE" 2>&1 || (cat "$$TEST_LOGFILE" && false)
 
 %.json.h: %.json

@@ -1,5 +1,5 @@
 // Copyright (c) 2017-2021 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <consensus/tx_verify.h>
@@ -13,6 +13,8 @@
 #include <script/interpreter.h>
 #include <util/check.h>
 #include <util/moneystr.h>
+#include <consensus/digidollar.h>
+#include <logging.h>
 
 bool IsFinalTx(const CTransaction &tx, int nBlockHeight, int64_t nBlockTime)
 {
@@ -200,6 +202,16 @@ bool Consensus::CheckTxInputs(const CTransaction& tx, TxValidationState& state, 
 
     // Tally transaction fees
     const CAmount txfee_aux = nValueIn - value_out;
+
+    // Debug DigiDollar transaction fees
+    if (IsDigiDollarTransaction(tx)) {
+        LogPrintf("CheckTxInputs: DigiDollar tx %s - nValueIn=%s, value_out=%s, fee=%s\n",
+                 tx.GetHash().ToString(), FormatMoney(nValueIn), FormatMoney(value_out), FormatMoney(txfee_aux));
+        for (size_t i = 0; i < tx.vout.size(); i++) {
+            LogPrintf("  vout[%d]: %s\n", i, FormatMoney(tx.vout[i].nValue));
+        }
+    }
+
     if (!MoneyRange(txfee_aux)) {
         return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-fee-outofrange");
     }

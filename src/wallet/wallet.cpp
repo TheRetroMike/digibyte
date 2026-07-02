@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -10,6 +10,7 @@
 #include <config/digibyte-config.h>
 #endif
 #include <addresstype.h>
+#include <wallet/digidollarwallet.h>
 #include <blockfilter.h>
 #include <chain.h>
 #include <coins.h>
@@ -19,6 +20,7 @@
 #include <consensus/amount.h>
 #include <consensus/consensus.h>
 #include <consensus/validation.h>
+#include <digidollar/digidollar.h>
 #include <external_signer.h>
 #include <interfaces/chain.h>
 #include <interfaces/handler.h>
@@ -28,6 +30,10 @@
 #include <key.h>
 #include <key_io.h>
 #include <logging.h>
+#include <node/context.h>
+#include <node/chainstate.h>
+#include <validation.h>
+#include <oracle/node.h>
 #include <outputtype.h>
 #include <policy/feerate.h>
 #include <primitives/block.h>
@@ -87,6 +93,21 @@ struct KeyOriginInfo;
 using interfaces::FoundBlock;
 
 namespace wallet {
+
+// CWallet constructor - defined here to support unique_ptr with incomplete type (DigiDollarWallet)
+CWallet::CWallet(interfaces::Chain* chain, const std::string& name, std::unique_ptr<WalletDatabase> database)
+    : m_chain(chain),
+      m_name(name),
+      m_database(std::move(database))
+{
+}
+
+// CWallet destructor - defined here to support unique_ptr with incomplete type (DigiDollarWallet)
+CWallet::~CWallet()
+{
+    // Should not have slots connected at this point.
+    assert(NotifyUnload.empty());
+}
 
 bool AddWalletSetting(interfaces::Chain& chain, const std::string& wallet_name)
 {
@@ -850,6 +871,28 @@ bool CWallet::EncryptWallet(const SecureString& strWalletPassphrase)
             }
         }
 
+        // T4-03a: Encrypt DigiDollar private keys (owner keys and address keys)
+        // These are stored separately from m_spk_managers and must be encrypted
+        // in the same atomic transaction to prevent plaintext key leakage.
+        if (m_dd_wallet) {
+            if (!m_dd_wallet->EncryptDDKeys(_vMasterKey, encrypted_batch)) {
+                encrypted_batch->TxnAbort();
+                delete encrypted_batch;
+                encrypted_batch = nullptr;
+                // DD keys failed to encrypt — abort to avoid mixed state
+                assert(false);
+            }
+            WalletLogPrintf("Encrypted DigiDollar private keys\n");
+        }
+
+        if (!EncryptOracleKeys(_vMasterKey, encrypted_batch)) {
+            encrypted_batch->TxnAbort();
+            delete encrypted_batch;
+            encrypted_batch = nullptr;
+            assert(false);
+        }
+        WalletLogPrintf("Encrypted DigiDollar oracle keys\n");
+
         // Encryption was introduced in version 0.4.0
         SetMinVersion(FEATURE_WALLETCRYPT, encrypted_batch);
 
@@ -1149,6 +1192,14 @@ CWalletTx* CWallet::AddToWallet(CTransactionRef tx, const TxState& state, const 
     // Break debit/credit balance caches:
     wtx.MarkDirty();
 
+    // DigiDollar: Check if this is a DD transaction and track it
+    if (fInsertedNew && m_dd_wallet && DigiDollar::HasDigiDollarMarker(*tx)) {
+        WalletLogPrintf("DigiDollar: Calling ProcessIncomingTransaction for tx %s\n", hash.ToString());
+        m_dd_wallet->ProcessIncomingTransaction(tx, hash);
+    } else if (fInsertedNew && DigiDollar::HasDigiDollarMarker(*tx)) {
+        WalletLogPrintf("DigiDollar: DD tx detected but m_dd_wallet is null for tx %s\n", hash.ToString());
+    }
+
     // Notify UI of new or updated transaction
     NotifyTransactionChanged(hash, fInsertedNew ? CT_NEW : CT_UPDATED);
 
@@ -1327,9 +1378,13 @@ bool CWallet::AbandonTransaction(const uint256& hashTx)
     }
 
     auto try_updating_state = [](CWalletTx& wtx) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet) {
-        // If the orig tx was not in block/mempool, none of its spends can be.
-        assert(!wtx.isConfirmed());
-        assert(!wtx.InMempool());
+        // Recursive abandon can be reached while mempool removal callbacks are
+        // still walking a parent/child package. A descendant that is still
+        // confirmed or in mempool is live wallet state and must not be marked
+        // abandoned just because its parent was removed first.
+        if (wtx.isConfirmed() || wtx.InMempool()) {
+            return TxUpdate::UNCHANGED;
+        }
         // If already conflicted or abandoned, no need to set abandoned
         if (!wtx.isConflicted() && !wtx.isAbandoned()) {
             wtx.m_state = TxStateInactive{/*abandoned=*/true};
@@ -1346,7 +1401,38 @@ bool CWallet::AbandonTransaction(const uint256& hashTx)
 
     RecursiveUpdateTxState(hashTx, try_updating_state);
 
+    if (m_dd_wallet) {
+        const size_t dd_utxos = m_dd_wallet->ScanForDDUTXOs();
+        WalletLogPrintf("DigiDollar: Rebuilt DD UTXOs after abandoning %s - %d tracked\n",
+                        hashTx.ToString(), dd_utxos);
+    }
+
     return true;
+}
+
+size_t CWallet::AbandonStaleDigiDollarRedeems()
+{
+    LOCK(cs_wallet);
+
+    WalletBatch batch(GetDatabase(), false);
+    size_t abandoned = 0;
+
+    for (auto& [txid, wtx] : mapWallet) {
+        if (GetDigiDollarTxType(*wtx.tx) != DD_TX_REDEEM) continue;
+        if (wtx.isAbandoned() || wtx.isConflicted() || wtx.isConfirmed() || wtx.InMempool()) continue;
+
+        wtx.m_state = TxStateInactive{/*abandoned=*/true};
+        wtx.MarkDirty();
+        batch.WriteTx(wtx);
+        MarkInputsDirty(wtx.tx);
+        NotifyTransactionChanged(txid, CT_UPDATED);
+        ++abandoned;
+
+        WalletLogPrintf("DigiDollar: abandoned stale non-mempool redeem transaction %s\n",
+                        txid.ToString());
+    }
+
+    return abandoned;
 }
 
 void CWallet::MarkConflicted(const uint256& hashBlock, int conflicting_height, const uint256& hashTx)
@@ -1423,6 +1509,28 @@ void CWallet::RecursiveUpdateTxState(const uint256& tx_hash, const TryUpdatingSt
 
 void CWallet::SyncTransaction(const CTransactionRef& ptx, const SyncTxState& state, bool update_tx, bool rescanning_old_block)
 {
+    // FIX #4: Process incoming DigiDollar transactions FIRST
+    // DD transfer outputs have 0 DGB value, which causes IsMine() to return false
+    // We need to process DD transactions before AddToWalletIfInvolvingMe() so that
+    // DD UTXOs are detected and added regardless of IsMine() result
+    if (m_dd_wallet && IsDigiDollarTransaction(*ptx)) {
+        // During rescan, use ProcessDDTxForRescan EXCLUSIVELY
+        // It handles chronological UTXO tracking properly (add from MINT, remove on spend, add change/receive)
+        // ProcessIncomingDDTransaction can interfere because it adds UTXOs without chronological context
+        if (rescanning_old_block) {
+            int block_height = -1;
+            if (auto* conf = std::get_if<TxStateConfirmed>(&state)) {
+                block_height = conf->confirmed_block_height;
+            }
+            if (block_height >= 0) {
+                m_dd_wallet->ProcessDDTxForRescan(ptx, block_height);
+            }
+        } else if (!std::holds_alternative<TxStateInactive>(state)) {
+            // Normal operation (not rescanning): use ProcessIncomingDDTransaction
+            m_dd_wallet->ProcessIncomingDDTransaction(ptx);
+        }
+    }
+
     if (!AddToWalletIfInvolvingMe(ptx, state, update_tx, rescanning_old_block))
         return; // Not one of ours
 
@@ -1443,39 +1551,72 @@ void CWallet::transactionAddedToMempool(const CTransactionRef& tx) {
 }
 
 void CWallet::transactionRemovedFromMempool(const CTransactionRef& tx, MemPoolRemovalReason reason) {
-    LOCK(cs_wallet);
-    auto it = mapWallet.find(tx->GetHash());
-    if (it != mapWallet.end()) {
-        RefreshMempoolStatus(it->second, chain());
+    bool abandon_removed_dd_tx = false;
+    bool reconcile_removed_dd_redeem = false;
+    {
+        LOCK(cs_wallet);
+        auto it = mapWallet.find(tx->GetHash());
+        if (it != mapWallet.end()) {
+            RefreshMempoolStatus(it->second, chain());
+            const bool removed_by_policy =
+                reason == MemPoolRemovalReason::EXPIRY ||
+                reason == MemPoolRemovalReason::SIZELIMIT;
+            const auto dd_tx_type = GetDigiDollarTxType(*it->second.tx);
+            abandon_removed_dd_tx =
+                m_dd_wallet &&
+                removed_by_policy &&
+                dd_tx_type != DD_TX_NONE &&
+                !it->second.isAbandoned() &&
+                !it->second.isConfirmed() &&
+                !it->second.InMempool();
+            reconcile_removed_dd_redeem =
+                m_dd_wallet &&
+                removed_by_policy &&
+                dd_tx_type == DD_TX_REDEEM;
+        }
+        // Handle transactions that were removed from the mempool because they
+        // conflict with transactions in a newly connected block.
+        if (reason == MemPoolRemovalReason::CONFLICT) {
+            // Trigger external -walletnotify notifications for these transactions.
+            // Set Status::UNCONFIRMED instead of Status::CONFLICTED for a few reasons:
+            //
+            // 1. The transactionRemovedFromMempool callback does not currently
+            //    provide the conflicting block's hash and height, and for backwards
+            //    compatibility reasons it may not be not safe to store conflicted
+            //    wallet transactions with a null block hash. See
+            //    https://github.com/digibyte/digibyte/pull/18600#discussion_r420195993.
+            // 2. For most of these transactions, the wallet's internal conflict
+            //    detection in the blockConnected handler will subsequently call
+            //    MarkConflicted and update them with CONFLICTED status anyway. This
+            //    applies to any wallet transaction that has inputs spent in the
+            //    block, or that has ancestors in the wallet with inputs spent by
+            //    the block.
+            // 3. Longstanding behavior since the sync implementation in
+            //    https://github.com/digibyte/digibyte/pull/9371 and the prior sync
+            //    implementation before that was to mark these transactions
+            //    unconfirmed rather than conflicted.
+            //
+            // Nothing described above should be seen as an unchangeable requirement
+            // when improving this code in the future. The wallet's heuristics for
+            // distinguishing between conflicted and unconfirmed transactions are
+            // imperfect, and could be improved in general, see
+            // https://github.com/digibyte-core/digibyte-devwiki/wiki/Wallet-Transaction-Conflict-Tracking
+            SyncTransaction(tx, TxStateInactive{});
+        }
     }
-    // Handle transactions that were removed from the mempool because they
-    // conflict with transactions in a newly connected block.
-    if (reason == MemPoolRemovalReason::CONFLICT) {
-        // Trigger external -walletnotify notifications for these transactions.
-        // Set Status::UNCONFIRMED instead of Status::CONFLICTED for a few reasons:
-        //
-        // 1. The transactionRemovedFromMempool callback does not currently
-        //    provide the conflicting block's hash and height, and for backwards
-        //    compatibility reasons it may not be not safe to store conflicted
-        //    wallet transactions with a null block hash. See
-        //    https://github.com/digibyte/digibyte/pull/18600#discussion_r420195993.
-        // 2. For most of these transactions, the wallet's internal conflict
-        //    detection in the blockConnected handler will subsequently call
-        //    MarkConflicted and update them with CONFLICTED status anyway. This
-        //    applies to any wallet transaction that has inputs spent in the
-        //    block, or that has ancestors in the wallet with inputs spent by
-        //    the block.
-        // 3. Longstanding behavior since the sync implementation in
-        //    https://github.com/digibyte/digibyte/pull/9371 and the prior sync
-        //    implementation before that was to mark these transactions
-        //    unconfirmed rather than conflicted.
-        //
-        // Nothing described above should be seen as an unchangeable requirement
-        // when improving this code in the future. The wallet's heuristics for
-        // distinguishing between conflicted and unconfirmed transactions are
-        // imperfect, and could be improved in general, see
-        // https://github.com/digibyte-core/digibyte-devwiki/wiki/Wallet-Transaction-Conflict-Tracking
-        SyncTransaction(tx, TxStateInactive{});
+
+    if (abandon_removed_dd_tx && AbandonTransaction(tx->GetHash())) {
+        WalletLogPrintf("DigiDollar: abandoned non-mempool transaction %s after removal reason %s\n",
+                        tx->GetHash().ToString(), RemovalReasonToString(reason));
+    }
+
+    if (reconcile_removed_dd_redeem) {
+        const size_t abandoned = AbandonStaleDigiDollarRedeems();
+        if (m_dd_wallet) {
+            const size_t dd_utxos = m_dd_wallet->ScanForDDUTXOs();
+            WalletLogPrintf("DigiDollar: Reconciled removed pending redeem %s - abandoned %zu stale redeem(s), %zu DD UTXOs tracked\n",
+                            tx->GetHash().ToString(), abandoned, dd_utxos);
+        }
     }
 }
 
@@ -1499,6 +1640,18 @@ void CWallet::blockConnected(ChainstateRole role, const interfaces::BlockInfo& b
         SyncTransaction(block.data->vtx[index], TxStateConfirmed{block.hash, block.height, static_cast<int>(index)});
         transactionRemovedFromMempool(block.data->vtx[index], MemPoolRemovalReason::BLOCK);
     }
+
+    // Process DigiDollar UTXOs incrementally (Performance fix: don't do full rescan!)
+    // Only process transactions in THIS block, not a full wallet scan
+    if (m_dd_wallet) {
+        // Process each transaction in the block for DD UTXO changes
+        for (const auto& tx : block.data->vtx) {
+            m_dd_wallet->ProcessTransactionForDD(*tx, tx->GetHash());
+        }
+        // NOTE: We no longer call UpdateDDConfirmations() on every block!
+        // Confirmations are calculated on-demand when GetDDTransactionHistory() is called.
+        // This avoids O(n) database writes per block during sync.
+    }
 }
 
 void CWallet::blockDisconnected(const interfaces::BlockInfo& block)
@@ -1512,6 +1665,36 @@ void CWallet::blockDisconnected(const interfaces::BlockInfo& block)
     // future with a stickier abandoned state or even removing abandontransaction call.
     m_last_block_processed_height = block.height - 1;
     m_last_block_processed = *Assert(block.prev_hash);
+
+    // SECURITY: Handle DigiDollar state on reorg.
+    // When a block is disconnected, any DD operations in that block are reversed.
+    // We must re-lock collateral for reorged-out redemptions to prevent double-spend.
+    DigiDollarWallet* dd_wallet = GetDDWallet();
+    if (dd_wallet) {
+        for (const CTransactionRef& ptx : Assert(block.data)->vtx) {
+            // Check if this TX spent any DD collateral (i.e., was a redemption)
+            // If so, re-lock the collateral since the redemption is no longer confirmed
+            for (const CTxIn& txin : ptx->vin) {
+                bool reactivated_position = false;
+                if (txin.prevout.n == 0) {
+                    for (const auto& position : dd_wallet->GetDDTimeLocks(/*active_only=*/false)) {
+                        if (position.dd_timelock_id == txin.prevout.hash && !position.is_active) {
+                            reactivated_position = dd_wallet->UpdatePositionStatus(position.dd_timelock_id, true);
+                            break;
+                        }
+                    }
+                }
+
+                if (reactivated_position || dd_wallet->IsLockedByDD(txin.prevout)) {
+                    // This input was DD collateral that got spent in a now-reorged block
+                    // Re-lock it since the redemption is being undone
+                    LockCoin(txin.prevout);
+                    LogPrintf("DigiDollar: Re-locked collateral %s after reorg at height %d\n",
+                              txin.prevout.ToString(), block.height);
+                }
+            }
+        }
+    }
 
     int disconnect_height = block.height;
 
@@ -1543,11 +1726,25 @@ void CWallet::blockDisconnected(const interfaces::BlockInfo& block)
             }
         }
     }
+
+    if (dd_wallet) {
+        const size_t dd_utxos = dd_wallet->ScanForDDUTXOs();
+        WalletLogPrintf("DigiDollar: Rebuilt DD UTXOs after block disconnect at height %d - %d tracked\n",
+                        block.height, dd_utxos);
+    }
 }
 
 void CWallet::updatedBlockTip()
 {
     m_best_block_time = GetTime();
+
+    if (m_dd_wallet && m_dd_wallet->HasPendingPositionStateValidation()) {
+        const size_t corrected = m_dd_wallet->RetryPendingPositionStateValidation();
+        if (corrected > 0) {
+            WalletLogPrintf("DigiDollar: Retried pending position validation after chain tip update - corrected %zu position(s)\n",
+                            corrected);
+        }
+    }
 }
 
 void CWallet::BlockUntilSyncedToCurrentChain() const {
@@ -1661,6 +1858,13 @@ bool CWallet::CanGetAddresses(bool internal) const
         }
     }
     return false;
+}
+
+void CWallet::EnsureDDWallet()
+{
+    if (!m_dd_wallet) {
+        m_dd_wallet = std::make_unique<DigiDollarWallet>(this);
+    }
 }
 
 void CWallet::SetWalletFlag(uint64_t flags)
@@ -1976,6 +2180,30 @@ CWallet::ScanResult CWallet::ScanForWalletTransactions(const uint256& start_bloc
     } else {
         WalletLogPrintf("Rescan completed in %15dms\n", Ticks<std::chrono::milliseconds>(reserver.now() - start_time));
     }
+
+    // BUG FIX: Validate DigiDollar position states after rescans.
+    //
+    // ScanForDDUTXOs() -> ValidatePositionStates() cross-checks every active position
+    // against the actual UTXO set. If a collateral output was spent (redeemed), the
+    // position is marked is_active=false. This is critical for wallet restore via
+    // importdescriptors where ProcessDDTxForRescan may miss REDEEM transactions
+    // (e.g., full redemptions with no OP_RETURN, or blocks skipped by the fast filter).
+    //
+    // Previously this only ran at wallet startup (postInitProcess), so importdescriptors
+    // and rescanblockchain never got this validation — causing Bug #8 where restored
+    // wallets show active "Redeem" buttons for already-redeemed positions.
+    if (result.status == ScanResult::SUCCESS && m_dd_wallet) {
+        if (max_height) {
+            WalletLogPrintf("DigiDollar: Running bounded post-rescan position reconciliation...\n");
+            const size_t corrected = m_dd_wallet->ReconcilePositionStates();
+            WalletLogPrintf("DigiDollar: Bounded post-rescan reconciliation complete - %d position(s) corrected\n", corrected);
+        } else {
+            WalletLogPrintf("DigiDollar: Running post-rescan position validation...\n");
+            size_t dd_utxo_count = m_dd_wallet->ScanForDDUTXOs();
+            WalletLogPrintf("DigiDollar: Post-rescan validation complete - %d DD UTXOs\n", dd_utxo_count);
+        }
+    }
+
     return result;
 }
 
@@ -2292,7 +2520,7 @@ OutputType CWallet::TransactionChangeType(const std::optional<OutputType>& chang
     return m_default_address_type;
 }
 
-void CWallet::CommitTransaction(CTransactionRef tx, mapValue_t mapValue, std::vector<std::pair<std::string, std::string>> orderForm)
+bool CWallet::CommitTransaction(CTransactionRef tx, mapValue_t mapValue, std::vector<std::pair<std::string, std::string>> orderForm, std::string* err_string_out)
 {
     LOCK(cs_wallet);
     WalletLogPrintf("CommitTransaction:\n%s", tx->ToString()); // NOLINT(digibyte-unterminated-logprintf)
@@ -2323,14 +2551,17 @@ void CWallet::CommitTransaction(CTransactionRef tx, mapValue_t mapValue, std::ve
 
     if (!fBroadcastTransactions) {
         // Don't submit tx to the mempool
-        return;
+        return true;
     }
 
     std::string err_string;
     if (!SubmitTxMemoryPoolAndRelay(*wtx, err_string, true)) {
         WalletLogPrintf("CommitTransaction(): Transaction cannot be broadcast immediately, %s\n", err_string);
+        if (err_string_out) *err_string_out = err_string;
         // TODO: if we expect the failure to be long term or permanent, instead delete wtx from the wallet and return failure.
+        return false;
     }
+    return true;
 }
 
 DBErrors CWallet::LoadWallet()
@@ -2507,6 +2738,103 @@ util::Result<CTxDestination> CWallet::GetNewChangeDestination(const OutputType t
     return op_dest;
 }
 
+CKey CWallet::GetHDKeyForDigiDollar(const std::string& label)
+{
+    AssertLockHeld(cs_wallet);
+
+    CKey key;
+
+    if (IsWalletFlagSet(WALLET_FLAG_DISABLE_PRIVATE_KEYS)) {
+        LogPrintf("DigiDollar: Cannot derive HD key for label '%s': private keys are disabled\n", label);
+        return key;
+    }
+
+    if (!IsHDEnabled() || !CanGetAddresses()) {
+        LogPrintf("DigiDollar: Cannot derive HD key for label '%s': wallet has no HD seed or available keypool\n", label);
+        return key;
+    }
+
+    if (!IsWalletFlagSet(WALLET_FLAG_DESCRIPTORS)) {
+        LogPrintf("DigiDollar: Cannot derive HD key for label '%s': DigiDollar V1 requires a descriptor/bech32m wallet\n", label);
+        return key;
+    }
+
+    auto op_dest = GetNewDestination(OutputType::BECH32M, label);
+    if (!op_dest) {
+        LogPrintf("DigiDollar: BECH32M destination unavailable for label '%s': %s\n",
+                 label, util::ErrorString(op_dest).original);
+        return key;
+    }
+
+    if (op_dest) {
+        CTxDestination dest = *op_dest;
+        CScript script = GetScriptForDestination(dest);
+
+        if (auto* taproot_dest = std::get_if<WitnessV1Taproot>(&dest)) {
+            XOnlyPubKey output_key(*taproot_dest);
+            LogPrintf("DigiDollar: GetHDKeyForDigiDollar - descriptor produced output_key=%s for label '%s'\n",
+                     HexStr(output_key), label);
+
+            for (auto* spk_man : GetAllScriptPubKeyMans()) {
+                if (auto* desc_spk = dynamic_cast<DescriptorScriptPubKeyMan*>(spk_man)) {
+                    auto provider = desc_spk->GetSigningProviderWithKeys(script);
+                    if (provider) {
+                        TaprootSpendData spenddata;
+                        if (provider->GetTaprootSpendData(output_key, spenddata)) {
+                            LogPrintf("DigiDollar: GetHDKeyForDigiDollar - spenddata.internal_key=%s\n",
+                                     HexStr(spenddata.internal_key));
+                            if (spenddata.internal_key.IsFullyValid() &&
+                                provider->GetKeyByXOnly(spenddata.internal_key, key)) {
+                                XOnlyPubKey key_xonly(key.GetPubKey());
+                                auto key_tweaked = key_xonly.CreateTapTweak(nullptr);
+                                if (key_tweaked) {
+                                    LogPrintf("DigiDollar: GetHDKeyForDigiDollar - returned key pubkey_xonly=%s, tweaked=%s (matches descriptor: %s)\n",
+                                             HexStr(key_xonly), HexStr(key_tweaked->first),
+                                             (key_tweaked->first == output_key) ? "YES" : "NO");
+                                }
+                                LogPrintf("DigiDollar: Successfully derived HD key from Taproot descriptor wallet for label '%s'\n", label);
+                                return key;
+                            }
+                        }
+                        if (provider->GetKeyByXOnly(output_key, key)) {
+                            LogPrintf("DigiDollar: Successfully derived HD key from Taproot output key for label '%s'\n", label);
+                            return key;
+                        }
+                    }
+                }
+            }
+            LogPrintf("DigiDollar: WARNING - Could not extract Taproot key from HD destination for label '%s'\n", label);
+        } else {
+            for (auto* spk_man : GetAllScriptPubKeyMans()) {
+                if (auto* legacy_spk = dynamic_cast<LegacyScriptPubKeyMan*>(spk_man)) {
+                    CKeyID keyid = GetKeyForDestination(*legacy_spk, dest);
+                    if (!keyid.IsNull() && legacy_spk->GetKey(keyid, key)) {
+                        LogPrintf("DigiDollar: Successfully derived HD key from legacy wallet for label '%s'\n", label);
+                        return key;
+                    }
+                }
+
+                if (auto* desc_spk = dynamic_cast<DescriptorScriptPubKeyMan*>(spk_man)) {
+                    auto provider = desc_spk->GetSigningProviderWithKeys(script);
+                    if (provider) {
+                        CKeyID keyid = GetKeyForDestination(*provider, dest);
+                        if (!keyid.IsNull() && provider->GetKey(keyid, key)) {
+                            LogPrintf("DigiDollar: Successfully derived HD key from descriptor wallet for label '%s'\n", label);
+                            return key;
+                        }
+                    }
+                }
+            }
+            LogPrintf("DigiDollar: WARNING - Could not extract key from HD destination for label '%s'\n", label);
+        }
+    } else {
+        LogPrintf("DigiDollar: WARNING - Could not get HD destination for label '%s': %s\n",
+                 label, util::ErrorString(op_dest).original);
+    }
+
+    return key;
+}
+
 std::optional<int64_t> CWallet::GetOldestKeyPoolTime() const
 {
     LOCK(cs_wallet);
@@ -2650,10 +2978,22 @@ bool CWallet::UnlockAllCoins()
     AssertLockHeld(cs_wallet);
     bool success = true;
     WalletBatch batch(GetDatabase());
-    for (auto it = setLockedCoins.begin(); it != setLockedCoins.end(); ++it) {
-        success &= batch.EraseLockedUTXO(*it);
+
+    // SECURITY: Preserve DigiDollar collateral/token locks.
+    // These are security-critical — unlocking them allows spending collateral
+    // while DigiDollars remain in circulation (unbacked stablecoins).
+    DigiDollarWallet* dd_wallet = GetDDWallet();
+    std::set<COutPoint> ddLocks;
+
+    for (const auto& outpoint : setLockedCoins) {
+        if (dd_wallet && dd_wallet->IsLockedByDD(outpoint)) {
+            ddLocks.insert(outpoint);
+            LogPrint(BCLog::DIGIDOLLAR, "UnlockAllCoins: Preserving DD lock on %s\n", outpoint.ToString());
+        } else {
+            success &= batch.EraseLockedUTXO(outpoint);
+        }
     }
-    setLockedCoins.clear();
+    setLockedCoins = std::move(ddLocks);
     return success;
 }
 
@@ -2912,6 +3252,9 @@ std::shared_ptr<CWallet> CWallet::Create(WalletContext& context, const std::stri
     walletInstance->m_keypool_size = std::max(args.GetIntArg("-keypool", DEFAULT_KEYPOOL_SIZE), int64_t{1});
     walletInstance->m_notify_tx_changed_script = args.GetArg("-walletnotify", "");
 
+    // Initialize DigiDollar wallet
+    walletInstance->EnsureDDWallet();
+
     // Load wallet
     bool rescan_required = false;
     DBErrors nLoadWalletRet = walletInstance->LoadWallet();
@@ -2927,7 +3270,7 @@ std::shared_ptr<CWallet> CWallet::Create(WalletContext& context, const std::stri
                 walletFile));
         }
         else if (nLoadWalletRet == DBErrors::TOO_NEW) {
-            error = strprintf(_("Error loading %s: Wallet requires newer version of %s"), walletFile, PACKAGE_NAME);
+            error = strprintf(_("Error loading %s: Wallet requires newer version of %s"), walletFile, CLIENT_NAME);
             return nullptr;
         }
         else if (nLoadWalletRet == DBErrors::EXTERNAL_SIGNER_SUPPORT_REQUIRED) {
@@ -2936,7 +3279,7 @@ std::shared_ptr<CWallet> CWallet::Create(WalletContext& context, const std::stri
         }
         else if (nLoadWalletRet == DBErrors::NEED_REWRITE)
         {
-            error = strprintf(_("Wallet needed to be rewritten: restart %s to complete"), PACKAGE_NAME);
+            error = strprintf(_("Wallet needed to be rewritten: restart %s to complete"), CLIENT_NAME);
             return nullptr;
         } else if (nLoadWalletRet == DBErrors::NEED_RESCAN) {
             warnings.push_back(strprintf(_("Error reading %s! Transaction data may be missing or incorrect."
@@ -3159,6 +3502,8 @@ std::shared_ptr<CWallet> CWallet::Create(WalletContext& context, const std::stri
         walletInstance->WalletLogPrintf("m_address_book.size() = %u\n",  walletInstance->m_address_book.size());
     }
 
+    walletInstance->TryAutoStartOracles();
+
     return walletInstance;
 }
 
@@ -3335,6 +3680,18 @@ void CWallet::postInitProcess()
 
     // Update wallet transactions with current mempool transactions.
     WITH_LOCK(cs_wallet, chain().requestMempoolTransactions(*this));
+
+    // Scan for DigiDollar UTXOs
+    if (m_dd_wallet) {
+        const size_t abandoned_dd_redeems = AbandonStaleDigiDollarRedeems();
+        if (abandoned_dd_redeems > 0) {
+            LogPrintf("Wallet: Abandoned %zu stale DigiDollar redeem transaction(s) before DD scan\n",
+                      abandoned_dd_redeems);
+        }
+        LogPrintf("Wallet: Scanning for DigiDollar UTXOs...\n");
+        size_t dd_utxo_count = m_dd_wallet->ScanForDDUTXOs();
+        LogPrintf("Wallet: DigiDollar scan complete - Found %d DD UTXOs\n", dd_utxo_count);
+    }
 }
 
 bool CWallet::BackupWallet(const std::string& strDest) const
@@ -4375,4 +4732,203 @@ util::Result<MigrationResult> MigrateLegacyToDescriptor(const std::string& walle
     }
     return res;
 }
+// Oracle key management
+bool CWallet::HasOracleKey(uint32_t oracle_id) const
+{
+    WalletBatch batch(GetDatabase());
+    return batch.HasOracleKey(oracle_id) || batch.HasCryptedOracleKey(oracle_id);
+}
+
+bool CWallet::StoreOracleKey(uint32_t oracle_id, const CKey& key)
+{
+    WalletBatch batch(GetDatabase());
+    if (!IsCrypted()) {
+        return batch.WriteOracleKey(oracle_id, key);
+    }
+
+    LOCK(cs_wallet);
+    if (vMasterKey.empty()) {
+        LogPrintf("Oracle: Refusing to store oracle key for ID %u while encrypted wallet is locked\n", oracle_id);
+        return false;
+    }
+
+    CPubKey pubkey = key.GetPubKey();
+    CKeyingMaterial vchSecret(key.begin(), key.end());
+    std::vector<unsigned char> vchCryptedSecret;
+    if (!EncryptSecret(vMasterKey, vchSecret, pubkey.GetHash(), vchCryptedSecret)) {
+        LogPrintf("Oracle: Failed to encrypt oracle key for ID %u\n", oracle_id);
+        return false;
+    }
+    return batch.WriteCryptedOracleKey(oracle_id, pubkey, vchCryptedSecret);
+}
+
+bool CWallet::GetOracleKey(uint32_t oracle_id, CKey& key_out)
+{
+    WalletBatch batch(GetDatabase());
+    CPubKey pubkey;
+    std::vector<unsigned char> vchCryptedSecret;
+    if (batch.ReadCryptedOracleKey(oracle_id, pubkey, vchCryptedSecret)) {
+        LOCK(cs_wallet);
+        if (vMasterKey.empty()) {
+            return false;
+        }
+        return DecryptKey(vMasterKey, vchCryptedSecret, pubkey, key_out);
+    }
+
+    if (!IsCrypted()) {
+        return batch.ReadOracleKey(oracle_id, key_out);
+    }
+
+    // Legacy encrypted wallets may contain plaintext ORACLE_KEY rows created
+    // before encrypted oracle-key storage existed. Refuse while locked, then
+    // migrate the row to ORACLE_CRYPTED_KEY on first successful unlocked read.
+    if (!batch.HasOracleKey(oracle_id)) {
+        return false;
+    }
+
+    LOCK(cs_wallet);
+    if (vMasterKey.empty()) {
+        return false;
+    }
+
+    CKey plaintext_key;
+    if (!batch.ReadOracleKey(oracle_id, plaintext_key)) {
+        return false;
+    }
+
+    CPubKey plaintext_pubkey = plaintext_key.GetPubKey();
+    CKeyingMaterial vchSecret(plaintext_key.begin(), plaintext_key.end());
+    if (!EncryptSecret(vMasterKey, vchSecret, plaintext_pubkey.GetHash(), vchCryptedSecret)) {
+        LogPrintf("Oracle: Failed to migrate plaintext oracle key for ID %u to encrypted storage\n", oracle_id);
+        return false;
+    }
+    if (!batch.WriteCryptedOracleKey(oracle_id, plaintext_pubkey, vchCryptedSecret)) {
+        LogPrintf("Oracle: Failed to write migrated encrypted oracle key for ID %u\n", oracle_id);
+        return false;
+    }
+
+    key_out = plaintext_key;
+    return true;
+}
+
+bool CWallet::GetOraclePubKey(uint32_t oracle_id, CPubKey& pubkey_out)
+{
+    WalletBatch batch(GetDatabase());
+    CPubKey pubkey;
+    std::vector<unsigned char> vchCryptedSecret;
+    if (batch.ReadCryptedOracleKey(oracle_id, pubkey, vchCryptedSecret)) {
+        pubkey_out = pubkey;
+        return pubkey_out.IsValid();
+    }
+
+    CKey plaintext_key;
+    if (!batch.ReadOracleKey(oracle_id, plaintext_key)) {
+        return false;
+    }
+
+    pubkey_out = plaintext_key.GetPubKey();
+    return pubkey_out.IsValid();
+}
+
+bool CWallet::EncryptOracleKeys(const CKeyingMaterial& vMasterKeyIn, WalletBatch* encrypted_batch)
+{
+    AssertLockHeld(cs_wallet);
+
+    WalletBatch* active_batch = encrypted_batch;
+    std::unique_ptr<WalletBatch> local_batch;
+    if (!active_batch) {
+        local_batch = std::make_unique<WalletBatch>(GetDatabase());
+        active_batch = local_batch.get();
+    }
+
+    for (uint32_t oracle_id = 0; oracle_id < ORACLE_TOTAL_COUNT; ++oracle_id) {
+        if (active_batch->HasCryptedOracleKey(oracle_id)) {
+            continue;
+        }
+
+        CKey plaintext_key;
+        if (!active_batch->ReadOracleKey(oracle_id, plaintext_key)) {
+            continue;
+        }
+
+        CPubKey pubkey = plaintext_key.GetPubKey();
+        CKeyingMaterial vchSecret(plaintext_key.begin(), plaintext_key.end());
+        std::vector<unsigned char> vchCryptedSecret;
+        if (!EncryptSecret(vMasterKeyIn, vchSecret, pubkey.GetHash(), vchCryptedSecret)) {
+            LogPrintf("Oracle: Failed to encrypt oracle key for ID %u during wallet encryption\n", oracle_id);
+            return false;
+        }
+        if (!active_batch->WriteCryptedOracleKey(oracle_id, pubkey, vchCryptedSecret)) {
+            LogPrintf("Oracle: Failed to write encrypted oracle key for ID %u during wallet encryption\n", oracle_id);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void CWallet::TryAutoStartOracles()
+{
+    const std::string wallet_name = GetName().empty() ? "default wallet" : GetName();
+
+    if (HaveChain()) {
+        node::NodeContext* node_ctx = chain().context();
+        if (node_ctx && node_ctx->chainman) {
+            ChainstateManager& chainman = *node_ctx->chainman;
+            const CBlockIndex* tip = WITH_LOCK(cs_main, return chainman.ActiveChain().Tip());
+            if (!DigiDollar::IsDigiDollarEnabled(tip, chainman)) {
+                LogPrint(BCLog::DIGIDOLLAR, "Oracle: DigiDollar inactive, skipping oracle auto-start for wallet '%s'\n", wallet_name);
+                return;
+            }
+        }
+    }
+
+    if (IsCrypted() && IsLocked()) {
+        for (uint32_t oracle_id = 0; oracle_id < ORACLE_TOTAL_COUNT; ++oracle_id) {
+            if (HasOracleKey(oracle_id)) {
+                LogPrintf("Oracle key found for ID %u but wallet is locked. Run walletpassphrase then startoracle to enable.\n", oracle_id);
+            }
+        }
+        return;
+    }
+
+    OracleManager& oracle_manager = OracleManager::GetInstance();
+    for (uint32_t oracle_id = 0; oracle_id < ORACLE_TOTAL_COUNT; ++oracle_id) {
+        if (!HasOracleKey(oracle_id)) {
+            continue;
+        }
+
+        if (oracle_manager.GetOracleNode(oracle_id) != nullptr) {
+            LogPrint(BCLog::DIGIDOLLAR, "Oracle: Oracle %u already initialized in manager. Skipping auto-start.\n", oracle_id);
+            continue;
+        }
+
+        CKey wallet_key;
+        if (!GetOracleKey(oracle_id, wallet_key)) {
+            LogPrintf("Oracle: Failed to load oracle key for ID %u from wallet '%s' during auto-start\n", oracle_id, wallet_name);
+            continue;
+        }
+
+        const std::string key_hex = HexStr(Span<const unsigned char>(wallet_key.begin(), wallet_key.end()));
+        if (!oracle_manager.AddOracleNode(oracle_id, key_hex)) {
+            LogPrintf("Oracle: Failed to initialize oracle %u from wallet '%s' during auto-start\n", oracle_id, wallet_name);
+            continue;
+        }
+
+        oracle_manager.EnableOracle(oracle_id, true);
+        OracleNode* oracle = oracle_manager.GetOracleNode(oracle_id);
+        if (!oracle) {
+            LogPrintf("Oracle: Oracle %u missing after initialization from wallet '%s'\n", oracle_id, wallet_name);
+            continue;
+        }
+
+        oracle->Start();
+        if (oracle->IsRunning()) {
+            LogPrintf("Oracle: Auto-started oracle %u from wallet '%s'\n", oracle_id, wallet_name);
+        } else {
+            LogPrintf("Oracle: Auto-initialized oracle %u from wallet '%s' (price thread not active on this network)\n", oracle_id, wallet_name);
+        }
+    }
+}
+
 } // namespace wallet

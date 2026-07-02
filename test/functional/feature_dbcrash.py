@@ -184,7 +184,11 @@ class ChainstateWriteCrashTest(DigiByteTestFramework):
             assert_equal(nodei_utxo_hash, node3_utxo_hash)
 
     def generate_small_transactions(self, node, count, utxo_list):
-        FEE = 1000  # TODO: replace this with node relay fee based calculation
+        # The transactions intentionally fan out into multiple outputs to fill
+        # blocks quickly. Use a fee safely above the relay floor so the test
+        # remains valid when serialization changes make these transactions
+        # larger than upstream Bitcoin's historical assumption.
+        FEE = 30000
         num_transactions = 0
         random.shuffle(utxo_list)
         while len(utxo_list) >= 2 and num_transactions < count:

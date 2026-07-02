@@ -3,3 +3,6 @@ paths-ignore:
   - 'contrib/**'
   - '**/depends/**'
   - '**/contrib/**'
+  # Archived merge/debug snapshot retained for reference; do not analyze as
+  # live release code or executable tests.
+  - 'test/test_old_v26.2_mergev1/**'

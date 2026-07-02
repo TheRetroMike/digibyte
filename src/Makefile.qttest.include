@@ -14,12 +14,16 @@ TEST_QT_MOC_CPP = \
 if ENABLE_WALLET
 TEST_QT_MOC_CPP += \
   qt/test/moc_addressbooktests.cpp \
-  qt/test/moc_wallettests.cpp
+  qt/test/moc_wallettests.cpp \
+  qt/test/moc_digidollarwidgettests.cpp \
+  qt/test/moc_digidollarwave19widgettests.cpp
 endif # ENABLE_WALLET
 
 TEST_QT_H = \
   qt/test/addressbooktests.h \
   qt/test/apptests.h \
+  qt/test/digidollarwidgettests.h \
+  qt/test/digidollarwave19widgettests.h \
   qt/test/optiontests.h \
   qt/test/rpcnestedtests.h \
   qt/test/uritests.h \
@@ -41,6 +45,8 @@ qt_test_test_digibyte_qt_SOURCES = \
 if ENABLE_WALLET
 qt_test_test_digibyte_qt_SOURCES += \
   qt/test/addressbooktests.cpp \
+  qt/test/digidollarwidgettests.cpp \
+  qt/test/digidollarwave19widgettests.cpp \
   qt/test/wallettests.cpp \
   wallet/test/wallet_test_fixture.cpp
 endif # ENABLE_WALLET
@@ -57,7 +63,7 @@ endif
 qt_test_test_digibyte_qt_LDADD += $(LIBDIGIBYTE_CLI) $(LIBDIGIBYTE_COMMON) $(LIBDIGIBYTE_UTIL) $(LIBDIGIBYTE_CONSENSUS) $(LIBDIGIBYTE_CRYPTO) $(LIBUNIVALUE) $(LIBLEVELDB) \
   $(LIBMEMENV) $(QT_LIBS) $(QT_DBUS_LIBS) $(QT_TEST_LIBS) \
   $(QR_LIBS) $(BDB_LIBS) $(MINIUPNPC_LIBS) $(NATPMP_LIBS) $(LIBSECP256K1) \
-  $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(SQLITE_LIBS)
+  $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(SQLITE_LIBS) $(LIBCURL_LIBS)
 qt_test_test_digibyte_qt_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(QT_LDFLAGS) $(LIBTOOL_APP_LDFLAGS) $(PTHREAD_FLAGS)
 qt_test_test_digibyte_qt_CXXFLAGS = $(AM_CXXFLAGS) $(QT_PIE_FLAGS)
 

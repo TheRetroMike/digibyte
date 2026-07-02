@@ -16,6 +16,7 @@ variants.
   and test the values returned."""
 
 import concurrent.futures
+import time
 
 from test_framework.authproxy import JSONRPCException
 from test_framework.blocktools import COINBASE_MATURITY_2
@@ -416,8 +417,9 @@ class ImportDescriptorsTest(DigiByteTestFramework):
                      solvable=True,
                      ismine=True)
         txid = w0.sendtoaddress(address, 71999.97770)  # DigiByte amount from v8.22.2
+        vout = find_vout_for_address(w0, txid, address)
         self.generatetoaddress(self.nodes[0], 6, w0.getnewaddress())
-        tx = wpriv.createrawtransaction([{"txid": txid, "vout": 0}], {w0.getnewaddress(): 71999.977})
+        tx = wpriv.createrawtransaction([{"txid": txid, "vout": vout}], {w0.getnewaddress(): 71999.977})
         signed_tx = wpriv.signrawtransactionwithwallet(tx)
         w1.sendrawtransaction(signed_tx['hex'])
 
@@ -698,6 +700,18 @@ class ImportDescriptorsTest(DigiByteTestFramework):
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as thread:
             with self.nodes[0].assert_debug_log(expected_msgs=["Rescan started from block 4598a0f2b823aaf9e77ee6d5e46f1edb824191dcd48b08437b7cec17e6ae6e26... (slow variant inspecting all blocks)"], timeout=5):
                 importing = thread.submit(encrypted_wallet.importdescriptors, requests=[descriptor])
+
+            self.nodes[0].cli.generatetoaddress(1, self.nodes[0].cli("-rpcwallet=temp_wallet").getnewaddress())
+
+            now_descriptor = dict(descriptor)
+            now_descriptor["timestamp"] = "now"
+            start_time = time.monotonic()
+            assert_raises_rpc_error(
+                -4,
+                "Wallet is currently rescanning. Abort existing rescan or wait.",
+                self.nodes[0].cli("-rpcwallet=encrypted_wallet").importdescriptors,
+                [now_descriptor])
+            assert time.monotonic() - start_time < 2
 
             # Set the passphrase timeout to 1 to test that the wallet remains unlocked during the rescan
             self.nodes[0].cli("-rpcwallet=encrypted_wallet").walletpassphrase("passphrase", 1)

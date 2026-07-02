@@ -271,10 +271,10 @@ class TestNode():
                     # overhead is trivial, and the added guarantees are worth
                     # the minimal performance cost.
                 self.log.debug("RPC successfully started")
+                self.rpc_connected = True
                 if self.use_cli:
                     return
                 self.rpc = rpc
-                self.rpc_connected = True
                 self.url = self.rpc.rpc_url
                 return
             except JSONRPCException as e:  # Initialization phase
@@ -316,6 +316,9 @@ class TestNode():
 
     def generate(self, nblocks, maxtries=1000000, **kwargs):
         self.log.debug("TestNode.generate() dispatches `generate` call to `generatetoaddress`")
+        # Set invalid_call=False as default if not already in kwargs
+        if 'invalid_call' not in kwargs:
+            kwargs['invalid_call'] = False
         return self.generatetoaddress(nblocks=nblocks, address=self.get_deterministic_priv_key().address, maxtries=maxtries, **kwargs)
 
     def generateblock(self, *args, invalid_call, **kwargs):
@@ -355,14 +358,26 @@ class TestNode():
         if not self.running:
             return
         self.log.debug("Stopping node")
-        try:
-            # Do not use wait argument when testing older nodes, e.g. in wallet_backwards_compatibility.py
-            if self.version_is_at_least(180000):
-                self.stop(wait=wait)
-            else:
-                self.stop()
-        except http.client.CannotSendRequest:
-            self.log.exception("Unable to stop node.")
+
+        if self.rpc_connected:
+            try:
+                # Do not use wait argument when testing older nodes, e.g. in wallet_backwards_compatibility.py
+                if self.version_is_at_least(180000):
+                    self.stop(wait=wait)
+                else:
+                    self.stop()
+            except http.client.CannotSendRequest:
+                self.log.exception("Unable to stop node.")
+        else:
+            # The node may have failed before RPC was available (for example,
+            # due to an RPC/HTTP port bind failure while a parallel test is
+            # starting nodes). In that state __getattr__ would assert while
+            # trying to dispatch the stop RPC, masking the original startup
+            # error and potentially leaving sibling processes alive. Clean up
+            # the process directly instead.
+            self.log.debug("Node has no RPC connection; terminating process directly")
+            if self.process.poll() is None:
+                self.process.terminate()
 
         # If there are any running perf processes, stop them.
         for profile_name in tuple(self.perf_subprocesses.keys()):
@@ -372,7 +387,14 @@ class TestNode():
 
         assert (not expected_stderr) or wait_until_stopped  # Must wait to check stderr
         if wait_until_stopped:
-            self.wait_until_stopped(expected_stderr=expected_stderr)
+            if self.rpc_connected:
+                self.wait_until_stopped(expected_stderr=expected_stderr)
+            else:
+                # Accept whichever code the process produced: this path is
+                # cleanup after startup failure, so preserving the original
+                # exception is more important than asserting shutdown status.
+                wait_until_helper_internal(lambda: self.process.poll() is not None, timeout=DIGIBYTED_PROC_WAIT_TIMEOUT, timeout_factor=self.timeout_factor)
+                self.is_node_stopped(expected_ret_code=self.process.returncode)
 
     def is_node_stopped(self, *, expected_stderr="", expected_ret_code=0):
         """Checks whether the node has stopped.

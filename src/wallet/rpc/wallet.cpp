@@ -1,11 +1,12 @@
 // Copyright (c) 2010 Satoshi Nakamoto
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <core_io.h>
 #include <key_io.h>
 #include <rpc/server.h>
 #include <rpc/util.h>
+#include <rpc/digidollar.h>
 #include <util/translation.h>
 #include <wallet/context.h>
 #include <wallet/receive.h>
@@ -956,6 +957,25 @@ Span<const CRPCCommand> GetWalletRPCCommands()
         {"wallet", &walletpassphrase},
         {"wallet", &walletpassphrasechange},
         {"wallet", &walletprocesspsbt},
+
+        // DigiDollar wallet commands
+        {"digidollar", &mintdigidollar},
+        {"digidollar", &senddigidollar},
+        {"digidollar", &sendmanydigidollar},
+        {"digidollar", &redeemdigidollar},
+        {"digidollar", &listdigidollarpositions},
+        {"digidollar", &listdigidollaraddresses},
+        {"digidollar", &getredemptioninfo},
+        {"digidollar", &getdigidollarbalance},
+        {"digidollar", &getdigidollaraddress},
+        {"digidollar", &listdigidollartxs},
+        {"digidollar", &listdigidollarunspent},
+        {"digidollar", &listdigidollarutxos},
+        {"digidollar", &validateddaddress},
+        {"oracle", &createoraclekey},
+        {"oracle", &exportoracleprivkey},
+        {"oracle", &importoracleprivkey},
+        {"oracle", &startoracle},
     };
     return commands;
 }

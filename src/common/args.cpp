@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <common/args.h>
@@ -633,6 +633,12 @@ std::string ArgsManager::GetHelpMessage() const
                 break;
             case OptionsCategory::REGISTER_COMMANDS:
                 usage += HelpMessageGroup("Register Commands:");
+                break;
+            case OptionsCategory::DIGIDOLLAR:
+                usage += HelpMessageGroup("DigiDollar options:");
+                break;
+            case OptionsCategory::ORACLE:
+                usage += HelpMessageGroup("Oracle options:");
                 break;
             default:
                 break;

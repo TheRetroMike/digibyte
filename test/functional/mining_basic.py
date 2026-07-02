@@ -37,6 +37,9 @@ from test_framework.wallet import MiniWallet
 VERSIONBITS_TOP_BITS = 0x20000000
 VERSIONBITS_DEPLOYMENT_TESTDUMMY_BIT = 27
 VERSIONBITS_DEPLOYMENT_TAPROOT_BIT = 0x02  # DigiByte taproot bit
+# DigiByte encodes the mining algorithm in version bits 8-11, so a block version
+# must select a valid algorithm. Use a version whose algo nibble is SHA256D.
+BLOCKVERSION_OVERRIDE = 0x20000202
 DEFAULT_BLOCK_MIN_TX_FEE = 100000  # default `-blockmintxfee` setting [sat/kvB] - DigiByte uses higher fees
 
 
@@ -73,9 +76,9 @@ class MiningTest(DigiByteTestFramework):
 
         self.log.info('test blockversion')
         mock_time = TIME_GENESIS_BLOCK + block_count * 15
-        self.restart_node(0, extra_args=[f'-mocktime={mock_time}', '-blockversion=1337', '-dandelion=0'])
+        self.restart_node(0, extra_args=[f'-mocktime={mock_time}', f'-blockversion={BLOCKVERSION_OVERRIDE}', '-dandelion=0'])
         self.connect_nodes(0, 1)
-        assert_equal(1337, self.nodes[0].getblocktemplate(NORMAL_GBT_REQUEST_PARAMS)['version'])
+        assert_equal(BLOCKVERSION_OVERRIDE, self.nodes[0].getblocktemplate(NORMAL_GBT_REQUEST_PARAMS)['version'])
         self.restart_node(0, extra_args=[f'-mocktime={mock_time}', '-dandelion=0'])
         self.connect_nodes(0, 1)
         assert_equal(VERSIONBITS_TOP_BITS + (1 << VERSIONBITS_DEPLOYMENT_TESTDUMMY_BIT) + VERSIONBITS_DEPLOYMENT_TAPROOT_BIT, self.nodes[0].getblocktemplate(NORMAL_GBT_REQUEST_PARAMS)['version'])
@@ -167,7 +170,11 @@ class MiningTest(DigiByteTestFramework):
         tmpl = node.getblocktemplate(NORMAL_GBT_REQUEST_PARAMS)
         self.log.info("getblocktemplate: Test capability advertised")
         assert 'proposal' in tmpl['capabilities']
-        assert 'coinbasetxn' not in tmpl
+        if 'default_oracle_commitment' in tmpl:
+            assert 'coinbasetxn' in tmpl
+            assert 'data' in tmpl['coinbasetxn']
+        else:
+            assert 'coinbasetxn' not in tmpl
 
         next_height = int(tmpl["height"])
         coinbase_tx = create_coinbase(height=next_height)

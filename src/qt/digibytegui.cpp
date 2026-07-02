@@ -1,5 +1,5 @@
 // Copyright (c) 2011-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <qt/digibytegui.h>
@@ -32,6 +32,8 @@
 
 #include <chain.h>
 #include <chainparams.h>
+#include <clientversion.h>
+#include <consensus/params.h>
 #include <common/system.h>
 #include <interfaces/handler.h>
 #include <interfaces/node.h>
@@ -44,6 +46,8 @@
 #include <QAction>
 #include <QActionGroup>
 #include <QApplication>
+#include <QAbstractButton>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QCursor>
 #include <QDateTime>
@@ -56,6 +60,7 @@
 #include <QMessageBox>
 #include <QMimeData>
 #include <QProgressDialog>
+#include <QPushButton>
 #include <QScreen>
 #include <QSettings>
 #include <QShortcut>
@@ -68,6 +73,83 @@
 #include <QUrlQuery>
 #include <QVBoxLayout>
 #include <QWindow>
+
+namespace {
+const QString DIGIDOLLAR_WARNING_SETTINGS_KEY = QStringLiteral("DigiDollar/ExperimentalWarningAccepted");
+
+QString DigiDollarExperimentalWarningStyleSheet(bool dark_theme)
+{
+    if (dark_theme) {
+        return QStringLiteral(
+            "QMessageBox#DigiDollarExperimentalWarningDialog {"
+            "    background-color: #082518;"
+            "    color: #f4fff8;"
+            "}"
+            "QMessageBox#DigiDollarExperimentalWarningDialog QLabel,"
+            "QMessageBox#DigiDollarExperimentalWarningDialog QCheckBox {"
+            "    color: #f4fff8;"
+            "    background: transparent;"
+            "    font-size: 13px;"
+            "}"
+            "QMessageBox#DigiDollarExperimentalWarningDialog QPushButton {"
+            "    min-width: 96px;"
+            "    padding: 7px 14px;"
+            "    border-radius: 4px;"
+            "    font-weight: bold;"
+            "}"
+            "QMessageBox#DigiDollarExperimentalWarningDialog QPushButton#digiDollarWarningAcceptButton {"
+            "    background-color: #16804f;"
+            "    color: #ffffff;"
+            "    border: 1px solid #22b96d;"
+            "}"
+            "QMessageBox#DigiDollarExperimentalWarningDialog QPushButton#digiDollarWarningAcceptButton:hover {"
+            "    background-color: #1b9d60;"
+            "}"
+            "QMessageBox#DigiDollarExperimentalWarningDialog QPushButton#digiDollarWarningCancelButton {"
+            "    background-color: #20382b;"
+            "    color: #f4fff8;"
+            "    border: 1px solid #5d7f69;"
+            "}"
+            "QMessageBox#DigiDollarExperimentalWarningDialog QPushButton#digiDollarWarningCancelButton:hover {"
+            "    background-color: #2a4938;"
+            "}");
+    }
+
+    return QStringLiteral(
+        "QMessageBox#DigiDollarExperimentalWarningDialog {"
+        "    background-color: #f1fbf5;"
+        "    color: #123826;"
+        "}"
+        "QMessageBox#DigiDollarExperimentalWarningDialog QLabel,"
+        "QMessageBox#DigiDollarExperimentalWarningDialog QCheckBox {"
+        "    color: #123826;"
+        "    background: transparent;"
+        "    font-size: 13px;"
+        "}"
+        "QMessageBox#DigiDollarExperimentalWarningDialog QPushButton {"
+        "    min-width: 96px;"
+        "    padding: 7px 14px;"
+        "    border-radius: 4px;"
+        "    font-weight: bold;"
+        "}"
+        "QMessageBox#DigiDollarExperimentalWarningDialog QPushButton#digiDollarWarningAcceptButton {"
+        "    background-color: #16804f;"
+        "    color: #ffffff;"
+        "    border: 1px solid #16804f;"
+        "}"
+        "QMessageBox#DigiDollarExperimentalWarningDialog QPushButton#digiDollarWarningAcceptButton:hover {"
+        "    background-color: #1b9d60;"
+        "}"
+        "QMessageBox#DigiDollarExperimentalWarningDialog QPushButton#digiDollarWarningCancelButton {"
+        "    background-color: #e7f2eb;"
+        "    color: #123826;"
+        "    border: 1px solid #79a98e;"
+        "}"
+        "QMessageBox#DigiDollarExperimentalWarningDialog QPushButton#digiDollarWarningCancelButton:hover {"
+        "    background-color: #d8eadf;"
+        "}");
+}
+} // namespace
 
 
 const std::string DigiByteGUI::DEFAULT_UIPLATFORM =
@@ -89,14 +171,15 @@ DigiByteGUI::DigiByteGUI(interfaces::Node& node, const PlatformStyle *_platformS
 {
     QSettings settings;
     if (!restoreGeometry(settings.value("MainWindowGeometry").toByteArray())) {
-        // Restore failed (perhaps missing setting), center the window
+        // Restore failed (perhaps missing setting), set default size and center
+        resize(1000, 750);  // Default opening size: 1000x750 pixels
         move(QGuiApplication::primaryScreen()->availableGeometry().center() - frameGeometry().center());
     }
 
     setContextMenuPolicy(Qt::PreventContextMenu);
-    
-    // Set minimum window width to prevent toolbar text truncation
-    setMinimumWidth(900);
+
+    // Set minimum window size to prevent toolbar truncation and content overlap
+    setMinimumSize(1000, 750);
 
 #ifdef ENABLE_WALLET
     enableWallet = WalletModel::isWalletEnabled();
@@ -257,15 +340,15 @@ void DigiByteGUI::createActions()
     overviewAction->setShortcut(QKeySequence(QStringLiteral("Alt+1")));
     tabGroup->addAction(overviewAction);
 
-    sendCoinsAction = new QAction(platformStyle->SingleColorIcon(":/icons/send"), tr("&Send"), this);
-    sendCoinsAction->setStatusTip(tr("Send coins to a DigiByte address"));
+    sendCoinsAction = new QAction(platformStyle->SingleColorIcon(":/icons/send"), tr("&Send DGB"), this);
+    sendCoinsAction->setStatusTip(tr("Send DGB coins to a DigiByte address"));
     sendCoinsAction->setToolTip(sendCoinsAction->statusTip());
     sendCoinsAction->setCheckable(true);
     sendCoinsAction->setShortcut(QKeySequence(QStringLiteral("Alt+2")));
     tabGroup->addAction(sendCoinsAction);
 
-    receiveCoinsAction = new QAction(platformStyle->SingleColorIcon(":/icons/receiving_addresses"), tr("&Receive"), this);
-    receiveCoinsAction->setStatusTip(tr("Request payments (generates QR codes and digibyte: URIs)"));
+    receiveCoinsAction = new QAction(platformStyle->SingleColorIcon(":/icons/receiving_addresses"), tr("&Receive DGB"), this);
+    receiveCoinsAction->setStatusTip(tr("Request DGB payments (generates QR codes and digibyte: URIs)"));
     receiveCoinsAction->setToolTip(receiveCoinsAction->statusTip());
     receiveCoinsAction->setCheckable(true);
     receiveCoinsAction->setShortcut(QKeySequence(QStringLiteral("Alt+3")));
@@ -279,9 +362,14 @@ void DigiByteGUI::createActions()
     tabGroup->addAction(historyAction);
 
     digiDollarAction = new QAction(tr("DigiDollar"), this);
-    digiDollarAction->setStatusTip(tr("DigiDollar - Coming Soon"));
+    digiDollarAction->setObjectName("digiDollarAction");
+    digiDollarAction->setStatusTip(tr("Browse and manage DigiDollar positions"));
     digiDollarAction->setToolTip(digiDollarAction->statusTip());
     digiDollarAction->setCheckable(true);
+
+    // DigiDollar tab is always visible — page content shows activation status when not yet active
+    digiDollarAction->setVisible(true);
+
     tabGroup->addAction(digiDollarAction);
 
     // Commenting out Mint and Redeem tabs as they are not functional yet
@@ -311,16 +399,9 @@ void DigiByteGUI::createActions()
     connect(historyAction, &QAction::triggered, [this]{ showNormalIfMinimized(); });
     connect(historyAction, &QAction::triggered, this, &DigiByteGUI::gotoHistoryPage);
     
-    // Coming Soon actions
-    connect(digiDollarAction, &QAction::triggered, [this]{ 
-        showNormalIfMinimized(); 
-        QMessageBox msgBox(this);
-        msgBox.setWindowTitle(tr("Coming Soon"));
-        msgBox.setTextFormat(Qt::RichText);
-        msgBox.setText(tr("DigiDollar functionality will be available in a future release.<br><br>Learn more at <a href='https://digibyte.io/digidollar'>DigiByte.io/DigiDollar</a>"));
-        msgBox.exec();
-        overviewAction->setChecked(true);
-    });
+    // DigiDollar action
+    connect(digiDollarAction, &QAction::triggered, [this]{ showNormalIfMinimized(); });
+    connect(digiDollarAction, &QAction::triggered, this, &DigiByteGUI::gotoDigiDollarPage);
     // Commenting out Mint and Redeem connect statements
     /*
     connect(mintAction, &QAction::triggered, [this]{ 
@@ -348,15 +429,15 @@ void DigiByteGUI::createActions()
     quitAction->setStatusTip(tr("Quit application"));
     quitAction->setShortcut(QKeySequence(tr("Ctrl+Q")));
     quitAction->setMenuRole(QAction::QuitRole);
-    aboutAction = new QAction(tr("&About %1").arg(PACKAGE_NAME), this);
-    aboutAction->setStatusTip(tr("Show information about %1").arg(PACKAGE_NAME));
+    aboutAction = new QAction(tr("&About %1").arg(QString::fromStdString(CLIENT_NAME)), this);
+    aboutAction->setStatusTip(tr("Show information about %1").arg(QString::fromStdString(CLIENT_NAME)));
     aboutAction->setMenuRole(QAction::AboutRole);
     aboutAction->setEnabled(false);
     aboutQtAction = new QAction(tr("About &Qt"), this);
     aboutQtAction->setStatusTip(tr("Show information about Qt"));
     aboutQtAction->setMenuRole(QAction::AboutQtRole);
     optionsAction = new QAction(tr("&Options…"), this);
-    optionsAction->setStatusTip(tr("Modify configuration options for %1").arg(PACKAGE_NAME));
+    optionsAction->setStatusTip(tr("Modify configuration options for %1").arg(QString::fromStdString(CLIENT_NAME)));
     optionsAction->setMenuRole(QAction::PreferencesRole);
     optionsAction->setEnabled(false);
 
@@ -417,7 +498,7 @@ void DigiByteGUI::createActions()
 
     showHelpMessageAction = new QAction(tr("&Command-line options"), this);
     showHelpMessageAction->setMenuRole(QAction::NoRole);
-    showHelpMessageAction->setStatusTip(tr("Show the %1 help message to get a list with possible DigiByte command-line options").arg(PACKAGE_NAME));
+    showHelpMessageAction->setStatusTip(tr("Show the %1 help message to get a list with possible DigiByte command-line options").arg(QString::fromStdString(CLIENT_NAME)));
 
     m_mask_values_action = new QAction(tr("&Mask values"), this);
     m_mask_values_action->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_M));
@@ -632,15 +713,20 @@ void DigiByteGUI::createToolBars()
         toolbar->addAction(receiveCoinsAction);
         toolbar->addAction(historyAction);
         
-        // Add separator after Transactions to section off DigiDollar group
-        toolbar->addSeparator();
-        
-        toolbar->addAction(digiDollarAction);
+        // Add separator and DigiDollar action only when visible
+        if (digiDollarAction->isVisible()) {
+            toolbar->addSeparator();
+            toolbar->addAction(digiDollarAction);
+            if (QWidget* button = toolbar->widgetForAction(digiDollarAction)) {
+                button->setObjectName("digiDollarToolButton");
+            }
+        }
         // Commenting out Mint and Redeem tabs from toolbar
         // toolbar->addAction(mintAction);
         // toolbar->addAction(redeemAction);
         
         overviewAction->setChecked(true);
+        m_current_wallet_tab_action = overviewAction;
 
 #ifdef ENABLE_WALLET
         QWidget *spacer = new QWidget();
@@ -898,7 +984,7 @@ void DigiByteGUI::createTrayIcon()
 #ifndef Q_OS_MACOS
     if (QSystemTrayIcon::isSystemTrayAvailable()) {
         trayIcon = new QSystemTrayIcon(m_network_style->getTrayAndWindowIcon(), this);
-        QString toolTip = tr("%1 client").arg(PACKAGE_NAME) + " " + m_network_style->getTitleAddText();
+        QString toolTip = tr("%1 client").arg(QString::fromStdString(CLIENT_NAME)) + " " + m_network_style->getTitleAddText();
         trayIcon->setToolTip(toolTip);
     }
 #endif
@@ -1031,25 +1117,90 @@ void DigiByteGUI::openClicked()
 void DigiByteGUI::gotoOverviewPage()
 {
     overviewAction->setChecked(true);
+    m_current_wallet_tab_action = overviewAction;
     if (walletFrame) walletFrame->gotoOverviewPage();
 }
 
 void DigiByteGUI::gotoHistoryPage()
 {
     historyAction->setChecked(true);
+    m_current_wallet_tab_action = historyAction;
     if (walletFrame) walletFrame->gotoHistoryPage();
 }
 
 void DigiByteGUI::gotoReceiveCoinsPage()
 {
     receiveCoinsAction->setChecked(true);
+    m_current_wallet_tab_action = receiveCoinsAction;
     if (walletFrame) walletFrame->gotoReceiveCoinsPage();
 }
 
 void DigiByteGUI::gotoSendCoinsPage(QString addr)
 {
     sendCoinsAction->setChecked(true);
+    m_current_wallet_tab_action = sendCoinsAction;
     if (walletFrame) walletFrame->gotoSendCoinsPage(addr);
+}
+
+void DigiByteGUI::gotoDigiDollarPage()
+{
+    if (!confirmDigiDollarExperimentalWarning()) {
+        restoreCurrentWalletTabAction();
+        return;
+    }
+
+    digiDollarAction->setChecked(true);
+    m_current_wallet_tab_action = digiDollarAction;
+    if (walletFrame) walletFrame->gotoDigiDollarPage();
+}
+
+bool DigiByteGUI::confirmDigiDollarExperimentalWarning()
+{
+    QSettings settings;
+    if (settings.value(DIGIDOLLAR_WARNING_SETTINGS_KEY, false).toBool()) {
+        return true;
+    }
+
+    QMessageBox msg_box(this);
+    msg_box.setObjectName(QStringLiteral("DigiDollarExperimentalWarningDialog"));
+    msg_box.setWindowTitle(tr("DigiDollar Experimental Feature"));
+    msg_box.setIcon(QMessageBox::Warning);
+    msg_box.setTextFormat(Qt::PlainText);
+    msg_box.setTextInteractionFlags(Qt::TextSelectableByMouse);
+    msg_box.setText(tr("DigiDollar is experimental decentralized software.\n\n"
+                       "It has been extensively tested, but it is new and may still contain bugs, security issues, or other risks.\n\n"
+                       "Proceed only if you understand this and accept full responsibility. Use DigiDollar at your own risk."));
+    msg_box.setInformativeText(tr("Do not use funds you cannot afford to lose."));
+    QCheckBox* dont_show_again = new QCheckBox(tr("Don't show this warning again"), &msg_box);
+    dont_show_again->setObjectName(QStringLiteral("digiDollarExperimentalWarningDontShowAgain"));
+    msg_box.setCheckBox(dont_show_again);
+
+    QPushButton* understand_button = msg_box.addButton(tr("I Understand"), QMessageBox::AcceptRole);
+    understand_button->setObjectName(QStringLiteral("digiDollarWarningAcceptButton"));
+    QPushButton* cancel_button = msg_box.addButton(QMessageBox::Cancel);
+    cancel_button->setObjectName(QStringLiteral("digiDollarWarningCancelButton"));
+    msg_box.setDefaultButton(cancel_button);
+    msg_box.setEscapeButton(cancel_button);
+    msg_box.setStyleSheet(DigiDollarExperimentalWarningStyleSheet(
+        settings.value(QStringLiteral("theme"), QStringLiteral("dark")).toString() == QStringLiteral("dark")));
+
+    msg_box.exec();
+    const bool accepted = msg_box.clickedButton() == understand_button;
+    if (accepted && dont_show_again->isChecked()) {
+        settings.setValue(DIGIDOLLAR_WARNING_SETTINGS_KEY, true);
+        settings.sync();
+    }
+    return accepted;
+}
+
+void DigiByteGUI::restoreCurrentWalletTabAction()
+{
+    QAction* action_to_restore = m_current_wallet_tab_action && m_current_wallet_tab_action->isEnabled() ?
+        m_current_wallet_tab_action :
+        overviewAction;
+    if (action_to_restore) {
+        action_to_restore->setChecked(true);
+    }
 }
 
 void DigiByteGUI::gotoSignMessageTab(QString addr)
@@ -1290,7 +1441,7 @@ void DigiByteGUI::createWallet()
 void DigiByteGUI::message(const QString& title, QString message, unsigned int style, bool* ret, const QString& detailed_message)
 {
     // Default title. On macOS, the window title is ignored (as required by the macOS Guidelines).
-    QString strTitle{PACKAGE_NAME};
+    QString strTitle = QString::fromStdString(CLIENT_NAME);
     // Default to information icon
     int nMBoxIcon = QMessageBox::Information;
     int nNotifyIcon = Notificator::Information;
@@ -1349,7 +1500,7 @@ void DigiByteGUI::message(const QString& title, QString message, unsigned int st
 
 void DigiByteGUI::changeEvent(QEvent *e)
 {
-    if (e->type() == QEvent::PaletteChange) {
+    if (e->type() == QEvent::PaletteChange && overviewAction) {
         overviewAction->setIcon(platformStyle->SingleColorIcon(QStringLiteral(":/icons/overview")));
         sendCoinsAction->setIcon(platformStyle->SingleColorIcon(QStringLiteral(":/icons/send")));
         receiveCoinsAction->setIcon(platformStyle->SingleColorIcon(QStringLiteral(":/icons/receiving_addresses")));
@@ -1548,7 +1699,7 @@ void DigiByteGUI::updateProxyIcon()
 
 void DigiByteGUI::updateWindowTitle()
 {
-    QString window_title = PACKAGE_NAME;
+    QString window_title = QString::fromStdString(CLIENT_NAME);
 #ifdef ENABLE_WALLET
     if (walletFrame) {
         WalletModel* const wallet_model = walletFrame->currentWalletModel();

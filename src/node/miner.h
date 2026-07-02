@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef DIGIBYTE_NODE_MINER_H
@@ -9,10 +9,15 @@
 #include <policy/policy.h>
 #include <primitives/block.h>
 #include <txmempool.h>
+#include <uint256.h>
 
 #include <memory>
+#include <functional>
+#include <map>
 #include <optional>
+#include <set>
 #include <stdint.h>
+#include <utility>
 
 #include <boost/multi_index/identity.hpp>
 #include <boost/multi_index/indexed_by.hpp>
@@ -151,15 +156,23 @@ private:
     const CChainParams& chainparams;
     const CTxMemPool* const m_mempool;
     Chainstate& m_chainstate;
+    std::map<std::pair<uint32_t, uint256>, CTransactionRef> m_dd_tx_lookup_cache;
+    std::set<uint32_t> m_dd_tx_lookup_loaded_heights;
 
 public:
     struct Options {
         // Configuration parameters for the block size
         size_t nBlockMaxWeight{DEFAULT_BLOCK_MAX_WEIGHT};
         CFeeRate blockMinFeeRate{DEFAULT_BLOCK_MIN_TX_FEE};
+        // External legacy GBT callers can opt out of oracle-priced DD work.
+        bool include_oracle_priced_digidollar_txs{true};
+        bool include_oracle_bundle{true};
         // Whether to call TestBlockValidity() at the end of CreateNewBlock().
         bool test_block_validity{true};
+        // Test hook executed immediately before TestBlockValidity().
+        std::function<void()> on_before_test_block_validity{};
     };
+    static Options DefaultOptions();
 
     explicit BlockAssembler(Chainstate& chainstate, const CTxMemPool* mempool);
     explicit BlockAssembler(Chainstate& chainstate, const CTxMemPool* mempool, const Options& options);
@@ -178,6 +191,14 @@ private:
     void resetBlock();
     /** Add a tx to the block */
     void AddToBlock(CTxMemPool::txiter iter);
+    /** Return true if tx is a DigiDollar transaction for miner pre-validation. */
+    bool IsDDTransactionForMiner(const CTransaction& tx) const;
+    /** Cached block-db lookup for DD validation during one block assembly pass. */
+    bool LookupPreviousTxForDDValidation(const uint256& txid, uint32_t coinHeight, CTransactionRef& tx_out) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
+    /** Validate DD collateral/state against the current chain tip for inclusion. */
+    bool ValidateDDForBlockInclusion(const CTransaction& tx, const CBlockIndex* pindexPrev) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
+    /** Remove all DigiDollar transactions from current template and rebuild commitments. */
+    bool RemoveDDTransactionsFromBlock(const CBlockIndex* pindexPrev);
 
     // Methods for how to add transactions to a block.
     /** Add transactions based on feerate including unconfirmed ancestors

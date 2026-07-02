@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <interfaces/wallet.h>
@@ -26,6 +26,7 @@
 #include <wallet/rpc/wallet.h>
 #include <wallet/spend.h>
 #include <wallet/wallet.h>
+#include <wallet/digidollarwallet.h>
 
 #include <memory>
 #include <string>
@@ -555,6 +556,10 @@ public:
         return MakeSignalHandler(m_wallet->NotifyCanGetAddressesChanged.connect(fn));
     }
     CWallet* wallet() override { return m_wallet.get(); }
+
+    DigiDollarWallet* getDigiDollarWallet() override {
+        return m_wallet ? m_wallet->GetDDWallet() : nullptr;
+    }
 
     WalletContext& m_context;
     std::shared_ptr<CWallet> m_wallet;

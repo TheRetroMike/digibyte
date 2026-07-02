@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef DIGIBYTE_WALLET_CRYPTER_H
@@ -27,6 +27,35 @@ const unsigned int WALLET_CRYPTO_IV_SIZE = 16;
  * Wallet Private Keys are then encrypted using AES-256-CBC
  * with the double-sha256 of the public key as the IV, and the
  * master key's key as the encryption key (see keystore.[ch]).
+ *
+ * SECURITY NOTE (DGB-SEC-006): Deterministic IV Design
+ * =====================================================
+ * The IV for private key encryption is the first 16 bytes of
+ * Hash(pubkey) (double-SHA256), NOT a random nonce. This is an
+ * intentional design inherited from Bitcoin Core, not a weakness:
+ *
+ * 1. Uniqueness: Each private key has a unique public key, so each
+ *    key gets a unique IV. AES-CBC requires IVs to be unique for
+ *    each message encrypted with the same encryption key; they do
+ *    not need to be unpredictable.
+ *
+ * 2. Key binding: The IV cryptographically binds each ciphertext to
+ *    its public key. Swapping ciphertexts between keys fails because
+ *    decryption uses the wrong IV, and VerifyPubKey() catches this.
+ *
+ * 3. Determinism: Re-encrypting the same key produces identical
+ *    ciphertext. This is acceptable — wallet keys are encrypted once
+ *    with one master key, and determinism enables verification.
+ *
+ * 4. Trade-off: Deterministic IVs slightly aid an offline attacker
+ *    who has the encrypted wallet and knows at least one plaintext
+ *    private key. They can test candidate master keys (derived from
+ *    the user's password) by encrypting the known private key with
+ *    Hash(pubkey) as IV and comparing against the stored ciphertext.
+ *    This is a known-plaintext verification shortcut, not a break of
+ *    AES itself, and is mitigated in practice by strong passwords and
+ *    robust key-derivation parameters. The design is retained for
+ *    compatibility and deterministic verification of key material.
  */
 
 /** Master key for wallet encryption */

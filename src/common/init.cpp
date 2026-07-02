@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <chainparams.h>
@@ -40,6 +40,14 @@ std::optional<ConfigError> InitConfig(ArgsManager& args, SettingsAbortFn setting
 
         // Check for chain settings (Params() calls are only valid after this clause)
         SelectParams(args.GetChainType());
+
+        const auto& chain_params{Params()};
+        if (!Consensus::ValidateOracleConfiguration(chain_params.GetConsensus())) {
+            return ConfigError{ConfigStatus::FAILED, strprintf(_("Invalid MuSig2 oracle configuration for %s chain."), chain_params.GetChainTypeString())};
+        }
+        if (!chain_params.ValidateOracleNodeAlignment()) {
+            return ConfigError{ConfigStatus::FAILED, strprintf(_("Oracle node public keys do not match the active MuSig2 keyset for %s chain."), chain_params.GetChainTypeString())};
+        }
 
         // Create datadir if it does not exist.
         const auto base_path{args.GetDataDirBase()};

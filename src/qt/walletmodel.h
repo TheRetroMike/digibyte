@@ -1,5 +1,5 @@
 // Copyright (c) 2011-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef DIGIBYTE_QT_WALLETMODEL_H
@@ -159,6 +159,73 @@ public:
     // Otherwise, uses the wallet's cached available balance.
     CAmount getAvailableBalance(const wallet::CCoinControl* control);
 
+    // DigiDollar specific methods
+    struct DigiDollarSendResult
+    {
+        DigiDollarSendResult(StatusCode _status = OK, QString _txid = "", QString _reasonFailed = "")
+            : status(_status), txid(_txid), reasonFailed(_reasonFailed) {}
+        StatusCode status;
+        QString txid;
+        QString reasonFailed;
+    };
+
+    struct DigiDollarMintResult
+    {
+        DigiDollarMintResult(StatusCode _status = OK, QString _txid = "", QString _positionId = "", QString _reasonFailed = "", CAmount _collateralLocked = 0)
+            : status(_status), txid(_txid), positionId(_positionId), reasonFailed(_reasonFailed), collateralLocked(_collateralLocked) {}
+        StatusCode status;
+        QString txid;
+        QString positionId;
+        QString reasonFailed;
+        CAmount collateralLocked;  // Amount of DGB locked as collateral (in satoshis)
+    };
+
+    struct DigiDollarRedeemResult
+    {
+        DigiDollarRedeemResult(StatusCode _status = OK, QString _txid = "", QString _reasonFailed = "")
+            : status(_status), txid(_txid), reasonFailed(_reasonFailed) {}
+        StatusCode status;
+        QString txid;
+        QString reasonFailed;
+    };
+
+    // Send DigiDollar to an address
+    DigiDollarSendResult sendDigiDollar(const QString& address, CAmount amount, const QString& comment = "",
+                                        const std::vector<COutPoint>* preset_dd_inputs = nullptr);
+
+    // Mint DigiDollar with collateral
+    DigiDollarMintResult mintDigiDollar(CAmount ddAmount, int lockTier);
+
+    // Redeem DigiDollar position
+    DigiDollarRedeemResult redeemDigiDollar(const QString& positionId, CAmount amount, const QString& redeemAddress = "");
+
+    // Get DigiDollar balance (confirmed only)
+    CAmount getDigiDollarBalance() const;
+
+    // Get pending (unconfirmed but trusted) DigiDollar balance
+    CAmount getPendingDigiDollarBalance() const;
+
+    // Get locked collateral amount
+    CAmount getLockedCollateral() const;
+
+    // Get available DGB balance for collateral
+    CAmount getAvailableDGBBalance() const;
+
+    // Validate DigiDollar address
+    bool validateDigiDollarAddress(const QString& address) const;
+
+    // Calculate required collateral for minting
+    CAmount calculateRequiredCollateral(CAmount ddAmount, int lockTier) const;
+
+    // Execute RPC command (for DigiDollar widgets)
+    UniValue executeRpc(const std::string& command, const UniValue& params) const;
+
+    // Generate new DigiDollar receiving address
+    QString getNewDigiDollarAddress(const QString& label = "");
+
+    // Get DigiDollarWallet for coin control
+    DigiDollarWallet* getDigiDollarWallet() const;
+
 private:
     std::unique_ptr<interfaces::Wallet> m_wallet;
     std::unique_ptr<interfaces::Handler> m_handler_unload;
@@ -197,6 +264,9 @@ private:
 Q_SIGNALS:
     // Signal that balance in wallet changed
     void balanceChanged(const interfaces::WalletBalances& balances);
+
+    // Signal that DigiDollar wallet state changed and DD widgets should refresh.
+    void digiDollarChanged();
 
     // Encryption status of wallet changed
     void encryptionStatusChanged();

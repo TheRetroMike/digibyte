@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef DIGIBYTE_INDEX_TXINDEX_H
@@ -6,7 +6,11 @@
 
 #include <index/base.h>
 
-static constexpr bool DEFAULT_TXINDEX{false};
+// DigiByte: txindex defaults to ON. DigiDollar (mint/transfer/redeem scanning,
+// collateral lookups) and the oracle/getrawtransaction RPC surface require a full
+// transaction index, and IsDigiDollarTxIndexRequired() refuses to start without it.
+// Defaulting on avoids a hard startup error for normal DigiDollar users.
+static constexpr bool DEFAULT_TXINDEX{true};
 
 /**
  * TxIndex is used to look up transactions included in the blockchain by hash.

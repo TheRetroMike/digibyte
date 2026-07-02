@@ -24,7 +24,7 @@ from .address import create_deterministic_address_bcrt1_p2tr_op_true
 from .authproxy import JSONRPCException
 from . import coverage
 from .p2p import NetworkThread
-from .test_node import TestNode
+from .test_node import DIGIBYTED_PROC_WAIT_TIMEOUT, TestNode
 from .util import (
     MAX_NODES,
     PortSeed,
@@ -575,8 +575,14 @@ class DigiByteTestFramework(metaclass=DigiByteTestMetaClass):
             node.stop_node(wait=wait, wait_until_stopped=False)
 
         for node in self.nodes:
-            # Wait for nodes to stop
-            node.wait_until_stopped()
+            # Wait for nodes to stop. If a node failed before RPC came up,
+            # stop_node() terminated it directly; accept that exit status here
+            # so cleanup does not mask the original startup failure.
+            if node.running and not node.rpc_connected:
+                wait_until_helper_internal(lambda: node.process.poll() is not None, timeout=DIGIBYTED_PROC_WAIT_TIMEOUT, timeout_factor=node.timeout_factor)
+                node.is_node_stopped(expected_ret_code=node.process.returncode)
+            else:
+                node.wait_until_stopped()
 
     def restart_node(self, i, extra_args=None):
         """Stop and start a test node"""

@@ -159,6 +159,10 @@ DIGIBYTE_CORE_H = \
   dbwrapper.h \
   deploymentinfo.h \
   deploymentstatus.h \
+  digidollar/digidollar.h \
+  digidollar/scripts.h \
+  digidollar/txbuilder.h \
+  digidollar/validation.h \
   external_signer.h \
   flatfile.h \
   headerssync.h \
@@ -168,6 +172,7 @@ DIGIBYTE_CORE_H = \
   index/base.h \
   index/blockfilterindex.h \
   index/coinstatsindex.h \
+  index/digidollarstatsindex.h \
   index/disktxpos.h \
   index/txindex.h \
   indirectmap.h \
@@ -344,6 +349,8 @@ DIGIBYTE_CORE_H = \
   wallet/context.h \
   wallet/crypter.h \
   wallet/db.h \
+  wallet/digidollarwallet.h \
+  wallet/ddcoincontrol.h \
   wallet/dump.h \
   wallet/external_signer_scriptpubkeyman.h \
   wallet/feebumper.h \
@@ -378,7 +385,7 @@ obj/build.h: FORCE
 libdigibyte_util_a-clientversion.$(OBJEXT): obj/build.h
 
 # node #
-libdigibyte_node_a_CPPFLAGS = $(AM_CPPFLAGS) $(DIGIBYTE_INCLUDES) $(LEVELDB_CPPFLAGS) $(BOOST_CPPFLAGS) $(MINIUPNPC_CPPFLAGS) $(NATPMP_CPPFLAGS) $(EVENT_CFLAGS) $(EVENT_PTHREADS_CFLAGS)
+libdigibyte_node_a_CPPFLAGS = $(AM_CPPFLAGS) $(DIGIBYTE_INCLUDES) $(LEVELDB_CPPFLAGS) $(BOOST_CPPFLAGS) $(MINIUPNPC_CPPFLAGS) $(NATPMP_CPPFLAGS) $(EVENT_CFLAGS) $(EVENT_PTHREADS_CFLAGS) $(LIBCURL_CFLAGS)
 libdigibyte_node_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libdigibyte_node_a_SOURCES = \
   addrdb.cpp \
@@ -392,6 +399,7 @@ libdigibyte_node_a_SOURCES = \
   dandelion.cpp \
   dbwrapper.cpp \
   deploymentstatus.cpp \
+  digidollar/health.cpp \
   flatfile.cpp \
   headerssync.cpp \
   httprpc.cpp \
@@ -400,6 +408,7 @@ libdigibyte_node_a_SOURCES = \
   index/base.cpp \
   index/blockfilterindex.cpp \
   index/coinstatsindex.cpp \
+  index/digidollarstatsindex.cpp \
   index/txindex.cpp \
   init.cpp \
   kernel/chain.cpp \
@@ -448,6 +457,7 @@ libdigibyte_node_a_SOURCES = \
   pow.cpp \
   rest.cpp \
   rpc/blockchain.cpp \
+  rpc/digidollar.cpp \
   rpc/fees.cpp \
   rpc/mempool.cpp \
   rpc/mining.cpp \
@@ -503,6 +513,8 @@ libdigibyte_wallet_a_SOURCES = \
   wallet/context.cpp \
   wallet/crypter.cpp \
   wallet/db.cpp \
+  wallet/digidollarwallet.cpp \
+  wallet/ddcoincontrol.cpp \
   wallet/dump.cpp \
   wallet/external_signer_scriptpubkeyman.cpp \
   wallet/feebumper.cpp \
@@ -635,6 +647,12 @@ libdigibyte_consensus_a_SOURCES = \
   arith_uint256.cpp \
   arith_uint256.h \
   consensus/amount.h \
+  consensus/digidollar.cpp \
+  consensus/digidollar.h \
+  consensus/digidollar_transaction_validation.cpp \
+  consensus/digidollar_transaction_validation.h \
+  consensus/digidollar_tx.cpp \
+  consensus/digidollar_tx.h \
   consensus/merkle.cpp \
   consensus/merkle.h \
   consensus/params.h \
@@ -700,7 +718,7 @@ libdigibyte_consensus_a_SOURCES = \
 #
 
 # common #
-libdigibyte_common_a_CPPFLAGS = $(AM_CPPFLAGS) $(DIGIBYTE_INCLUDES) $(BOOST_CPPFLAGS)
+libdigibyte_common_a_CPPFLAGS = $(AM_CPPFLAGS) $(DIGIBYTE_INCLUDES) $(BOOST_CPPFLAGS) $(LIBCURL_CFLAGS)
 libdigibyte_common_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libdigibyte_common_a_SOURCES = \
   addresstype.cpp \
@@ -717,9 +735,19 @@ libdigibyte_common_a_SOURCES = \
   common/settings.cpp \
   common/system.cpp \
   compressor.cpp \
+  consensus/dca.cpp \
+  consensus/dca.h \
+  consensus/err.cpp \
+  consensus/err.h \
+  consensus/volatility.cpp \
+  consensus/volatility.h \
   core_read.cpp \
   core_write.cpp \
   deploymentinfo.cpp \
+  digidollar/digidollar.cpp \
+  digidollar/scripts.cpp \
+  digidollar/txbuilder.cpp \
+  digidollar/validation.cpp \
   external_signer.cpp \
   init/common.cpp \
   kernel/chainparams.cpp \
@@ -730,9 +758,32 @@ libdigibyte_common_a_SOURCES = \
   netaddress.cpp \
   netbase.cpp \
   net_permissions.cpp \
+  oracle/bundle_manager.cpp \
+  oracle/bundle_manager.h \
+  oracle/exchange.cpp \
+  oracle/exchange.h \
+  oracle/mock_oracle.cpp \
+  oracle/mock_oracle.h \
+  oracle/musig2_aggregator.cpp \
+  oracle/musig2_aggregator.h \
+  oracle/musig2_orchestrator.cpp \
+  oracle/musig2_orchestrator.h \
+  oracle/musig2_oracle_participation.cpp \
+  oracle/musig2_oracle_participation.h \
+  oracle/musig2_session.cpp \
+  oracle/musig2_session.h \
+  oracle/musig2_session_manager.cpp \
+  oracle/musig2_session_manager.h \
+  oracle/musig2_messages.h \
+  oracle/signing_orchestrator.cpp \
+  oracle/signing_orchestrator.h \
+  oracle/node.cpp \
+  oracle/node.h \
   outputtype.cpp \
   policy/feerate.cpp \
   policy/policy.cpp \
+  primitives/oracle.cpp \
+  primitives/oracle.h \
   protocol.cpp \
   psbt.cpp \
   rpc/external_signer.cpp \
@@ -833,7 +884,7 @@ digibyte_bin_ldadd = \
   $(LIBMEMENV) \
   $(LIBSECP256K1)
 
-digibyte_bin_ldadd += $(BDB_LIBS) $(MINIUPNPC_LIBS) $(NATPMP_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(ZMQ_LIBS) $(SQLITE_LIBS)
+digibyte_bin_ldadd += $(BDB_LIBS) $(MINIUPNPC_LIBS) $(NATPMP_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(ZMQ_LIBS) $(SQLITE_LIBS) $(LIBCURL_LIBS)
 
 digibyted_SOURCES = $(digibyte_daemon_sources) init/digibyted.cpp
 digibyted_CPPFLAGS = $(digibyte_bin_cppflags)
@@ -895,14 +946,18 @@ digibyte_wallet_LDFLAGS = $(digibyte_bin_ldflags)
 digibyte_wallet_LDADD = \
   $(LIBDIGIBYTE_WALLET_TOOL) \
   $(LIBDIGIBYTE_WALLET) \
+  $(LIBDIGIBYTE_NODE) \
   $(LIBDIGIBYTE_COMMON) \
   $(LIBDIGIBYTE_UTIL) \
   $(LIBUNIVALUE) \
   $(LIBDIGIBYTE_CONSENSUS) \
   $(LIBDIGIBYTE_CRYPTO) \
+  $(LIBLEVELDB) \
+  $(LIBMEMENV) \
   $(LIBSECP256K1) \
   $(BDB_LIBS) \
-  $(SQLITE_LIBS)
+  $(SQLITE_LIBS) \
+  $(LIBCURL_LIBS)
 
 if TARGET_WINDOWS
 digibyte_wallet_SOURCES += digibyte-wallet-res.rc
@@ -1052,7 +1107,7 @@ lib_LTLIBRARIES += $(LIBDIGIBYTECONSENSUS)
 include_HEADERS = script/digibyteconsensus.h
 libdigibyteconsensus_la_SOURCES = support/cleanse.cpp $(crypto_libdigibyte_crypto_base_la_SOURCES) $(libdigibyte_consensus_a_SOURCES)
 
-libdigibyteconsensus_la_LDFLAGS = $(AM_LDFLAGS) -no-undefined $(RELDFLAGS)
+libdigibyteconsensus_la_LDFLAGS = $(AM_LDFLAGS) -no-undefined $(RELDFLAGS) -Wl,-undefined,dynamic_lookup
 libdigibyteconsensus_la_LIBADD = $(LIBSECP256K1)
 libdigibyteconsensus_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(builddir)/obj -I$(srcdir)/secp256k1/include -DBUILD_DIGIBYTE_INTERNAL
 libdigibyteconsensus_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)

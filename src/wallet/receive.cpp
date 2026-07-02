@@ -1,8 +1,9 @@
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <consensus/amount.h>
 #include <consensus/consensus.h>
+#include <consensus/digidollar.h>
 #include <wallet/receive.h>
 #include <wallet/transaction.h>
 #include <wallet/wallet.h>
@@ -204,7 +205,26 @@ void CachedTxGetAmounts(const CWallet& wallet, const CWalletTx& wtx,
     if (nDebit > 0) // debit>0 means we signed/sent this transaction
     {
         CAmount nValueOut = wtx.tx->GetValueOut();
-        nFee = nDebit - nValueOut;
+        // Bug #17 fix: For DD redemption transactions, IsMine() may not recognize
+        // the collateral P2TR input (NUMS internal key), so nDebit excludes the
+        // large collateral value, making fee = nDebit - nValueOut wildly wrong.
+        // Sum ALL input values from mapWallet to get the true fee.
+        if (DigiDollar::GetDigiDollarTxType(*wtx.tx) == DD_TX_REDEEM) {
+            CAmount nTotalIn = 0;
+            LOCK(wallet.cs_wallet);
+            for (const auto& txin : wtx.tx->vin) {
+                auto mi = wallet.mapWallet.find(txin.prevout.hash);
+                if (mi != wallet.mapWallet.end()) {
+                    const CWalletTx& prev = mi->second;
+                    if (txin.prevout.n < prev.tx->vout.size()) {
+                        nTotalIn += prev.tx->vout[txin.prevout.n].nValue;
+                    }
+                }
+            }
+            nFee = nTotalIn - nValueOut; // Positive = fee paid (convention in GetAmounts)
+        } else {
+            nFee = nDebit - nValueOut;
+        }
     }
 
     LOCK(wallet.cs_wallet);

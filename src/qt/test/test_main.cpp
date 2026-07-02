@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #if defined(HAVE_CONFIG_H)
@@ -19,6 +19,8 @@
 #ifdef ENABLE_WALLET
 #include <qt/test/addressbooktests.h>
 #include <qt/test/wallettests.h>
+#include <qt/test/digidollarwidgettests.h>
+#include <qt/test/digidollarwave19widgettests.h>
 #endif // ENABLE_WALLET
 
 #include <QApplication>
@@ -91,10 +93,12 @@ int main(int argc, char* argv[])
 
     int num_test_failures{0};
 
-    app.node().context()->args = &gArgs;     // Make gArgs available in the NodeContext
+    app.node().context()->args = &gArgs;
     
     AppTests app_tests(app);
     num_test_failures += QTest::qExec(&app_tests);
+
+    app.node().context()->args = &gArgs;
 
     OptionTests options_tests(app.node());
     num_test_failures += QTest::qExec(&options_tests);
@@ -111,6 +115,15 @@ int main(int argc, char* argv[])
 
     AddressBookTests test6(app.node());
     num_test_failures += QTest::qExec(&test6);
+
+    DigiDollarWidgetTests test7(app.node());
+    num_test_failures += QTest::qExec(&test7);
+
+    // Wave 19 Agent B: separate translation unit for the Wave 19 Qt pins
+    // (DD-FA-FUNC-030, DD-FA-TEST-027/028/029) — kept out of
+    // digidollarwidgettests.cpp to avoid concurrent edits in the audit.
+    DigiDollarWave19WidgetTests test8(app.node());
+    num_test_failures += QTest::qExec(&test8);
 #endif
 
     if (num_test_failures) {

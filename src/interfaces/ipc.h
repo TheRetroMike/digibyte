@@ -5,7 +5,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 // Copyright (c) 2021 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 #ifndef DIGIBYTE_INTERFACES_IPC_H
 #define DIGIBYTE_INTERFACES_IPC_H
 

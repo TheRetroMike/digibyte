@@ -29,6 +29,9 @@ class GetBlockTemplateLPTest(DigiByteTestFramework):
     def set_test_params(self):
         self.num_nodes = 2
         self.supports_cli = False
+        # This fixture asserts mempool wakeups; Dandelion may keep MiniWallet
+        # transactions in stempool under load.
+        self.extra_args = [["-dandelion=0"], ["-dandelion=0"]]
 
     def run_test(self):
         self.log.info("Warning: this test will take about 70 seconds in the best case. Be patient.")

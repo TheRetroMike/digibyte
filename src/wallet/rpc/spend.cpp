@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <consensus/validation.h>
@@ -9,6 +9,7 @@
 #include <rpc/util.h>
 #include <script/script.h>
 #include <util/fees.h>
+#include <util/moneystr.h>
 #include <util/rbf.h>
 #include <util/translation.h>
 #include <util/vector.h>
@@ -23,6 +24,9 @@
 
 
 namespace wallet {
+
+static constexpr CAmount MAX_AUTOMATIC_SENDALL_FEE{COIN};
+
 static void ParseRecipients(const UniValue& address_amounts, const UniValue& subtract_fee_outputs, std::vector<CRecipient>& recipients)
 {
     std::set<CTxDestination> destinations;
@@ -1477,6 +1481,12 @@ RPCHelpMan sendall()
 
             if (fee_from_size > pwallet->m_default_max_tx_fee) {
                 throw JSONRPCError(RPC_WALLET_ERROR, TransactionErrorString(TransactionError::MAX_FEE_EXCEEDED).original);
+            }
+            if (!coin_control.m_feerate && !send_max && fee_from_size > MAX_AUTOMATIC_SENDALL_FEE) {
+                throw JSONRPCError(RPC_WALLET_ERROR, strprintf(
+                    "Automatic sendall fee would be %s, which is above the safety limit of %s. "
+                    "Specify fee_rate explicitly or use send_max=true to confirm this sweep cost.",
+                    FormatMoney(fee_from_size), FormatMoney(MAX_AUTOMATIC_SENDALL_FEE)));
             }
 
             if (effective_value <= 0) {

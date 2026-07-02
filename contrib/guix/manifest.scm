@@ -16,6 +16,7 @@
              (gnu packages mingw)
              (gnu packages moreutils)
              (gnu packages pkg-config)
+             ((gnu packages perl) #:select (perl))
              ((gnu packages python) #:select (python-minimal))
              ((gnu packages python-build) #:select (python-tomli))
              ((gnu packages python-crypto) #:select (python-asn1crypto))
@@ -588,6 +589,8 @@ inspecting signatures in Mach-O binaries.")
         (list gcc-toolchain-10 "static")
         ;; Scripting
         python-minimal ;; (3.10)
+        ;; Perl (required for OpenSSL's Configure script)
+        perl
         ;; Git
         git-minimal
         ;; Tests
@@ -601,7 +604,8 @@ inspecting signatures in Mach-O binaries.")
                  nss-certs
                  osslsigncode))
           ((string-contains target "-linux-")
-           (list (make-digibyte-cross-toolchain target)))
+           (list (make-digibyte-cross-toolchain target)
+                 openssl))
           ((string-contains target "darwin")
            (list clang-toolchain-15 binutils cmake-minimal python-signapple zip))
           (else '())))))

@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #if defined(HAVE_CONFIG_H)
@@ -31,6 +31,7 @@
 #include <httpserver.h>
 #include <index/blockfilterindex.h>
 #include <index/coinstatsindex.h>
+#include <index/digidollarstatsindex.h>
 #include <index/txindex.h>
 #include <init/common.h>
 #include <interfaces/chain.h>
@@ -56,9 +57,14 @@
 #include <node/mempool_args.h>
 #include <node/mempool_persist_args.h>
 #include <node/miner.h>
+#include <digidollar/health.h>
 #include <node/peerman_args.h>
 #include <node/ui_interface.h>
 #include <node/validation_cache_args.h>
+#include <oracle/bundle_manager.h>
+#include <oracle/node.h>
+#include <oracle/signing_orchestrator.h>
+#include <script/interpreter.h>
 #include <policy/feerate.h>
 #include <policy/fees.h>
 #include <policy/fees_args.h>
@@ -248,6 +254,9 @@ void Interrupt(NodeContext& node)
     if (g_coin_stats_index) {
         g_coin_stats_index->Interrupt();
     }
+    if (g_digidollar_stats_index) {
+        g_digidollar_stats_index->Interrupt();
+    }
 }
 
 void Shutdown(NodeContext& node)
@@ -265,6 +274,13 @@ void Shutdown(NodeContext& node)
     util::ThreadRename("shutoff");
     if (node.mempool) node.mempool->AddTransactionsUpdated(1);
     if (node.stempool) node.stempool->AddTransactionsUpdated(1);
+
+    // Shut down oracle services before tearing down networking and before
+    // process-exit library cleanup can invalidate libcurl/OpenSSL state.
+    OracleSigningOrchestrator::Shutdown();
+    OracleManager::StopOracleService();
+    g_get_oracle_consensus_price = nullptr;
+    OracleBundleManager::Shutdown();
 
     StopHTTPRPC();
     StopREST();
@@ -325,6 +341,10 @@ void Shutdown(NodeContext& node)
     if (g_coin_stats_index) {
         g_coin_stats_index->Stop();
         g_coin_stats_index.reset();
+    }
+    if (g_digidollar_stats_index) {
+        g_digidollar_stats_index->Stop();
+        g_digidollar_stats_index.reset();
     }
     ForEachBlockFilterIndex([](BlockFilterIndex& index) { index.Stop(); });
     DestroyAllBlockFilterIndexes();
@@ -462,6 +482,7 @@ void SetupServerArgs(ArgsManager& argsman)
     argsman.AddArg("-blockreconstructionextratxn=<n>", strprintf("Extra transactions to keep in memory for compact block reconstructions (default: %u)", DEFAULT_BLOCK_RECONSTRUCTION_EXTRA_TXN), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
     argsman.AddArg("-blocksonly", strprintf("Whether to reject transactions from network peers. Automatic broadcast and rebroadcast of any transactions from inbound peers is disabled, unless the peer has the 'forcerelay' permission. RPC transactions are not affected. (default: %u)", DEFAULT_BLOCKSONLY), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
     argsman.AddArg("-coinstatsindex", strprintf("Maintain coinstats index used by the gettxoutsetinfo RPC (default: %u)", DEFAULT_COINSTATSINDEX), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
+    argsman.AddArg("-digidollarstatsindex", strprintf("Maintain DigiDollar stats index for network-wide DD supply tracking (default: %u)", DEFAULT_DIGIDOLLARSTATSINDEX), ArgsManager::ALLOW_ANY, OptionsCategory::DIGIDOLLAR);
     if (!argsman.GetArgFlags("-conf")) {
         argsman.AddArg("-conf=<file>", strprintf("Specify path to read-only configuration file. Relative paths will be prefixed by datadir location (only useable from command line, not configuration file) (default: %s)", DIGIBYTE_CONF_FILENAME), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
     }
@@ -658,6 +679,43 @@ void SetupServerArgs(ArgsManager& argsman)
 
     argsman.AddArg("-dandelion", strprintf("Enable Dandelion Transaction Relay Protocol (default: %d)", DEFAULT_DANDELION), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
 
+    // DigiDollar stablecoin options
+    // DigiDollar startup options
+    argsman.AddArg("-digidollar", "Enable DigiDollar stablecoin features (follows BIP9 activation by default)", ArgsManager::ALLOW_ANY, OptionsCategory::DIGIDOLLAR);
+    argsman.AddArg("-digidollaractivationheight=<n>", "Set DigiDollar activation height for regtest (overrides BIP9 activation, regtest only)", ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::DIGIDOLLAR);
+
+    // DigiDollar RPC commands (use 'help <command>' in console for details)
+    argsman.AddArg("mintdigidollar", "Mint DigiDollars by locking DGB as collateral (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::DIGIDOLLAR);
+    argsman.AddArg("senddigidollar", "Send DigiDollars to another address (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::DIGIDOLLAR);
+    argsman.AddArg("redeemdigidollar", "Redeem DigiDollars to unlock DGB collateral (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::DIGIDOLLAR);
+    argsman.AddArg("getdigidollarbalance", "Show your DigiDollar balance (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::DIGIDOLLAR);
+    argsman.AddArg("listdigidollarpositions", "List all collateral positions and minted DD (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::DIGIDOLLAR);
+    argsman.AddArg("listdigidollartxs", "List DigiDollar transaction history (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::DIGIDOLLAR);
+    argsman.AddArg("getdigidollaraddress", "Get or create a DigiDollar receive address (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::DIGIDOLLAR);
+    argsman.AddArg("validateddaddress", "Validate a DigiDollar address (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::DIGIDOLLAR);
+    argsman.AddArg("listdigidollaraddresses", "List all DigiDollar addresses in wallet (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::DIGIDOLLAR);
+    argsman.AddArg("importdigidollaraddress", "Validate a DigiDollar address; V1 watch-only import is unsupported/no-op (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::DIGIDOLLAR);
+    argsman.AddArg("getdigidollarstats", "Get network-wide DigiDollar statistics (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::DIGIDOLLAR);
+    argsman.AddArg("getdigidollardeploymentinfo", "Get DigiDollar activation/deployment status (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::DIGIDOLLAR);
+    argsman.AddArg("calculatecollateralrequirement", "Calculate DGB collateral needed for a DD mint (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::DIGIDOLLAR);
+    argsman.AddArg("estimatecollateral", "Estimate collateral requirement by tier (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::DIGIDOLLAR);
+    argsman.AddArg("getdcamultiplier", "Get the current DCA multiplier for collateral (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::DIGIDOLLAR);
+    argsman.AddArg("getredemptioninfo", "Get info about a collateral position for redemption (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::DIGIDOLLAR);
+    argsman.AddArg("getprotectionstatus", "Get liquidation protection status (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::DIGIDOLLAR);
+
+    // Oracle RPC commands
+    argsman.AddArg("createoraclekey", "Generate an oracle signing key in your wallet (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::ORACLE);
+    argsman.AddArg("startoracle", "Start oracle price reporting for your assigned ID (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::ORACLE);
+    argsman.AddArg("stoporacle", "Stop oracle price reporting (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::ORACLE);
+    argsman.AddArg("getoracleprice", "Get current oracle-reported DGB/USD price (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::ORACLE);
+    argsman.AddArg("getalloracleprices", "Get price history from all oracles (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::ORACLE);
+    argsman.AddArg("getoracles", "List all oracle nodes and their status (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::ORACLE);
+    argsman.AddArg("listoracle", "List oracle configuration and keys (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::ORACLE);
+    argsman.AddArg("getoraclepubkey", "Get the public key for an oracle ID (RPC/console)", ArgsManager::ALLOW_ANY, OptionsCategory::ORACLE);
+    // sendoracleprice REMOVED — security vulnerability (fake price injection)
+    argsman.AddArg("-oraclebundlewaitms=<n>", "When exactly one oracle message/attestation short of quorum, wait up to <n> milliseconds before mining without oracle data (default: 2000, 0 to disable)", ArgsManager::ALLOW_ANY, OptionsCategory::ORACLE);
+    argsman.AddArg("-oraclebundlewaitpollms=<n>", "Polling interval in milliseconds while waiting for near-quorum oracle data (default: 200)", ArgsManager::ALLOW_ANY, OptionsCategory::ORACLE);
+
 #if HAVE_DECL_FORK
     argsman.AddArg("-daemon", strprintf("Run in the background as a daemon and accept commands (default: %d)", DEFAULT_DAEMON), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
     argsman.AddArg("-daemonwait", strprintf("Wait for initialization to be finished before exiting. This implies -daemon (default: %d)", DEFAULT_DAEMONWAIT), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
@@ -724,6 +782,26 @@ void InitParameterInteraction(ArgsManager& args)
     if (args.IsArgSet("-whitebind")) {
         if (args.SoftSetBoolArg("-listen", true))
             LogPrintf("%s: parameter interaction: -whitebind set -> setting -listen=1\n", __func__);
+    }
+
+    // DigiByte: -txindex defaults on (DigiDollar needs it), but prune is incompatible with
+    // txindex. If the node is pruning and the user did not explicitly choose -txindex, leave
+    // txindex off so the pruned node starts cleanly. An explicit "-prune=N -txindex=1" still
+    // errors in AppInitParameterInteraction. Any nonzero -prune counts (including invalid
+    // negative values, so they reach their own error instead of the txindex conflict);
+    // -prune=0 explicitly disables pruning and keeps the txindex default.
+    if (args.GetIntArg("-prune", 0) != 0) {
+        if (args.SoftSetBoolArg("-txindex", false))
+            LogPrintf("%s: parameter interaction: -prune set -> setting -txindex=0\n", __func__);
+
+        // DigiByte: the DigiDollar stats index (default on) syncs from genesis, so on a
+        // pruned node its initial sync would demand blocks below the prune point and the
+        // generic "index goes beyond pruned data" check would refuse to start. Leave it
+        // off on pruned nodes unless the user explicitly asked for it. getdigidollarstats
+        // still works via its live UTXO-set fallback; only historical per-height stats
+        // queries need the index.
+        if (args.SoftSetBoolArg("-digidollarstatsindex", false))
+            LogPrintf("%s: parameter interaction: -prune set -> setting -digidollarstatsindex=0\n", __func__);
     }
 
     if (args.IsArgSet("-connect") || args.GetIntArg("-maxconnections", DEFAULT_MAX_PEER_CONNECTIONS) <= 0) {
@@ -820,7 +898,69 @@ ServiceFlags nLocalServices = ServiceFlags(NODE_NETWORK_LIMITED | NODE_WITNESS);
 int64_t peer_connect_timeout;
 std::set<BlockFilterType> g_enabled_filter_types;
 
+bool HasDigiDollarDeployment(const CChainParams& chainparams)
+{
+    const auto& dd_deployment = chainparams.GetConsensus().vDeployments[Consensus::DEPLOYMENT_DIGIDOLLAR];
+    return dd_deployment.nStartTime != Consensus::BIP9Deployment::NEVER_ACTIVE &&
+           dd_deployment.nTimeout != Consensus::BIP9Deployment::NEVER_ACTIVE;
+}
+
+bool IsRegtestDigiDollarExplicitlyRequested(const ArgsManager& args)
+{
+    return args.IsArgSet("-digidollar") || args.IsArgSet("-digidollaractivationheight");
+}
+
 } // namespace
+
+bool IsDigiDollarTxIndexRequired(const CChainParams& chainparams, const ArgsManager& args)
+{
+    if (!HasDigiDollarDeployment(chainparams)) return false;
+
+    // Pruned nodes do not maintain a transaction index (prune is incompatible with
+    // txindex). DigiDollar validation on a pruned node resolves the amount/lock of a
+    // spent DD output by reading the creating transaction from the retained block at the
+    // coin's height (node::GetTransaction's block-db path) instead of the txindex, and
+    // the DigiDollar-era block window is kept by the "digidollar" prune lock. So a pruned
+    // node does not require txindex.
+    if (args.GetIntArg("-prune", 0) > 0) return false;
+
+    switch (chainparams.GetChainType()) {
+    case ChainType::MAIN:
+    case ChainType::TESTNET:
+        return true;
+    case ChainType::REGTEST:
+        return IsRegtestDigiDollarExplicitlyRequested(args);
+    case ChainType::SIGNET:
+        return false;
+    }
+
+    return false;
+}
+
+std::string GetDigiDollarTxIndexRequirementError(const CChainParams& chainparams)
+{
+    std::string section_name;
+    switch (chainparams.GetChainType()) {
+    case ChainType::MAIN:
+        section_name = "[main]";
+        break;
+    case ChainType::TESTNET:
+        section_name = "[test]";
+        break;
+    case ChainType::REGTEST:
+        section_name = "[regtest]";
+        break;
+    case ChainType::SIGNET:
+        section_name = "[signet]";
+        break;
+    }
+
+    if (!section_name.empty()) {
+        return strprintf("DigiDollar requires -txindex=1. Add txindex=1 to your digibyte.conf under the %s section and restart.",
+                         section_name);
+    }
+    return "DigiDollar requires -txindex=1. Add txindex=1 to your digibyte.conf and restart.";
+}
 
 [[noreturn]] static void new_handler_terminate()
 {
@@ -1134,7 +1274,7 @@ static bool LockDataDirectory(bool probeOnly)
         return InitError(strprintf(_("Cannot write to data directory '%s'; check permissions."), fs::PathToString(datadir)));
     }
     if (!LockDirectory(datadir, ".lock", probeOnly)) {
-        return InitError(strprintf(_("Cannot obtain a lock on data directory %s. %s is probably already running."), fs::PathToString(datadir), PACKAGE_NAME));
+        return InitError(strprintf(_("Cannot obtain a lock on data directory %s. %s is probably already running."), fs::PathToString(datadir), CLIENT_NAME));
     }
     return true;
 }
@@ -1145,7 +1285,7 @@ bool AppInitSanityChecks(const kernel::Context& kernel)
     auto result{kernel::SanityChecks(kernel)};
     if (!result) {
         InitError(util::ErrorString(result));
-        return InitError(strprintf(_("Initialization sanity check failed. %s is shutting down."), PACKAGE_NAME));
+        return InitError(strprintf(_("Initialization sanity check failed. %s is shutting down."), CLIENT_NAME));
     }
 
     // Probe the data directory lock to give an early error message, if possible
@@ -1180,6 +1320,10 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     auto opt_max_upload = ParseByteUnits(args.GetArg("-maxuploadtarget", DEFAULT_MAX_UPLOAD_TARGET), ByteUnit::M);
     if (!opt_max_upload) {
         return InitError(strprintf(_("Unable to parse -maxuploadtarget: '%s'"), args.GetArg("-maxuploadtarget", "")));
+    }
+
+    if (IsDigiDollarTxIndexRequired(chainparams, args) && !args.GetBoolArg("-txindex", DEFAULT_TXINDEX)) {
+        return InitError(Untranslated(GetDigiDollarTxIndexRequirementError(chainparams)));
     }
 
     // ********************************************************* Step 4a: application initialization
@@ -1380,17 +1524,37 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
         "-rpcbind",
         "-torcontrol",
         "-whitebind",
-        "-zmqpubhashblock",
-        "-zmqpubhashtx",
-        "-zmqpubrawblock",
-        "-zmqpubrawtx",
-        "-zmqpubsequence",
     }) {
         for (const std::string& socket_addr : args.GetArgs(port_option)) {
             std::string host_out;
             uint16_t port_out{0};
             if (!SplitHostPort(socket_addr, port_out, host_out)) {
                 return InitError(InvalidPortErrMsg(port_option, socket_addr));
+            }
+        }
+    }
+
+    // ZMQ options support both TCP (tcp://host:port) and Unix domain sockets
+    // (ipc:///path/to/socket). Skip port validation for ipc:// addresses since
+    // they use filesystem paths, not host:port format. This restores support
+    // that was inadvertently broken when port validation was added.
+    // See: https://github.com/DigiByte-Core/digibyte/issues/340
+    for (const std::string zmq_option : {
+        "-zmqpubhashblock",
+        "-zmqpubhashtx",
+        "-zmqpubrawblock",
+        "-zmqpubrawtx",
+        "-zmqpubsequence",
+    }) {
+        for (const std::string& socket_addr : args.GetArgs(zmq_option)) {
+            // libzmq natively supports ipc:// for Unix domain sockets
+            if (socket_addr.substr(0, 6) == "ipc://") {
+                continue;
+            }
+            std::string host_out;
+            uint16_t port_out{0};
+            if (!SplitHostPort(socket_addr, port_out, host_out)) {
+                return InitError(InvalidPortErrMsg(zmq_option, socket_addr));
             }
         }
     }
@@ -1751,6 +1915,12 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
         node.indexes.emplace_back(g_coin_stats_index.get());
     }
 
+    // Initialize DigiDollar stats index
+    if (args.GetBoolArg("-digidollarstatsindex", DEFAULT_DIGIDOLLARSTATSINDEX)) {
+        g_digidollar_stats_index = std::make_unique<DigiDollarStatsIndex>(interfaces::MakeChain(node), /*cache_size=*/0, false, fReindex);
+        node.indexes.emplace_back(g_digidollar_stats_index.get());
+    }
+
     // Init indexes
     for (auto index : node.indexes) if (!index->Init()) return false;
 
@@ -1972,15 +2142,15 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
         }
     }
 
-    CService onion_service_target;
-    if (!connOptions.onion_binds.empty()) {
-        onion_service_target = connOptions.onion_binds.front();
-    } else {
-        onion_service_target = DefaultOnionServiceTarget();
-        connOptions.onion_binds.push_back(onion_service_target);
-    }
-
     if (args.GetBoolArg("-listenonion", DEFAULT_LISTEN_ONION)) {
+        CService onion_service_target;
+        if (!connOptions.onion_binds.empty()) {
+            onion_service_target = connOptions.onion_binds.front();
+        } else {
+            onion_service_target = DefaultOnionServiceTarget();
+            connOptions.onion_binds.push_back(onion_service_target);
+        }
+
         if (connOptions.onion_binds.size() > 1) {
             InitWarning(strprintf(_("More than one onion bind address is provided. Using %s "
                                     "for the automatically created Tor onion service."),
@@ -2041,6 +2211,44 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     if (!node.connman->Start(*node.scheduler, connOptions)) {
         return false;
     }
+
+    // Initialize Oracle Bundle Manager with consensus parameters
+    OracleBundleManager::Initialize();
+    // Initialize MuSig2 signing orchestrator for V1 oracle bundles
+    OracleSigningOrchestrator::Initialize();
+    g_signing_orchestrator->SetConnman(node.connman.get());
+    // Initialize oracle P2P connection for broadcasting
+    OracleBundleManager::GetInstance().SetConnman(node.connman.get());
+    // Load oracle prices from blockchain (must be after chainstate is loaded).
+    // Fail CLOSED on unreadable post-activation blocks: the reconstructed price
+    // history feeds the consensus volatility freeze, and the reconstructed health
+    // metrics feed consensus DCA/ERR. A truncated/partially-restored block file
+    // passes the index-flag startup guard but must never let the node run
+    // DigiDollar validation on partial data.
+    if (!OracleBundleManager::LoadPricesFromChain(chainman)) {
+        return InitError(_("DigiDollar-era block data is incomplete or unreadable. "
+                           "Restart with -reindex to rebuild it (a pruned node will "
+                           "redownload and re-prune)."));
+    }
+    // DD-FINAL-003 / AR-CONSENSUS-1: reconstruct cached system-health metrics
+    // (total DD supply + collateral) from the on-chain UTXO set so consensus
+    // DCA/ERR health does not depend on process restart history. No-op until
+    // DigiDollar is active at the tip.
+    if (!DigiDollar::SystemHealthMonitor::ReconstructFromChain(chainman)) {
+        return InitError(_("DigiDollar-era block data is incomplete or unreadable. "
+                           "Restart with -reindex to rebuild it (a pruned node will "
+                           "redownload and re-prune)."));
+    }
+
+    // DD-FINAL-005 / AR-0: OP_CHECKPRICE is deterministically DISABLED (it now
+    // consumes its witness operand and always pushes vchFalse). The interpreter no
+    // longer consults g_get_oracle_consensus_price, so the production hook is left
+    // null here intentionally — wiring it to OracleBundleManager::GetLatestPrice()
+    // was node-local + wall-clock dependent and is exactly the cross-node
+    // non-determinism (chain-split) that DD-FINAL-005 removed. The hook symbol
+    // remains only for unit tests, which install their own scoped hook. A future
+    // price-checking opcode must bind to the block's own committed v0x03 bundle
+    // price to be consensus-safe.
 
     // ********************************************************* Step 13: finished
 

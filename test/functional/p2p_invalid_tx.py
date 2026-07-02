@@ -26,6 +26,7 @@ class InvalidTxRequestTest(DigiByteTestFramework):
         self.num_nodes = 1
         self.extra_args = [[
             "-acceptnonstdtxn=1",
+            "-dandelion=0",
         ]]
         self.setup_clean_chain = True
 

@@ -1,14 +1,16 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2021 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef DIGIBYTE_KERNEL_CHAINPARAMS_H
 #define DIGIBYTE_KERNEL_CHAINPARAMS_H
 
 #include <consensus/params.h>
+#include <consensus/digidollar.h>
 #include <kernel/messagestartchars.h>
 #include <primitives/block.h>
+#include <primitives/oracle.h>
 #include <uint256.h>
 #include <util/chaintype.h>
 #include <util/hash_type.h>
@@ -88,6 +90,9 @@ public:
         SECRET_KEY_OLD,
         EXT_PUBLIC_KEY,
         EXT_SECRET_KEY,
+        DIGIDOLLAR_ADDRESS,
+        DIGIDOLLAR_ADDRESS_TESTNET,
+        DIGIDOLLAR_ADDRESS_REGTEST,
 
         MAX_BASE58_TYPES
     };
@@ -116,6 +121,8 @@ public:
     ChainType GetChainType() const { return m_chain_type; }
     /** Return the list of hostnames to look up for DNS seeds */
     const std::vector<std::string>& DNSSeeds() const { return vSeeds; }
+    /** Return public mainnet peers operators can use to bootstrap DigiDollar oracle P2P traffic */
+    const std::vector<std::string>& OracleSeedPeers() const { return vOracleSeedPeers; }
     const std::vector<unsigned char>& Base58Prefix(Base58Type type) const { return base58Prefixes[type]; }
     const std::string& Bech32HRP() const { return bech32_hrp; }
     const std::vector<uint8_t>& FixedSeeds() const { return vFixedSeeds; }
@@ -131,6 +138,19 @@ public:
     }
 
     const ChainTxData& TxData() const { return chainTxData; }
+
+    /** Get DigiDollar consensus parameters */
+    const DigiDollar::ConsensusParams& GetDigiDollarParams() const { return digidollarParams; }
+
+    // DigiDollar Oracle System
+    /** Get all oracle nodes */
+    const std::vector<OracleNodeInfo>& GetOracleNodes() const { return vOracleNodes; }
+    /** Get oracle node by ID */
+    const OracleNodeInfo* GetOracleNode(uint32_t id) const;
+    /** Get number of active oracles per epoch */
+    uint32_t GetActiveOracleCount() const;
+    /** Validate that active MuSig2 x-only keys match oracle node compressed keys slot-for-slot */
+    bool ValidateOracleNodeAlignment() const;
 
     /**
      * SigNetOptions holds configurations for creating a signet CChainParams.
@@ -150,11 +170,19 @@ public:
     };
 
     /**
+     * TestNetOptions holds local debug configurations for testnet.
+     */
+    struct TestNetOptions {
+        bool easy_pow{false};
+    };
+
+    /**
      * RegTestOptions holds configurations for creating a regtest CChainParams.
      */
     struct RegTestOptions {
         std::unordered_map<Consensus::DeploymentPos, VersionBitsParameters> version_bits_parameters{};
         std::unordered_map<Consensus::BuriedDeployment, int> activation_heights{};
+        std::optional<int> digidollar_activation_height{};
         bool fastprune{false};
     };
 
@@ -162,6 +190,7 @@ public:
     static std::unique_ptr<const CChainParams> SigNet(const SigNetOptions& options);
     static std::unique_ptr<const CChainParams> Main();
     static std::unique_ptr<const CChainParams> TestNet();
+    static std::unique_ptr<const CChainParams> TestNet(const TestNetOptions& options);
 
 protected:
     CChainParams() {}
@@ -173,6 +202,7 @@ protected:
     uint64_t m_assumed_blockchain_size;
     uint64_t m_assumed_chain_state_size;
     std::vector<std::string> vSeeds;
+    std::vector<std::string> vOracleSeedPeers;
     std::vector<unsigned char> base58Prefixes[MAX_BASE58_TYPES];
     std::string bech32_hrp;
     ChainType m_chain_type;
@@ -183,6 +213,8 @@ protected:
     CCheckpointData checkpointData;
     std::vector<AssumeutxoData> m_assumeutxo_data;
     ChainTxData chainTxData;
+    DigiDollar::ConsensusParams digidollarParams;
+    std::vector<OracleNodeInfo> vOracleNodes;
 };
 
 #endif // DIGIBYTE_KERNEL_CHAINPARAMS_H

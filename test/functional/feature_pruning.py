@@ -81,10 +81,10 @@ class PruneTest(DigiByteTestFramework):
         self.extra_args = [
             self.full_node_default_args,
             self.full_node_default_args,
-            ["-maxreceivebuffer=20000", "-prune=550"],
+            ["-maxreceivebuffer=20000", "-prune=550", "-digidollarstatsindex=0"],
             ["-maxreceivebuffer=20000"],
             ["-maxreceivebuffer=20000"],
-            ["-prune=550", "-blockfilterindex=1"],
+            ["-prune=550", "-blockfilterindex=1", "-digidollarstatsindex=0"],
         ]
         self.rpc_timeout = 120
 
@@ -136,7 +136,7 @@ class PruneTest(DigiByteTestFramework):
         )
 
     def test_rescan_blockchain(self):
-        self.restart_node(0, ["-prune=550"])
+        self.restart_node(0, ["-prune=550", "-digidollarstatsindex=0"])
         assert_raises_rpc_error(-1, "Can't rescan beyond pruned data. Use RPC call getblockchaininfo to determine your pruned height.", self.nodes[0].rescanblockchain)
 
     def test_height_min(self):
@@ -205,7 +205,22 @@ class PruneTest(DigiByteTestFramework):
         self.disconnect_nodes(1, 2)
 
         self.log.info("Generating new longer chain of 300 more blocks")
-        self.generate(self.nodes[1], 300, sync_fun=self.no_op)
+        reorg_blocks = self.generate(self.nodes[1], 300, sync_fun=self.no_op)
+
+        # DigiByte's low-work regtest headers can trip the anti-DoS headers
+        # threshold for this short, deep fork and be ignored by peers before
+        # block download starts. Submit the mined fork blocks directly so this
+        # test continues to exercise the pruning/reorg behavior rather than the
+        # headers pre-sync policy.
+        self.log.info("Submitting reorg blocks directly to peers")
+        for block_hash in reorg_blocks:
+            block_hex = self.nodes[1].getblock(block_hash, 0)
+            for node in (self.nodes[0], self.nodes[2]):
+                submit_result = node.submitblock(block_hex)
+                # submitblock returns "inconclusive" for valid side-chain
+                # blocks that do not become active until enough successor work
+                # arrives.
+                assert submit_result in (None, "duplicate", "inconclusive"), submit_result
 
         self.log.info("Reconnect nodes")
         self.connect_nodes(0, 1)
@@ -344,14 +359,14 @@ class PruneTest(DigiByteTestFramework):
         assert not has_block(3), "blk00003.dat is still there, should be pruned by now"
 
         # stop node, start back up with auto-prune at 550 MiB, make sure still runs
-        self.restart_node(node_number, extra_args=["-prune=550"])
+        self.restart_node(node_number, extra_args=["-prune=550", "-digidollarstatsindex=0"])
 
         self.log.info("Success")
 
     def wallet_test(self):
         # check that the pruning node's wallet is still in good shape
         self.log.info("Stop and start pruning node to trigger wallet rescan")
-        self.restart_node(2, extra_args=["-prune=550"])
+        self.restart_node(2, extra_args=["-prune=550", "-digidollarstatsindex=0"])
         self.log.info("Success")
 
         # check that wallet loads successfully when restarting a pruned node after IBD.
@@ -360,7 +375,7 @@ class PruneTest(DigiByteTestFramework):
         self.connect_nodes(0, 5)
         nds = [self.nodes[0], self.nodes[5]]
         self.sync_blocks(nds, wait=5, timeout=300)
-        self.restart_node(5, extra_args=["-prune=550", "-blockfilterindex=1"]) # restart to trigger rescan
+        self.restart_node(5, extra_args=["-prune=550", "-blockfilterindex=1", "-digidollarstatsindex=0"]) # restart to trigger rescan
         self.log.info("Success")
 
     def run_test(self):
@@ -486,13 +501,13 @@ class PruneTest(DigiByteTestFramework):
     def test_scanblocks_pruned(self):
         node = self.nodes[5]
         genesis_blockhash = node.getblockhash(0)
-        false_positive_spk = bytes.fromhex("001400000000000000000000000000000000000cadcb")
+        genesis_spk = bytes.fromhex("00ac")
 
         assert genesis_blockhash in node.scanblocks(
-            "start", [{"desc": f"raw({false_positive_spk.hex()})"}], 0, 0)['relevant_blocks']
+            "start", [{"desc": f"raw({genesis_spk.hex()})"}], 0, 0)['relevant_blocks']
 
         assert_raises_rpc_error(-1, "Block not available (pruned data)", node.scanblocks,
-            "start", [{"desc": f"raw({false_positive_spk.hex()})"}], 0, 0, "basic", {"filter_false_positives": True})
+            "start", [{"desc": f"raw({genesis_spk.hex()})"}], 0, 0, "basic", {"filter_false_positives": True})
 
 if __name__ == '__main__':
     PruneTest().main()

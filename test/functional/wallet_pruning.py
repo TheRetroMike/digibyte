@@ -29,7 +29,7 @@ class WalletPruningTest(DigiByteTestFramework):
         self.wallet_names = []
         self.extra_args = [
             [], # node dedicated to mining
-            ['-prune=550'], # node dedicated to testing pruning
+            ['-prune=550', '-digidollarstatsindex=0'], # node dedicated to testing pruning
         ]
 
     def skip_test_if_missing_module(self):
@@ -143,10 +143,16 @@ class WalletPruningTest(DigiByteTestFramework):
         # Fund wallet to later verify that importwallet correctly accounts for balances
         self.generatetoaddress(self.nodes[0], COINBASE_MATURITY + 1, self.nodes[0].getnewaddress(), sync_fun=self.no_op)
 
-        # We've reached pruning storage & height limit but
-        # pruning doesn't run until another chunk (blk*.dat file) is allocated.
-        # That's why we are generating another 5 large blocks
-        self.mine_large_blocks(self.nodes[0], 5)
+        # We've reached pruning storage & height limit but pruning doesn't run
+        # until another chunk (blk*.dat file) is allocated and the chain is past
+        # PruneAfterHeight. DigiByte's low coinbase maturity means the funding
+        # step above only mines 9 blocks, so mine until auto-pruning actually
+        # removes blk00000.dat instead of relying on a hard-coded 5-block
+        # assumption from upstream Bitcoin.
+        for _ in range(160):
+            self.mine_large_blocks(self.nodes[0], 1)
+            if not self.has_block(0):
+                break
 
         # blk00000.dat file is now pruned from node1
         assert_equal(self.has_block(0), False)

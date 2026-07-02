@@ -62,6 +62,15 @@ class SendallTest(DigiByteTestFramework):
         assert_greater_than(self.wallet.getbalances()["mine"]["trusted"], 0)
         return self.wallet.getbalances()["mine"]["trusted"]
 
+    def reload_test_wallets(self):
+        loaded_wallets = self.nodes[0].listwallets()
+        if self.default_wallet_name not in loaded_wallets:
+            self.nodes[0].loadwallet(self.default_wallet_name)
+        if "activewallet" not in loaded_wallets:
+            self.nodes[0].loadwallet("activewallet")
+        self.wallet = self.nodes[0].get_wallet_rpc("activewallet")
+        self.def_wallet = self.nodes[0].get_wallet_rpc(self.default_wallet_name)
+
     # Helper schema for success cases
     def test_sendall_success(self, sendall_args, remaining_balance = 0):
         sendall_tx_receipt = self.wallet.sendall(sendall_args)
@@ -291,6 +300,28 @@ class SendallTest(DigiByteTestFramework):
                 recipients=[self.remainder_target],
                 fee_rate=5000000)  # 5M sat/vB to trigger maxtxfee=1 DGB limit
 
+    def sendall_fails_on_automatic_high_fee(self):
+        self.log.info("Test sendall fails if automatic fee selection would pay an excessive absolute fee")
+        self.restart_node(0, extra_args=["-dandelion=0", "-maxtxfee=100", "-fallbackfee=1"])
+        self.reload_test_wallets()
+
+        self.nodes[0].createwallet("automatic_high_fee")
+        high_fee_wallet = self.nodes[0].get_wallet_rpc("automatic_high_fee")
+        for _ in range(20):
+            self.def_wallet.sendtoaddress(high_fee_wallet.getnewaddress(), 1)
+        self.generate(self.nodes[0], 1)
+
+        try:
+            assert_raises_rpc_error(
+                -4,
+                "Automatic sendall fee would be",
+                high_fee_wallet.sendall,
+                recipients=[self.remainder_target])
+        finally:
+            high_fee_wallet.unloadwallet()
+            self.restart_node(0, extra_args=self.extra_args[0])
+            self.reload_test_wallets()
+
     @cleanup
     def sendall_fails_on_low_fee(self):
         self.log.info("Test sendall fails if the transaction fee is lower than the minimum fee rate setting")
@@ -456,6 +487,9 @@ class SendallTest(DigiByteTestFramework):
 
         # Sendall fails when providing a fee that is too high
         self.sendall_fails_on_high_fee()
+
+        # Sendall fails when automatic fee selection would pay an excessive absolute fee
+        self.sendall_fails_on_automatic_high_fee()
 
         # Sendall fails when fee rate is lower than minimum
         self.sendall_fails_on_low_fee()

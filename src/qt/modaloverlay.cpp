@@ -1,10 +1,11 @@
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <qt/modaloverlay.h>
 #include <qt/forms/ui_modaloverlay.h>
 
 #include <chainparams.h>
+#include <clientversion.h>
 #include <qt/guiutil.h>
 
 #include <QEasingCurve>
@@ -27,7 +28,7 @@ ModalOverlay::ModalOverlay(bool enable_wallet, QWidget* parent)
     setVisible(false);
     if (!enable_wallet) {
         ui->infoText->setVisible(false);
-        ui->infoTextStrong->setText(tr("%1 is currently syncing.  It will download headers and blocks from peers and validate them until reaching the tip of the block chain.").arg(PACKAGE_NAME));
+        ui->infoTextStrong->setText(tr("%1 is currently syncing.  It will download headers and blocks from peers and validate them until reaching the tip of the block chain.").arg(QString::fromStdString(CLIENT_NAME)));
     }
 
     m_animation.setTargetObject(this);

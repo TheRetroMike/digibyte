@@ -947,6 +947,7 @@ static auto AddrmanToStream(const AddrMan& addrman)
     DataStream ssPeersIn{};
     ssPeersIn << Params().MessageStart();
     ssPeersIn << addrman;
+    ssPeersIn.Rewind();
     return ssPeersIn;
 }
 
@@ -1023,6 +1024,7 @@ static auto MakeCorruptPeersDat()
     AddrInfo info = AddrInfo(addr, resolved.value());
     s << CAddress::V1_DISK(info);
 
+    s.Rewind();
     return s;
 }
 

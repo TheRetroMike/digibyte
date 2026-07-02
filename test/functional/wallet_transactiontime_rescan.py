@@ -27,6 +27,9 @@ class TransactionTimeRescanTest(DigiByteTestFramework):
 
     def set_test_params(self):
         self.setup_clean_chain = False
+        # This test performs legacy wallet rescans that can exceed the
+        # default 60s RPC timeout on loaded full --extended runs.
+        self.rpc_timeout = 120
         self.num_nodes = 3
         self.extra_args = [["-keypool=400", "-dandelion=0"],
                            ["-keypool=400", "-dandelion=0"],

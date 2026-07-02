@@ -1,0 +1,1820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DigiDollar Technical Deep-Dive</title>
+    <link rel="stylesheet" href="css/presentation.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        /* Deep-dive specific styles */
+        .time-indicator {
+            position: fixed;
+            top: 20px;
+            left: 30px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            z-index: 1000;
+        }
+
+        /* Architecture diagram */
+        .arch-diagram {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            width: 100%;
+            max-width: 900px;
+        }
+
+        .arch-layer {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 1.5rem;
+            background: var(--bg-card);
+            border-radius: 12px;
+            border-left: 4px solid var(--dgb-blue);
+            transition: all 0.3s ease;
+        }
+
+        .arch-layer:hover {
+            transform: translateX(10px);
+            background: var(--bg-card-hover);
+            box-shadow: var(--glow-blue);
+        }
+
+        .arch-layer-num {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--gradient-blue);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .arch-layer-content {
+            flex: 1;
+        }
+
+        .arch-layer-title {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .arch-layer-desc {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        /* Code block styling */
+        .code-container {
+            width: 100%;
+            max-width: 900px;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .code-header {
+            background: rgba(0, 111, 187, 0.2);
+            padding: 0.75rem 1.5rem;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--dgb-blue-light);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .code-body {
+            padding: 1.5rem;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            line-height: 1.7;
+            overflow-x: auto;
+        }
+
+        .code-body .comment { color: #6A9955; }
+        .code-body .keyword { color: #C586C0; }
+        .code-body .type { color: #4EC9B0; }
+        .code-body .string { color: #CE9178; }
+        .code-body .number { color: #B5CEA8; }
+        .code-body .function { color: #DCDCAA; }
+        .code-body .variable { color: #9CDCFE; }
+
+        /* Byte diagram */
+        .byte-diagram {
+            display: flex;
+            gap: 2px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .byte-cell {
+            padding: 0.5rem 0.75rem;
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            text-align: center;
+            min-width: 60px;
+        }
+
+        .byte-cell.highlight-blue {
+            background: rgba(0, 111, 187, 0.3);
+            border-color: var(--dgb-blue);
+        }
+
+        .byte-cell.highlight-gold {
+            background: rgba(212, 175, 55, 0.3);
+            border-color: var(--dd-gold);
+        }
+
+        .byte-cell.highlight-green {
+            background: rgba(0, 200, 81, 0.3);
+            border-color: var(--success);
+        }
+
+        .byte-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        /* Tier table */
+        .tier-table {
+            width: 100%;
+            max-width: 1000px;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 0.95rem;
+        }
+
+        .tier-table th {
+            background: rgba(0, 111, 187, 0.3);
+            padding: 1rem;
+            text-align: center;
+            font-weight: 600;
+            border-bottom: 2px solid var(--dgb-blue);
+        }
+
+        .tier-table td {
+            padding: 0.75rem 1rem;
+            text-align: center;
+            background: var(--bg-card);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .tier-table tr:hover td {
+            background: var(--bg-card-hover);
+        }
+
+        .ratio-bar {
+            height: 20px;
+            background: var(--gradient-gold);
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        /* Flow visual */
+        .tx-flow {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            width: 100%;
+            max-width: 1000px;
+        }
+
+        .tx-section {
+            display: flex;
+            gap: 1rem;
+            align-items: stretch;
+        }
+
+        .tx-label {
+            width: 100px;
+            padding: 1rem;
+            background: var(--gradient-blue);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .tx-content {
+            flex: 1;
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .tx-box {
+            flex: 1;
+            min-width: 200px;
+            padding: 1rem;
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .tx-box h4 {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .tx-box.vault {
+            border-color: var(--dd-gold);
+            border-width: 2px;
+        }
+
+        .tx-box.token {
+            border-color: var(--success);
+            border-width: 2px;
+        }
+
+        /* Oracle visual */
+        .oracle-flow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            width: 100%;
+        }
+
+        .exchange-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.5rem;
+        }
+
+        .exchange-box {
+            padding: 0.75rem;
+            background: var(--bg-card);
+            border-radius: 8px;
+            text-align: center;
+            font-size: 0.85rem;
+        }
+
+        .oracle-arrow {
+            font-size: 2rem;
+            color: var(--dd-gold);
+        }
+
+        .oracle-result {
+            padding: 1.5rem;
+            background: var(--gradient-gold);
+            border-radius: 16px;
+            color: #000;
+            text-align: center;
+            font-weight: 700;
+        }
+
+        /* Protection layers */
+        .layer-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .layer-bar {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1.25rem;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .layer-bar:hover {
+            transform: scale(1.02);
+        }
+
+        .layer-bar.layer-1 {
+            background: linear-gradient(90deg, rgba(220, 53, 69, 0.3) 0%, rgba(220, 53, 69, 0.1) 100%);
+            border: 1px solid rgba(220, 53, 69, 0.5);
+        }
+
+        .layer-bar.layer-2 {
+            background: linear-gradient(90deg, rgba(255, 179, 0, 0.3) 0%, rgba(255, 179, 0, 0.1) 100%);
+            border: 1px solid rgba(255, 179, 0, 0.5);
+        }
+
+        .layer-bar.layer-3 {
+            background: linear-gradient(90deg, rgba(0, 111, 187, 0.3) 0%, rgba(0, 111, 187, 0.1) 100%);
+            border: 1px solid rgba(0, 111, 187, 0.5);
+        }
+
+        .layer-bar.layer-4 {
+            background: linear-gradient(90deg, rgba(0, 200, 81, 0.3) 0%, rgba(0, 200, 81, 0.1) 100%);
+            border: 1px solid rgba(0, 200, 81, 0.5);
+        }
+
+        .layer-icon {
+            font-size: 1.5rem;
+            width: 50px;
+            text-align: center;
+        }
+
+        .layer-info {
+            flex: 1;
+        }
+
+        .layer-title {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .layer-desc {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .layer-value {
+            font-family: var(--font-mono);
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        /* Stats grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            width: 100%;
+            max-width: 1000px;
+        }
+
+        .stat-card {
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border-radius: 16px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stat-card-value {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: var(--gradient-gold);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .stat-card-label {
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+
+        /* LUNA comparison */
+        .comparison-row {
+            display: grid;
+            grid-template-columns: 1fr 200px 1fr;
+            gap: 1rem;
+            width: 100%;
+            max-width: 1000px;
+            align-items: center;
+        }
+
+        .comparison-bad {
+            padding: 1.5rem;
+            background: rgba(220, 53, 69, 0.1);
+            border: 2px solid rgba(220, 53, 69, 0.3);
+            border-radius: 16px;
+            text-align: center;
+        }
+
+        .comparison-good {
+            padding: 1.5rem;
+            background: rgba(0, 200, 81, 0.1);
+            border: 2px solid rgba(0, 200, 81, 0.3);
+            border-radius: 16px;
+            text-align: center;
+        }
+
+        .comparison-label {
+            text-align: center;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="time-indicator">Technical Deep-Dive</div>
+
+    <div class="presentation">
+
+        <!-- SLIDE 1: Title -->
+        <section class="slide slide--hero active">
+            <div class="slide-content">
+                <div class="animate-fade-in-up" style="margin-bottom: 1.5rem;">
+                    <img src="images/DigiDollar.jpg" alt="DigiDollar" style="width: 140px; height: 140px; border-radius: 50%; box-shadow: 0 0 50px rgba(0, 111, 187, 0.5); animation: float 3s ease-in-out infinite;">
+                </div>
+
+                <span class="badge badge--gold animate-fade-in-up" style="transition-delay: 0.1s;">Technical Deep-Dive</span>
+
+                <h1 class="slide-title animate-fade-in-up" style="transition-delay: 0.2s; font-size: clamp(2.5rem, 5vw, 4.5rem);">
+                    DigiDollar: UTXO-Native Stablecoins
+                </h1>
+
+                <p class="slide-subtitle animate-fade-in-up" style="transition-delay: 0.2s;">
+                    Complete Technical Architecture & Implementation Guide<br>
+                    <span class="text-muted">From Transaction Encoding to Wallet Integration</span>
+                </p>
+
+                <div class="divider animate-fade-in-up" style="transition-delay: 0.3s;"></div>
+
+                <div class="grid-4 mt-4" style="max-width: 900px;">
+                    <div class="stat-box animate-fade-in-up" style="transition-delay: 0.4s;">
+                        <div class="stat-value" style="font-size: 1.8rem;">5</div>
+                        <div class="stat-label">TX Types</div>
+                    </div>
+                    <div class="stat-box animate-fade-in-up" style="transition-delay: 0.5s;">
+                        <div class="stat-value" style="font-size: 1.8rem;">9</div>
+                        <div class="stat-label">Collateral Tiers</div>
+                    </div>
+                    <div class="stat-box animate-fade-in-up" style="transition-delay: 0.6s;">
+                        <div class="stat-value" style="font-size: 1.8rem;">24</div>
+                        <div class="stat-label">RPC Commands</div>
+                    </div>
+                    <div class="stat-box animate-fade-in-up" style="transition-delay: 0.7s;">
+                        <div class="stat-value" style="font-size: 1.8rem;">100%</div>
+                        <div class="stat-label">Transparent</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 2: Overview/Agenda -->
+        <section class="slide slide--blue slide--compact">
+            <div class="slide-content">
+                <h2 class="slide-title--blue animate-fade-in-up" style="background: var(--gradient-blue); -webkit-background-clip: text; margin-bottom: 1rem;">Technical Deep-Dive Agenda</h2>
+                <p class="slide-subtitle animate-fade-in-up" style="margin-bottom: 1.5rem;">Complete architectural walkthrough in 8 sections</p>
+
+                <div class="card card--compact animate-fade-in-up" style="max-width: 900px; padding: 1.5rem 2rem; transition-delay: 0.1s;">
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem 2rem; font-size: 0.95rem;">
+                        <div style="display: flex; gap: 0.75rem; align-items: start;">
+                            <span style="color: var(--dgb-blue); font-weight: 700; min-width: 24px;">1.</span>
+                            <div>
+                                <strong>Transaction Version Encoding</strong>
+                                <div class="text-muted" style="font-size: 0.85rem;">0x0D1D0770 magic number & TX type embedding</div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 0.75rem; align-items: start;">
+                            <span style="color: var(--dgb-blue); font-weight: 700; min-width: 24px;">2.</span>
+                            <div>
+                                <strong>5 Transaction Types</strong>
+                                <div class="text-muted" style="font-size: 0.85rem;">MINT, TRANSFER, REDEEM, PARTIAL, ERR</div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 0.75rem; align-items: start;">
+                            <span style="color: var(--dgb-blue); font-weight: 700; min-width: 24px;">3.</span>
+                            <div>
+                                <strong>9-Tier Collateral Scale</strong>
+                                <div class="text-muted" style="font-size: 0.85rem;">1000% to 200% based on lock duration</div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 0.75rem; align-items: start;">
+                            <span style="color: var(--dgb-blue); font-weight: 700; min-width: 24px;">4.</span>
+                            <div>
+                                <strong>Minting DigiDollars</strong>
+                                <div class="text-muted" style="font-size: 0.85rem;">P2TR + MAST + CLTV vault construction</div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 0.75rem; align-items: start;">
+                            <span style="color: var(--dgb-blue); font-weight: 700; min-width: 24px;">5.</span>
+                            <div>
+                                <strong>Transferring DD Tokens</strong>
+                                <div class="text-muted" style="font-size: 0.85rem;">0-value UTXOs with Schnorr key-path spends</div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 0.75rem; align-items: start;">
+                            <span style="color: var(--dgb-blue); font-weight: 700; min-width: 24px;">6.</span>
+                            <div>
+                                <strong>Redeeming Collateral</strong>
+                                <div class="text-muted" style="font-size: 0.85rem;">Normal vs ERR paths, MAST script unlocking</div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 0.75rem; align-items: start;">
+                            <span style="color: var(--dgb-blue); font-weight: 700; min-width: 24px;">7.</span>
+                            <div>
+                                <strong>Protection Systems</strong>
+                                <div class="text-muted" style="font-size: 0.85rem;">DCA (1.0-2.0x), ERR (80-95%), Volatility Freeze</div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 0.75rem; align-items: start;">
+                            <span style="color: var(--dgb-blue); font-weight: 700; min-width: 24px;">8.</span>
+                            <div>
+                                <strong>UTXO Tracking & Transparency</strong>
+                                <div class="text-muted" style="font-size: 0.85rem;">Network-wide indexing, real-time statistics</div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 0.75rem; align-items: start;">
+                            <span style="color: var(--dgb-blue); font-weight: 700; min-width: 24px;">9.</span>
+                            <div>
+                                <strong>Oracle System</strong>
+                                <div class="text-muted" style="font-size: 0.85rem;">Phase 1 (1-of-1) vs Phase 2 (8-of-15 multisig)</div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 0.75rem; align-items: start;">
+                            <span style="color: var(--dgb-blue); font-weight: 700; min-width: 24px;">10.</span>
+                            <div>
+                                <strong>RPC Commands (24 total)</strong>
+                                <div class="text-muted" style="font-size: 0.85rem;">Developer APIs for integration & monitoring</div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 0.75rem; align-items: start;">
+                            <span style="color: var(--dgb-blue); font-weight: 700; min-width: 24px;">11.</span>
+                            <div>
+                                <strong>Qt Wallet Walkthrough</strong>
+                                <div class="text-muted" style="font-size: 0.85rem;">User interface for minting, sending, redeeming</div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 0.75rem; align-items: start;">
+                            <span style="color: var(--dgb-blue); font-weight: 700; min-width: 24px;">12.</span>
+                            <div>
+                                <strong>Test Coverage & Verification</strong>
+                                <div class="text-muted" style="font-size: 0.85rem;">409 unit tests, 18 functional tests (85% complete)</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glow-box mt-3 animate-fade-in-up" style="transition-delay: 0.2s; max-width: 900px; text-align: center; padding: 0.75rem 1.5rem;">
+                    <strong>100% On-Chain, 100% Transparent, 100% UTXO-Native</strong>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 3: Architecture Overview -->
+        <section class="slide slide--blue">
+            <div class="slide-content" style="padding-top: 100px; padding-bottom: 100px;">
+                <h2 class="slide-title--blue animate-fade-in-up" style="background: var(--gradient-blue); -webkit-background-clip: text;">Five-Layer Architecture</h2>
+                <p class="slide-subtitle animate-fade-in-up">Built natively on DigiByte's UTXO model</p>
+
+                <div class="arch-diagram mt-4" style="max-width: 800px;">
+                    <div class="arch-layer animate-fade-in-up" style="transition-delay: 0.1s;">
+                        <div class="arch-layer-num">5</div>
+                        <div class="arch-layer-content">
+                            <div class="arch-layer-title">Application Layer</div>
+                            <div class="arch-layer-desc">Qt Wallet UI + RPC API (24 commands) + DigiDollar Manager</div>
+                        </div>
+                    </div>
+
+                    <div class="arch-layer animate-fade-in-up" style="transition-delay: 0.2s;">
+                        <div class="arch-layer-num">4</div>
+                        <div class="arch-layer-content">
+                            <div class="arch-layer-title">Protection & Oracle Layer</div>
+                            <div class="arch-layer-desc">DCA (1.0-2.0x), ERR (80-95%), Volatility Freeze + 7 Exchange Price Feeds</div>
+                        </div>
+                    </div>
+
+                    <div class="arch-layer animate-fade-in-up" style="transition-delay: 0.3s;">
+                        <div class="arch-layer-num">3</div>
+                        <div class="arch-layer-content">
+                            <div class="arch-layer-title">Consensus & Validation Layer</div>
+                            <div class="arch-layer-desc">TX version validation (0x0D1D0770), UTXO tracking, Network-wide transparency</div>
+                        </div>
+                    </div>
+
+                    <div class="arch-layer animate-fade-in-up" style="transition-delay: 0.4s;">
+                        <div class="arch-layer-num">2</div>
+                        <div class="arch-layer-content">
+                            <div class="arch-layer-title">UTXO & Script Layer</div>
+                            <div class="arch-layer-desc">P2TR outputs, MAST script trees, OP_RETURN metadata, Time-locked vaults</div>
+                        </div>
+                    </div>
+
+                    <div class="arch-layer animate-fade-in-up" style="transition-delay: 0.5s;">
+                        <div class="arch-layer-num">1</div>
+                        <div class="arch-layer-content">
+                            <div class="arch-layer-title">Cryptographic Foundation</div>
+                            <div class="arch-layer-desc">Schnorr signatures (BIP-340), Taproot (BIP-341), CLTV time-locks (BIP-65)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glow-box mt-4 animate-fade-in-up" style="transition-delay: 0.6s; max-width: 800px; text-align: center;">
+                    <strong>Every layer is 100% on-chain</strong> - No off-chain dependencies or centralized servers
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 4: Transaction Version Encoding -->
+        <section class="slide slide--gold slide--compact">
+            <div class="slide-content">
+                <h2 class="slide-title animate-fade-in-up">Transaction Version Encoding</h2>
+                <p class="slide-subtitle animate-fade-in-up">Five transaction types identified by version field</p>
+
+                <div class="grid-5 mt-4" style="max-width: 1100px; gap: 1rem;">
+                    <div class="card text-center animate-fade-in-up" style="transition-delay: 0.1s; padding: 1.5rem 1rem;">
+                        <code class="text-gold" style="font-size: 1.1rem; display: block; margin-bottom: 0.5rem;">0x01000770</code>
+                        <div class="text-muted" style="font-size: 0.9rem; font-weight: 600;">MINT</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">Lock DGB<br>Create DD</div>
+                    </div>
+                    <div class="card text-center animate-fade-in-up" style="transition-delay: 0.2s; padding: 1.5rem 1rem;">
+                        <code class="text-gold" style="font-size: 1.1rem; display: block; margin-bottom: 0.5rem;">0x02000770</code>
+                        <div class="text-muted" style="font-size: 0.9rem; font-weight: 600;">TRANSFER</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">Send DD<br>Key-path</div>
+                    </div>
+                    <div class="card text-center animate-fade-in-up" style="transition-delay: 0.3s; padding: 1.5rem 1rem;">
+                        <code class="text-gold" style="font-size: 1.1rem; display: block; margin-bottom: 0.5rem;">0x03000770</code>
+                        <div class="text-muted" style="font-size: 0.9rem; font-weight: 600;">REDEEM</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">Full unlock<br>After CLTV</div>
+                    </div>
+                    <div class="card text-center animate-fade-in-up" style="transition-delay: 0.4s; padding: 1.5rem 1rem;">
+                        <code class="text-gold" style="font-size: 1.1rem; display: block; margin-bottom: 0.5rem;">0x04000770</code>
+                        <div class="text-muted" style="font-size: 0.9rem; font-weight: 600;">PARTIAL</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">Redeem some<br>Keep rest</div>
+                    </div>
+                    <div class="card text-center animate-fade-in-up" style="transition-delay: 0.5s; padding: 1.5rem 1rem;">
+                        <code class="text-warning" style="font-size: 1.1rem; display: block; margin-bottom: 0.5rem;">0x05000770</code>
+                        <div class="text-muted" style="font-size: 0.9rem; font-weight: 600;">ERR</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">Emergency<br>80-95%</div>
+                    </div>
+                </div>
+
+                <div class="code-container mt-4 animate-fade-in-up" style="transition-delay: 0.6s;">
+                    <div class="code-header">primitives/transaction.h</div>
+                    <div class="code-body">
+<span class="keyword">static const</span> <span class="type">int32_t</span> <span class="variable">DD_TX_VERSION</span> = <span class="number">0x0D1D0770</span>;
+
+<span class="comment">// Version construction: (type &lt;&lt; 24) | 0x0770</span>
+<span class="keyword">inline</span> <span class="type">int32_t</span> <span class="function">MakeDigiDollarVersion</span>(<span class="type">DigiDollarTxType</span> type) {
+    <span class="keyword">return</span> (<span class="keyword">static_cast</span>&lt;<span class="type">int32_t</span>&gt;(type) &lt;&lt; <span class="number">24</span>) | (<span class="variable">DD_TX_VERSION</span> & <span class="number">0x0000FFFF</span>);
+}
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 5: 9-Tier Collateral Scale -->
+        <section class="slide slide--blue">
+            <div class="slide-content" style="padding-top: 100px; padding-bottom: 100px;">
+                <h2 class="slide-title--blue animate-fade-in-up" style="background: var(--gradient-blue); -webkit-background-clip: text;">9-Tier Collateral Scale</h2>
+                <p class="slide-subtitle animate-fade-in-up">Treasury-model economics: Longer lock = Less collateral required</p>
+
+                <table class="tier-table mt-4 animate-fade-in-up" style="transition-delay: 0.2s;">
+                    <thead>
+                        <tr>
+                            <th>Lock Period</th>
+                            <th>Ratio</th>
+                            <th>Survives Drop</th>
+                            <th>Visual</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>1 hour <span class="badge badge--blue" style="font-size: 0.7rem;">test</span></td>
+                            <td class="text-danger">1000%</td>
+                            <td>-90%</td>
+                            <td><div class="ratio-bar" style="width: 100%;"></div></td>
+                        </tr>
+                        <tr>
+                            <td>30 days</td>
+                            <td class="text-warning">500%</td>
+                            <td>-80%</td>
+                            <td><div class="ratio-bar" style="width: 50%;"></div></td>
+                        </tr>
+                        <tr>
+                            <td>3 months</td>
+                            <td>400%</td>
+                            <td>-75%</td>
+                            <td><div class="ratio-bar" style="width: 40%;"></div></td>
+                        </tr>
+                        <tr>
+                            <td>6 months</td>
+                            <td>350%</td>
+                            <td>-71%</td>
+                            <td><div class="ratio-bar" style="width: 35%;"></div></td>
+                        </tr>
+                        <tr>
+                            <td>1 year</td>
+                            <td>300%</td>
+                            <td>-67%</td>
+                            <td><div class="ratio-bar" style="width: 30%;"></div></td>
+                        </tr>
+                        <tr>
+                            <td>3 years</td>
+                            <td>250%</td>
+                            <td>-60%</td>
+                            <td><div class="ratio-bar" style="width: 25%;"></div></td>
+                        </tr>
+                        <tr>
+                            <td>5 years</td>
+                            <td>225%</td>
+                            <td>-56%</td>
+                            <td><div class="ratio-bar" style="width: 22.5%;"></div></td>
+                        </tr>
+                        <tr>
+                            <td>7 years</td>
+                            <td>212%</td>
+                            <td>-53%</td>
+                            <td><div class="ratio-bar" style="width: 21.2%;"></div></td>
+                        </tr>
+                        <tr>
+                            <td>10 years</td>
+                            <td class="text-success">200%</td>
+                            <td>-50%</td>
+                            <td><div class="ratio-bar" style="width: 20%;"></div></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- SLIDE 6: Mint Transaction Structure -->
+        <section class="slide slide--gold">
+            <div class="slide-content" style="padding-top: 100px; padding-bottom: 100px;">
+                <h2 class="slide-title animate-fade-in-up">Mint Transaction Structure</h2>
+                <p class="slide-subtitle animate-fade-in-up">Three distinct outputs with different purposes</p>
+
+                <div class="tx-flow mt-4">
+                    <div class="tx-section animate-fade-in-up" style="transition-delay: 0.1s;">
+                        <div class="tx-label">INPUTS</div>
+                        <div class="tx-content">
+                            <div class="tx-box">
+                                <h4>DGB UTXOs</h4>
+                                <p>User's DGB to be locked + fees</p>
+                                <code class="text-muted" style="font-size: 0.8rem;">ECDSA signatures</code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="text-align: center; font-size: 2rem; color: var(--dd-gold);">&#8595;</div>
+
+                    <div class="tx-section animate-fade-in-up" style="transition-delay: 0.2s;">
+                        <div class="tx-label" style="background: var(--gradient-gold); color: #000;">OUTPUTS</div>
+                        <div class="tx-content">
+                            <div class="tx-box vault">
+                                <h4>vout[0]: Collateral Vault</h4>
+                                <p><strong>P2TR + MAST + CLTV</strong></p>
+                                <ul style="font-size: 0.85rem; margin-top: 0.5rem; list-style: none;">
+                                    <li>&#128274; Time-locked DGB</li>
+                                    <li>&#128737; 2 redemption paths</li>
+                                    <li>&#128272; Schnorr script-path</li>
+                                </ul>
+                            </div>
+                            <div class="tx-box token">
+                                <h4>vout[1]: DD Token</h4>
+                                <p><strong>Simple P2TR (key-path)</strong></p>
+                                <ul style="font-size: 0.85rem; margin-top: 0.5rem; list-style: none;">
+                                    <li>&#128181; 0 DGB value</li>
+                                    <li>&#9989; Freely transferable</li>
+                                    <li>&#9889; 64-byte signature only</li>
+                                </ul>
+                            </div>
+                            <div class="tx-box">
+                                <h4>vout[2]: OP_RETURN</h4>
+                                <p><strong>Metadata (21 bytes)</strong></p>
+                                <ul style="font-size: 0.85rem; margin-top: 0.5rem; list-style: none;">
+                                    <li>&#128196; DD amount</li>
+                                    <li>&#128200; Collateral amount</li>
+                                    <li>&#128337; Lock tier</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glow-box mt-4 animate-fade-in-up" style="transition-delay: 0.4s; max-width: 700px; text-align: center;">
+                    <strong>Key Innovation:</strong> Collateral uses complex MAST for redemption paths.<br>
+                    DD tokens use simple key-path for instant transferability.
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 7: Mint Transaction Walkthrough -->
+        <section class="slide slide--blue slide--compact">
+            <div class="slide-content slide-content-safe">
+                <h2 class="slide-title--blue animate-fade-in-up" style="background: var(--gradient-blue); -webkit-background-clip: text;">Mint Transaction Walkthrough</h2>
+                <p class="slide-subtitle animate-fade-in-up">Step-by-step: Creating your first DigiDollar</p>
+
+                <div class="grid-2 mt-4" style="gap: 1.5rem;">
+                    <!-- Left Column: Wallet Steps -->
+                    <div style="display: flex; flex-direction: column; gap: 1rem;">
+                        <div class="card animate-fade-in-up" style="transition-delay: 0.1s;">
+                            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
+                                <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--gradient-blue); display: flex; align-items: center; justify-content: center; font-weight: 700;">1</div>
+                                <h4 style="margin: 0;">Open DigiDollar Tab</h4>
+                            </div>
+                            <div style="border: 2px dashed rgba(255,255,255,0.2); border-radius: 8px; padding: 3rem 1rem; text-align: center; background: rgba(0,0,0,0.2); font-family: var(--font-mono); color: var(--text-muted);">
+                                [Wallet Screenshot: DD Tab]
+                            </div>
+                        </div>
+
+                        <div class="card animate-fade-in-up" style="transition-delay: 0.2s;">
+                            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
+                                <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--gradient-blue); display: flex; align-items: center; justify-content: center; font-weight: 700;">2</div>
+                                <h4 style="margin: 0;">Enter Amount to Mint</h4>
+                            </div>
+                            <div style="border: 2px dashed rgba(255,255,255,0.2); border-radius: 8px; padding: 3rem 1rem; text-align: center; background: rgba(0,0,0,0.2); font-family: var(--font-mono); color: var(--text-muted);">
+                                [Wallet Screenshot: Mint Form]
+                            </div>
+                        </div>
+
+                        <div class="card animate-fade-in-up" style="transition-delay: 0.3s;">
+                            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
+                                <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--gradient-blue); display: flex; align-items: center; justify-content: center; font-weight: 700;">3</div>
+                                <h4 style="margin: 0;">Select Lock Period</h4>
+                            </div>
+                            <div style="border: 2px dashed rgba(255,255,255,0.2); border-radius: 8px; padding: 3rem 1rem; text-align: center; background: rgba(0,0,0,0.2); font-family: var(--font-mono); color: var(--text-muted);">
+                                [Wallet Screenshot: Tier Selection]
+                            </div>
+                        </div>
+
+                        <div class="card animate-fade-in-up" style="transition-delay: 0.4s;">
+                            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
+                                <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--gradient-blue); display: flex; align-items: center; justify-content: center; font-weight: 700;">4</div>
+                                <h4 style="margin: 0;">Confirm Transaction</h4>
+                            </div>
+                            <div style="border: 2px dashed rgba(255,255,255,0.2); border-radius: 8px; padding: 3rem 1rem; text-align: center; background: rgba(0,0,0,0.2); font-family: var(--font-mono); color: var(--text-muted);">
+                                [Wallet Screenshot: Confirmation Dialog]
+                            </div>
+                        </div>
+
+                        <div class="card animate-fade-in-up" style="transition-delay: 0.5s;">
+                            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
+                                <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--gradient-gold); display: flex; align-items: center; justify-content: center; font-weight: 700; color: #000;">5</div>
+                                <h4 style="margin: 0;">Transaction Confirmed</h4>
+                            </div>
+                            <div style="border: 2px dashed rgba(212,175,55,0.4); border-radius: 8px; padding: 3rem 1rem; text-align: center; background: rgba(212,175,55,0.1); font-family: var(--font-mono); color: var(--text-muted);">
+                                [Wallet Screenshot: Success + TxID]
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Transaction Comparison -->
+                    <div style="display: flex; flex-direction: column; gap: 1rem;">
+                        <h3 class="text-center animate-fade-in-up" style="transition-delay: 0.1s;">Transaction Comparison</h3>
+
+                        <!-- Normal DGB Transaction -->
+                        <div class="card animate-fade-in-up" style="transition-delay: 0.2s; border: 2px solid var(--dgb-blue);">
+                            <h4 class="text-blue mb-2">Normal DGB Transaction</h4>
+                            <div style="font-size: 0.9rem; line-height: 1.8;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                    <span class="text-muted">Version:</span>
+                                    <code>0x02</code>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                    <span class="text-muted">Outputs:</span>
+                                    <code>1-2</code>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                    <span class="text-muted">Output Types:</span>
+                                    <code>P2PKH/P2WPKH</code>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                    <span class="text-muted">Size:</span>
+                                    <code>~200 bytes</code>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                    <span class="text-muted">Fee:</span>
+                                    <code>~0.001 DGB</code>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span class="text-muted">Script:</span>
+                                    <code>Simple sig check</code>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="text-align: center; font-size: 1.5rem; color: var(--dd-gold); margin: 0.5rem 0;">
+                            &#8595;
+                        </div>
+
+                        <!-- DigiDollar Mint Transaction -->
+                        <div class="card animate-fade-in-up" style="transition-delay: 0.3s; border: 2px solid var(--dd-gold);">
+                            <h4 class="text-gold mb-2">DigiDollar Mint TX</h4>
+                            <div style="font-size: 0.9rem; line-height: 1.8;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                    <span class="text-muted">Version:</span>
+                                    <code>0x01000770</code>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                    <span class="text-muted">Outputs:</span>
+                                    <code>3</code>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                    <span class="text-muted">Output Types:</span>
+                                    <code>P2TR+MAST, P2TR, OP_RETURN</code>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                    <span class="text-muted">Size:</span>
+                                    <code>~400 bytes</code>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                    <span class="text-muted">Fee:</span>
+                                    <code>~0.002 DGB</code>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span class="text-muted">Script:</span>
+                                    <code>CLTV + MAST vault</code>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Key Differences Box -->
+                        <div class="glow-box animate-fade-in-up" style="transition-delay: 0.4s; margin-top: 1rem;">
+                            <h4 class="mb-2">Key Differences</h4>
+                            <ul style="font-size: 0.85rem; margin: 0; padding-left: 1.25rem; line-height: 1.8;">
+                                <li><strong>Vault Output:</strong> Time-locked with 2 redemption paths</li>
+                                <li><strong>Token Output:</strong> 0 DGB value, freely transferable</li>
+                                <li><strong>Metadata:</strong> 21-byte OP_RETURN for UTXO indexing</li>
+                                <li><strong>Script Complexity:</strong> 2x size due to MAST structure</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <section class="slide slide--gold slide--compact">
+            <div class="slide-content slide-content-safe">
+                <h2 class="slide-title animate-fade-in-up">Redemption Transaction Walkthrough</h2>
+                <p class="slide-subtitle animate-fade-in-up">Redemption unlocks your original collateral after the time-lock expires</p>
+
+                <div class="grid-2 mt-4" style="max-width: 900px; gap: 1rem;">
+                    <div class="card card--compact animate-fade-in-up" style="transition-delay: 0.1s; border: 2px solid var(--success);">
+                        <h3 class="text-success mb-2" style="font-size: 1rem;">Path A: Normal Redemption</h3>
+                        <p class="text-muted mb-2" style="font-size: 0.85rem;">After time-lock expires</p>
+                        <ul class="feature-list" style="font-size: 0.85rem;">
+                            <li>User burns DD tokens</li>
+                            <li>CLTV time-lock satisfied</li>
+                            <li>Full collateral reclaimed</li>
+                            <li>No penalties or haircuts</li>
+                        </ul>
+                    </div>
+                    <div class="card card--compact animate-fade-in-up" style="transition-delay: 0.2s; border: 2px solid var(--warning);">
+                        <h3 class="text-warning mb-2" style="font-size: 1rem;">Path B: Emergency Redemption</h3>
+                        <p class="text-muted mb-2" style="font-size: 0.85rem;">During system stress (ERR)</p>
+                        <ul class="feature-list" style="font-size: 0.85rem;">
+                            <li>System health below 100%</li>
+                            <li>Partial return (80-95%)</li>
+                            <li>Tiered based on severity</li>
+                            <li>Prevents bank runs</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="mt-4 animate-fade-in-up" style="transition-delay: 0.3s;">
+                    <h3 class="text-center mb-3" style="font-size: 1.2rem;">Step-by-Step Redemption Flow</h3>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem; max-width: 900px; margin: 0 auto;">
+                        <div class="card card--compact">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--gradient-gold); display: flex; align-items: center; justify-content: center; font-weight: 700; color: #000; flex-shrink: 0; font-size: 0.9rem;">1</div>
+                                <div>
+                                    <h4 style="margin: 0; font-size: 0.95rem;">View Position & Check Lock</h4>
+                                    <p class="text-muted" style="margin: 0; font-size: 0.8rem;">Position details + expiry status</p>
+                                </div>
+                            </div>
+                            <div style="border: 2px dashed rgba(212,175,55,0.4); border-radius: 8px; padding: 1.5rem 1rem; text-align: center; background: rgba(0,0,0,0.2); font-family: var(--font-mono); color: var(--text-muted); font-size: 0.85rem;">
+                                [Wallet: 100 DD | 500 DGB | Unlocked]
+                            </div>
+                        </div>
+
+                        <div class="card card--compact">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--gradient-gold); display: flex; align-items: center; justify-content: center; font-weight: 700; color: #000; flex-shrink: 0; font-size: 0.9rem;">2</div>
+                                <div>
+                                    <h4 style="margin: 0; font-size: 0.95rem;">Initiate Redemption & Confirm</h4>
+                                    <p class="text-muted" style="margin: 0; font-size: 0.8rem;">Redeem button + confirm burn DD</p>
+                                </div>
+                            </div>
+                            <div style="border: 2px dashed rgba(212,175,55,0.4); border-radius: 8px; padding: 1.5rem 1rem; text-align: center; background: rgba(0,0,0,0.2); font-family: var(--font-mono); color: var(--text-muted); font-size: 0.85rem;">
+                                [Wallet: Redeem + Confirm Burn 100 DD]
+                            </div>
+                        </div>
+
+                        <div class="card card--compact" style="border: 2px solid var(--success);">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--gradient-green); display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; font-size: 0.9rem;">3</div>
+                                <div>
+                                    <h4 style="margin: 0; font-size: 0.95rem;">Collateral Returned</h4>
+                                    <p class="text-success" style="margin: 0; font-size: 0.8rem;">Success! DGB returned, DD burned</p>
+                                </div>
+                            </div>
+                            <div style="border: 2px dashed rgba(0,200,81,0.4); border-radius: 8px; padding: 1.5rem 1rem; text-align: center; background: rgba(0,200,81,0.1); font-family: var(--font-mono); color: var(--success); font-size: 0.85rem;">
+                                [Success: 500 DGB | TxID: abc123...]
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 8: Redeem TX -->
+        <section class="slide slide--blue">
+            <div class="slide-content" style="padding-top: 100px; padding-bottom: 100px;">
+                <h2 class="slide-title--blue animate-fade-in-up" style="background: var(--gradient-blue); -webkit-background-clip: text;">Redemption Transaction: Technical Deep-Dive</h2>
+                <p class="slide-subtitle animate-fade-in-up">The most complex transaction type - unlocking time-locked collateral</p>
+
+                <div class="grid-2 mt-4" style="max-width: 1000px; gap: 2rem;">
+                    <div class="card animate-fade-in-up" style="transition-delay: 0.1s; border: 2px solid var(--dgb-blue);">
+                        <h3 class="text-blue mb-2">Normal DGB Spend</h3>
+                        <p class="text-muted mb-2" style="font-size: 0.9rem;">Simple UTXO transaction</p>
+                        <div class="code-container" style="margin-top: 1rem;">
+                            <div class="code-body" style="padding: 1rem; font-size: 0.85rem;">
+<span class="comment">// Simple UTXO spend</span>
+<span class="keyword">Version:</span> <span class="number">0x02</span>
+
+<span class="keyword">Input:</span> <span class="variable">UTXO</span> + <span class="function">ECDSA sig</span>
+
+<span class="keyword">Output:</span> <span class="type">P2PKH</span>/<span class="type">P2TR</span> address
+
+<span class="comment">// Characteristics</span>
+<span class="string">Immediate execution</span>
+<span class="string">No time-locks</span>
+<span class="string">Simple signature</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card animate-fade-in-up" style="transition-delay: 0.2s; border: 2px solid var(--dd-gold);">
+                        <h3 class="text-gold mb-2">DD Redemption TX</h3>
+                        <p class="text-muted mb-2" style="font-size: 0.9rem;">Complex script-path spend</p>
+                        <div class="code-container" style="margin-top: 1rem;">
+                            <div class="code-body" style="padding: 1rem; font-size: 0.85rem;">
+<span class="comment">// Multi-input script-path</span>
+<span class="keyword">Version:</span> <span class="number">0x03000770</span> <span class="comment">(REDEEM)</span>
+
+<span class="keyword">Input[0]:</span> <span class="variable">DD token UTXO</span>
+<span class="keyword">Input[1]:</span> <span class="variable">Collateral vault</span>
+  <span class="comment">Script-path reveal</span>
+  <span class="comment">CLTV satisfied</span>
+  <span class="comment">Schnorr signature</span>
+
+<span class="keyword">Output:</span> <span class="type">User DGB address</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tx-flow mt-4">
+                    <div class="tx-section animate-fade-in-up" style="transition-delay: 0.3s;">
+                        <div class="tx-label" style="background: var(--gradient-gold); color: #000;">VERSION</div>
+                        <div class="tx-content">
+                            <div class="tx-box">
+                                <h4>Transaction Type</h4>
+                                <code class="text-gold" style="font-size: 1.2rem;">0x03000770</code>
+                                <p class="text-muted mt-1" style="font-size: 0.85rem;">REDEEM type identifier</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tx-section animate-fade-in-up" style="transition-delay: 0.4s;">
+                        <div class="tx-label">INPUTS</div>
+                        <div class="tx-content">
+                            <div class="tx-box token">
+                                <h4>Input[0]: DD Token</h4>
+                                <p style="margin: 0.5rem 0;">100 DD token UTXO</p>
+                                <code class="text-muted" style="font-size: 0.8rem;">Simple key-path spend</code>
+                                <p class="text-success mt-1" style="font-size: 0.85rem;">To be burned</p>
+                            </div>
+                            <div class="tx-box vault">
+                                <h4>Input[1]: Collateral Vault</h4>
+                                <p style="margin: 0.5rem 0;">500 DGB locked UTXO</p>
+                                <code class="text-muted" style="font-size: 0.8rem;">Script-path reveal</code>
+                                <ul style="font-size: 0.85rem; margin-top: 0.5rem; list-style: none; padding-left: 0;">
+                                    <li>CLTV satisfied</li>
+                                    <li>MAST path revealed</li>
+                                    <li>Schnorr signature</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tx-section animate-fade-in-up" style="transition-delay: 0.5s;">
+                        <div class="tx-label" style="background: var(--gradient-blue);">OUTPUTS</div>
+                        <div class="tx-content">
+                            <div class="tx-box" style="border: 2px solid var(--success);">
+                                <h4>Output: Returned Collateral</h4>
+                                <p style="margin: 0.5rem 0;"><strong style="font-size: 1.2rem;">500 DGB</strong> to user's address</p>
+                                <code class="text-muted" style="font-size: 0.8rem;">dgbrt1q... (P2TR)</code>
+                                <p class="text-success mt-2" style="font-size: 0.85rem;">DD tokens destroyed<br>Collateral unlocked</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glow-box mt-4 animate-fade-in-up" style="transition-delay: 0.6s; max-width: 900px; text-align: center;">
+                    <h4 class="mb-2">Emergency Redemption Ratio (ERR) Note</h4>
+                    <p style="margin-bottom: 0.5rem;">If system health is below 100%, redemptions return 80-95% based on severity tier</p>
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-top: 1rem; font-size: 0.85rem;">
+                        <div style="padding: 0.5rem; background: rgba(0,200,81,0.2); border-radius: 8px;">
+                            <strong>Tier 1</strong><br>95-99% health<br><span class="text-success">95% return</span>
+                        </div>
+                        <div style="padding: 0.5rem; background: rgba(0,111,187,0.2); border-radius: 8px;">
+                            <strong>Tier 2</strong><br>90-94% health<br><span class="text-blue">90% return</span>
+                        </div>
+                        <div style="padding: 0.5rem; background: rgba(255,179,0,0.2); border-radius: 8px;">
+                            <strong>Tier 3</strong><br>85-89% health<br><span class="text-warning">85% return</span>
+                        </div>
+                        <div style="padding: 0.5rem; background: rgba(220,53,69,0.2); border-radius: 8px;">
+                            <strong>Tier 4</strong><br>&lt;85% health<br><span class="text-danger">80% return</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 9: OP_RETURN Metadata -->
+        <section class="slide slide--gold">
+            <div class="slide-content" style="padding-top: 100px; padding-bottom: 100px;">
+                <h2 class="slide-title animate-fade-in-up">OP_RETURN Metadata Format</h2>
+                <p class="slide-subtitle animate-fade-in-up">21 bytes enabling network-wide UTXO scanning</p>
+
+                <div class="byte-diagram mt-4 animate-fade-in-up" style="transition-delay: 0.2s; gap: 4px;">
+                    <div>
+                        <div class="byte-cell" style="background: rgba(106, 153, 85, 0.3);">0x6a</div>
+                        <div class="byte-label">OP_RETURN</div>
+                    </div>
+                    <div>
+                        <div class="byte-cell highlight-gold">DD</div>
+                        <div class="byte-label">Marker</div>
+                    </div>
+                    <div>
+                        <div class="byte-cell highlight-blue">0x01</div>
+                        <div class="byte-label">Type</div>
+                    </div>
+                    <div>
+                        <div class="byte-cell highlight-green" style="min-width: 120px;">8 bytes</div>
+                        <div class="byte-label">DD Amount</div>
+                    </div>
+                    <div>
+                        <div class="byte-cell highlight-gold" style="min-width: 120px;">8 bytes</div>
+                        <div class="byte-label">Collateral</div>
+                    </div>
+                    <div>
+                        <div class="byte-cell highlight-blue">1 byte</div>
+                        <div class="byte-label">Tier</div>
+                    </div>
+                </div>
+
+                <div class="code-container mt-4 animate-fade-in-up" style="transition-delay: 0.3s;">
+                    <div class="code-header">Example: Mint $100 DD, 500 DGB, 1-year lock</div>
+                    <div class="code-body" style="font-size: 1rem;">
+<span class="string">6a</span> <span class="variable">4444</span> <span class="keyword">01</span> <span class="number">1027000000000000</span> <span class="function">00F2052A01000000</span> <span class="type">04</span>
+<span class="comment"> │   │    │  │                 │                 │</span>
+<span class="comment"> │   │    │  │                 │                 └─ Tier 4 (1 year)</span>
+<span class="comment"> │   │    │  │                 └─ 50000000000 sats (500 DGB)</span>
+<span class="comment"> │   │    │  └─ 10000 cents ($100.00)</span>
+<span class="comment"> │   │    └─ MINT type</span>
+<span class="comment"> │   └─ 'DD' marker</span>
+<span class="comment"> └─ OP_RETURN</span>
+                    </div>
+                </div>
+
+                <div class="grid-2 mt-4" style="max-width: 700px;">
+                    <div class="card text-center animate-fade-in-up" style="transition-delay: 0.4s;">
+                        <div class="stat-value" style="font-size: 2rem;">21</div>
+                        <div class="stat-label">Bytes per mint</div>
+                    </div>
+                    <div class="card text-center animate-fade-in-up" style="transition-delay: 0.5s;">
+                        <div class="stat-value" style="font-size: 2rem;">46 MB</div>
+                        <div class="stat-label">Annual growth</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 10: Transfer TX -->
+        <section class="slide slide--gold slide--compact">
+            <div class="slide-content slide-content-safe">
+                <h2 class="slide-title animate-fade-in-up">DigiDollar Transfer Walkthrough</h2>
+                <p class="slide-subtitle animate-fade-in-up">DD transfers are SIMPLE - just key-path Schnorr signature spending</p>
+
+                <div class="grid-2 mt-4" style="max-width: 1000px; gap: 1rem;">
+                    <!-- Left: Wallet Flow (Reduced to 3 steps) -->
+                    <div>
+                        <h3 class="text-gold mb-3 animate-fade-in-up" style="font-size: 1.1rem;">Wallet User Flow</h3>
+
+                        <div class="card card--compact mb-2 animate-fade-in-up" style="transition-delay: 0.1s; border-left: 4px solid var(--dd-gold);">
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <div style="width: 36px; height: 36px; border-radius: 50%; background: var(--gradient-gold); color: #000; display: flex; align-items: center; justify-content: center; font-weight: 700;">1</div>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; margin-bottom: 0.25rem;">Select DD Balance</div>
+                                    <div style="font-size: 0.85rem; color: var(--text-muted);">Shows DD tokens in wallet</div>
+                                </div>
+                            </div>
+                            <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(0,0,0,0.3); border-radius: 8px; text-align: center;">
+                                <div style="border: 2px dashed rgba(255,255,255,0.2); border-radius: 8px; padding: 1.5rem 1rem; font-family: var(--font-mono); color: var(--text-muted);">
+                                    [Wallet Screenshot: DD Balance Selection UI]
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card card--compact mb-2 animate-fade-in-up" style="transition-delay: 0.2s; border-left: 4px solid var(--dd-gold);">
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <div style="width: 36px; height: 36px; border-radius: 50%; background: var(--gradient-gold); color: #000; display: flex; align-items: center; justify-content: center; font-weight: 700;">2</div>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; margin-bottom: 0.25rem;">Enter Recipient Address</div>
+                                    <div style="font-size: 0.85rem; color: var(--text-muted);">DD address (DD prefix)</div>
+                                </div>
+                            </div>
+                            <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(0,0,0,0.3); border-radius: 8px; text-align: center;">
+                                <div style="border: 2px dashed rgba(255,255,255,0.2); border-radius: 8px; padding: 1.5rem 1rem; font-family: var(--font-mono); color: var(--text-muted);">
+                                    [Wallet Screenshot: Address Entry Form]
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card card--compact mb-2 animate-fade-in-up" style="transition-delay: 0.3s; border-left: 4px solid var(--dd-gold);">
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <div style="width: 36px; height: 36px; border-radius: 50%; background: var(--gradient-gold); color: #000; display: flex; align-items: center; justify-content: center; font-weight: 700;">3</div>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; margin-bottom: 0.25rem;">Confirm Send</div>
+                                    <div style="font-size: 0.85rem; color: var(--text-muted);">Review transaction details</div>
+                                </div>
+                            </div>
+                            <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(0,0,0,0.3); border-radius: 8px; text-align: center;">
+                                <div style="border: 2px dashed rgba(255,255,255,0.2); border-radius: 8px; padding: 1.5rem 1rem; font-family: var(--font-mono); color: var(--text-muted);">
+                                    [Wallet Screenshot: Confirmation Dialog]
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card card--compact animate-fade-in-up" style="transition-delay: 0.4s; border-left: 4px solid var(--success);">
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <div style="width: 36px; height: 36px; border-radius: 50%; background: var(--gradient-green); display: flex; align-items: center; justify-content: center; font-weight: 700;">4</div>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; margin-bottom: 0.25rem;">Transaction Complete</div>
+                                    <div style="font-size: 0.85rem; color: var(--text-muted);">Success with instant confirmation</div>
+                                </div>
+                            </div>
+                            <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(0,0,0,0.3); border-radius: 8px; text-align: center;">
+                                <div style="border: 2px dashed rgba(0,200,81,0.4); border-radius: 8px; padding: 1.5rem 1rem; font-family: var(--font-mono); color: var(--text-muted);">
+                                    [Wallet Screenshot: Success Screen]
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Technical Comparison -->
+                    <div>
+                        <h3 class="text-blue mb-3 animate-fade-in-up" style="font-size: 1.3rem;">Technical Comparison</h3>
+
+                        <div class="card card--compact mb-3 animate-fade-in-up" style="transition-delay: 0.5s; background: rgba(0, 111, 187, 0.1); border: 2px solid rgba(0, 111, 187, 0.3);">
+                            <h4 class="text-blue mb-2" style="font-size: 1.1rem;">Normal DGB Transfer</h4>
+                            <ul style="font-size: 0.9rem; margin: 0; padding-left: 1.2rem; line-height: 1.8;">
+                                <li>Output: P2WPKH or P2TR</li>
+                                <li>Version: <code class="text-blue">0x02</code></li>
+                                <li>Witness: 64-byte Schnorr sig</li>
+                                <li>Address: dgbrt1... (regtest)</li>
+                            </ul>
+                        </div>
+
+                        <div style="text-align: center; font-size: 1.5rem; color: var(--dd-gold); margin: 0.5rem 0;">
+                            &#8595;
+                        </div>
+
+                        <div class="card card--compact mb-3 animate-fade-in-up" style="transition-delay: 0.6s; background: rgba(212, 175, 55, 0.1); border: 2px solid rgba(212, 175, 55, 0.3);">
+                            <h4 class="text-gold mb-2" style="font-size: 1.1rem;">DigiDollar Transfer</h4>
+                            <ul style="font-size: 0.9rem; margin: 0; padding-left: 1.2rem; line-height: 1.8;">
+                                <li>Output: Simple P2TR key-path</li>
+                                <li>Version: <code class="text-gold">0x02000770</code></li>
+                                <li>Witness: 64-byte Schnorr sig</li>
+                                <li>Address: DD... (mainnet)</li>
+                            </ul>
+                        </div>
+
+                        <div class="glow-box animate-fade-in-up" style="transition-delay: 0.7s; text-align: center; margin-bottom: 1rem;">
+                            <strong>DigiDollar transfers are as simple as DGB transfers</strong><br>
+                            Just a different TX version and address prefix
+                        </div>
+
+                        <div class="card card--compact animate-fade-in-up" style="transition-delay: 0.8s; background: rgba(0, 0, 0, 0.4);">
+                            <h4 class="mb-2" style="font-size: 1rem; color: var(--text-muted);">Technical Details</h4>
+                            <div style="font-size: 0.85rem; line-height: 1.7;">
+                                <div style="margin-bottom: 0.75rem;">
+                                    <div style="color: var(--dd-gold); font-weight: 600;">Input:</div>
+                                    <div style="color: var(--text-muted);">Previous DD UTXO (from mint or transfer)</div>
+                                </div>
+                                <div style="margin-bottom: 0.75rem;">
+                                    <div style="color: var(--dd-gold); font-weight: 600;">Output:</div>
+                                    <div style="color: var(--text-muted);">New DD UTXO to recipient</div>
+                                </div>
+                                <div>
+                                    <div style="color: var(--success); font-weight: 600;">NO OP_RETURN needed</div>
+                                    <div style="color: var(--text-muted);">Metadata only on mint/redeem</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 12: Oracle System -->
+        <section class="slide slide--gold">
+            <div class="slide-content" style="padding-top: 100px; padding-bottom: 100px;">
+                <h2 class="slide-title animate-fade-in-up">Oracle Price System</h2>
+                <p class="slide-subtitle animate-fade-in-up">13 exchanges → MAD filtering → Median consensus</p>
+
+                <div class="oracle-flow mt-4">
+                    <div class="animate-fade-in-up" style="transition-delay: 0.1s;">
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem;">
+                            <div class="exchange-box">Binance</div>
+                            <div class="exchange-box">Coinbase</div>
+                            <div class="exchange-box">Kraken</div>
+                            <div class="exchange-box">KuCoin</div>
+                            <div class="exchange-box">Gate.io</div>
+                            <div class="exchange-box">HTX</div>
+                            <div class="exchange-box">Crypto.com</div>
+                            <div class="exchange-box">Bittrex</div>
+                            <div class="exchange-box">Poloniex</div>
+                            <div class="exchange-box">MEXC</div>
+                            <div class="exchange-box">CoinGecko</div>
+                            <div class="exchange-box">CoinMarketCap</div>
+                            <div class="exchange-box">CryptoCompare</div>
+                        </div>
+                    </div>
+
+                    <div class="oracle-arrow animate-fade-in-up" style="transition-delay: 0.3s;">&#8594;</div>
+
+                    <div class="animate-fade-in-up" style="transition-delay: 0.4s;">
+                        <div class="card text-center" style="padding: 1.5rem;">
+                            <div class="text-muted mb-1">MAD Filtering</div>
+                            <code>3 × MAD = 6 μUSD</code>
+                            <div class="text-success mt-1">7/8 accepted</div>
+                        </div>
+                    </div>
+
+                    <div class="oracle-arrow animate-fade-in-up" style="transition-delay: 0.5s;">&#8594;</div>
+
+                    <div class="oracle-result animate-fade-in-up" style="transition-delay: 0.6s;">
+                        <div style="font-size: 0.85rem;">Consensus Price</div>
+                        <div style="font-size: 2rem;">6,500 μUSD</div>
+                        <div style="font-size: 0.9rem;">$0.0065/DGB</div>
+                    </div>
+                </div>
+
+                <div class="grid-2 mt-4" style="max-width: 800px;">
+                    <div class="card animate-fade-in-up" style="transition-delay: 0.7s;">
+                        <h4 class="text-blue mb-1">Phase 1 (Current)</h4>
+                        <p class="text-muted">1-of-1 oracle consensus</p>
+                        <p class="text-muted">22-byte compact storage</p>
+                        <span class="badge badge--blue">Testnet Active</span>
+                    </div>
+                    <div class="card animate-fade-in-up" style="transition-delay: 0.8s;">
+                        <h4 class="text-gold mb-1">Phase 2 (Testnet)</h4>
+                        <p class="text-muted">8-of-15 Schnorr threshold</p>
+                        <p class="text-muted">Byzantine fault tolerant</p>
+                        <span class="badge badge--gold">Coming Soon</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- SLIDE 11: UTXO Tracking -->
+        <section class="slide slide--blue">
+            <div class="slide-content" style="padding-top: 100px; padding-bottom: 100px;">
+                <h2 class="slide-title--blue animate-fade-in-up" style="background: var(--gradient-blue); -webkit-background-clip: text;">Network-Wide UTXO Tracking</h2>
+                <p class="slide-subtitle animate-fade-in-up">Every node sees identical system statistics</p>
+
+                <div class="grid-2 mt-4" style="max-width: 900px; gap: 2rem;">
+                    <!-- Visual: Node Consensus -->
+                    <div class="animate-fade-in-up" style="transition-delay: 0.1s;">
+                        <h3 class="text-blue mb-3" style="font-size: 1.2rem;">Decentralized Tracking</h3>
+
+                        <div class="card mb-2" style="border-left: 4px solid var(--dgb-blue);">
+                            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
+                                <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--gradient-blue); display: flex; align-items: center; justify-content: center; font-weight: 700;">1</div>
+                                <div>
+                                    <div style="font-weight: 600;">Node 1 (Bob)</div>
+                                    <div style="font-size: 0.85rem; color: var(--text-muted);">Scans UTXO set</div>
+                                </div>
+                            </div>
+                            <div style="padding: 1rem; background: rgba(0,0,0,0.3); border-radius: 8px; font-family: var(--font-mono); font-size: 0.9rem;">
+                                <div class="text-gold">500 DD, 2500 DGB locked</div>
+                            </div>
+                        </div>
+
+                        <div class="card mb-2" style="border-left: 4px solid var(--dgb-blue);">
+                            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
+                                <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--gradient-blue); display: flex; align-items: center; justify-content: center; font-weight: 700;">2</div>
+                                <div>
+                                    <div style="font-weight: 600;">Node 2 (Alice)</div>
+                                    <div style="font-size: 0.85rem; color: var(--text-muted);">Scans UTXO set</div>
+                                </div>
+                            </div>
+                            <div style="padding: 1rem; background: rgba(0,0,0,0.3); border-radius: 8px; font-family: var(--font-mono); font-size: 0.9rem;">
+                                <div class="text-gold">500 DD, 2500 DGB locked</div>
+                            </div>
+                        </div>
+
+                        <div class="glow-box" style="text-align: center; margin-top: 1rem;">
+                            <strong class="text-success">IDENTICAL</strong><br>
+                            <span style="font-size: 0.9rem;">No central indexer needed</span>
+                        </div>
+                    </div>
+
+                    <!-- Code: How It Works -->
+                    <div class="animate-fade-in-up" style="transition-delay: 0.2s;">
+                        <h3 class="text-blue mb-3" style="font-size: 1.2rem;">How It Works</h3>
+
+                        <div class="code-container">
+                            <div class="code-header">digidollar/health.cpp</div>
+                            <div class="code-body" style="font-size: 0.85rem;">
+<span class="function">ScanUTXOSet</span>() {
+  <span class="comment">// Iterate ALL UTXOs</span>
+  <span class="keyword">for each</span> <span class="variable">UTXO</span>:
+    <span class="keyword">if</span> <span class="type">P2TR</span> + <span class="variable">vout</span>[<span class="number">0</span>] + <span class="variable">value</span> > <span class="number">0</span>:
+      <span class="comment">// Found DD vault</span>
+      Extract <span class="variable">DD amount</span> from <span class="type">OP_RETURN</span>
+      <span class="variable">totalDD</span> += <span class="variable">ddAmount</span>
+      <span class="variable">totalCollateral</span> += <span class="variable">collateral</span>
+}
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-top: 1.5rem;">
+                            <div class="card text-center" style="padding: 1rem;">
+                                <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">&#127758;</div>
+                                <div style="font-weight: 600; font-size: 0.9rem;">Blockchain-wide</div>
+                                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Scans entire UTXO set, not just wallet</div>
+                            </div>
+                            <div class="card text-center" style="padding: 1rem;">
+                                <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">&#128200;</div>
+                                <div style="font-weight: 600; font-size: 0.9rem;">Exact Amounts</div>
+                                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Reads DD amounts from OP_RETURN metadata</div>
+                            </div>
+                            <div class="card text-center" style="padding: 1rem;">
+                                <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">&#9989;</div>
+                                <div style="font-weight: 600; font-size: 0.9rem;">Consensus Compatible</div>
+                                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Read-only, all nodes get identical results</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glow-box mt-4 animate-fade-in-up" style="transition-delay: 0.3s; max-width: 800px; text-align: center;">
+                    <strong>RPC Command:</strong> <code style="background: rgba(0,0,0,0.4); padding: 0.25rem 0.5rem; border-radius: 4px;">getdigidollarstats</code> returns network totals for system health
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 12: Protection Systems -->
+        <section class="slide slide--blue">
+            <div class="slide-content" style="padding-top: 100px; padding-bottom: 100px;">
+                <h2 class="slide-title--blue animate-fade-in-up" style="background: var(--gradient-blue); -webkit-background-clip: text;">Four-Layer Protection System</h2>
+                <p class="slide-subtitle animate-fade-in-up">How DigiDollar prevents cascading failures</p>
+
+                <div class="layer-stack mt-4">
+                    <div class="layer-bar layer-1 animate-fade-in-up" style="transition-delay: 0.1s;">
+                        <div class="layer-icon">&#128737;</div>
+                        <div class="layer-info">
+                            <div class="layer-title">Layer 1: High Base Collateral</div>
+                            <div class="layer-desc">200-1000% initial ratios absorb volatility before it matters</div>
+                        </div>
+                        <div class="layer-value text-danger">200-1000%</div>
+                    </div>
+
+                    <div class="layer-bar layer-2 animate-fade-in-up" style="transition-delay: 0.2s;">
+                        <div class="layer-icon">&#128200;</div>
+                        <div class="layer-info">
+                            <div class="layer-title">Layer 2: Dynamic Collateral Adjustment (DCA)</div>
+                            <div class="layer-desc">System stress → new mints require 1.2x to 2.0x more collateral</div>
+                        </div>
+                        <div class="layer-value text-warning">1.0-2.0x</div>
+                    </div>
+
+                    <div class="layer-bar layer-3 animate-fade-in-up" style="transition-delay: 0.3s;">
+                        <div class="layer-icon">&#128176;</div>
+                        <div class="layer-info">
+                            <div class="layer-title">Layer 3: Emergency Redemption Ratio (ERR)</div>
+                            <div class="layer-desc">System &lt;100% health → redemptions return 80-95% (tiered haircuts)</div>
+                        </div>
+                        <div class="layer-value text-blue">80-95%</div>
+                    </div>
+
+                    <div class="layer-bar layer-4 animate-fade-in-up" style="transition-delay: 0.4s;">
+                        <div class="layer-icon">&#9888;</div>
+                        <div class="layer-info">
+                            <div class="layer-title">Layer 4: Volatility Freeze</div>
+                            <div class="layer-desc">&gt;20% price swing in 1 hour → automatic circuit breaker</div>
+                        </div>
+                        <div class="layer-value text-success">144 blocks</div>
+                    </div>
+                </div>
+
+                <div class="glow-box mt-4 animate-fade-in-up" style="transition-delay: 0.5s; max-width: 600px; text-align: center;">
+                    <strong>Critical:</strong> Time-locked collateral cannot be force-liquidated.<br>
+                    Positions ride out storms instead of cascading.
+                </div>
+            </div>
+        </section>
+
+        </section>
+
+        <!-- SLIDE 13: RPC Commands -->
+        <section class="slide slide--gold">
+            <div class="slide-content" style="padding-top: 100px; padding-bottom: 100px;">
+                <h2 class="slide-title animate-fade-in-up">DigiDollar RPC Commands</h2>
+                <p class="slide-subtitle animate-fade-in-up">24+ commands for full programmatic control</p>
+
+                <div class="grid-2 mt-4" style="max-width: 1000px; gap: 1.5rem;">
+                    <!-- System Health Section -->
+                    <div class="card animate-fade-in-up" style="transition-delay: 0.1s; border-left: 4px solid var(--dgb-blue);">
+                        <h3 class="text-blue mb-2" style="font-size: 1.1rem;">System Health</h3>
+                        <div style="font-size: 0.9rem; line-height: 2;">
+                            <div><code class="text-blue">getdigidollarstats</code></div>
+                            <div class="text-muted" style="font-size: 0.85rem; margin-bottom: 0.75rem;">Network-wide UTXO stats</div>
+
+                            <div><code class="text-blue">getdcamultiplier</code></div>
+                            <div class="text-muted" style="font-size: 0.85rem; margin-bottom: 0.75rem;">Current DCA multiplier</div>
+
+                            <div><code class="text-blue">getprotectionstatus</code></div>
+                            <div class="text-muted" style="font-size: 0.85rem;">DCA/ERR/Volatility status</div>
+                        </div>
+                    </div>
+
+                    <!-- Collateral Section -->
+                    <div class="card animate-fade-in-up" style="transition-delay: 0.2s; border-left: 4px solid var(--dd-gold);">
+                        <h3 class="text-gold mb-2" style="font-size: 1.1rem;">Collateral</h3>
+                        <div style="font-size: 0.9rem; line-height: 2;">
+                            <div><code class="text-gold">calculatecollateralrequirement</code></div>
+                            <div class="text-muted" style="font-size: 0.85rem; margin-bottom: 0.75rem;">Real-time calculation</div>
+
+                            <div><code class="text-gold">estimatecollateral</code></div>
+                            <div class="text-muted" style="font-size: 0.85rem; margin-bottom: 0.75rem;">Quick estimation</div>
+
+                            <div><code class="text-gold">getredemptioninfo</code></div>
+                            <div class="text-muted" style="font-size: 0.85rem;">Redemption requirements</div>
+                        </div>
+                    </div>
+
+                    <!-- Oracle Section -->
+                    <div class="card animate-fade-in-up" style="transition-delay: 0.3s; border-left: 4px solid var(--success);">
+                        <h3 class="text-success mb-2" style="font-size: 1.1rem;">Oracle</h3>
+                        <div style="font-size: 0.9rem; line-height: 2;">
+                            <div><code class="text-success">getoracleprice</code></div>
+                            <div class="text-muted" style="font-size: 0.85rem; margin-bottom: 0.75rem;">Current price (micro-USD)</div>
+
+                            <div><code class="text-success">setmockoracleprice</code></div>
+                            <div class="text-muted" style="font-size: 0.85rem; margin-bottom: 0.75rem;">Set test price (regtest)</div>
+
+                            <div><code class="text-success">listoracles</code></div>
+                            <div class="text-muted" style="font-size: 0.85rem;">30 configured oracle nodes</div>
+                        </div>
+                    </div>
+
+                    <!-- Wallet Operations Section -->
+                    <div class="card animate-fade-in-up" style="transition-delay: 0.4s; border-left: 4px solid var(--dgb-blue);">
+                        <h3 class="text-blue mb-2" style="font-size: 1.1rem;">Wallet Operations <span class="text-muted" style="font-size: 0.75rem;">(via GUI)</span></h3>
+                        <div style="font-size: 0.9rem; line-height: 2;">
+                            <div><code class="text-blue">mintdigidollar</code></div>
+                            <div class="text-muted" style="font-size: 0.85rem; margin-bottom: 0.75rem;">Create DD by locking DGB</div>
+
+                            <div><code class="text-blue">senddigidollar</code></div>
+                            <div class="text-muted" style="font-size: 0.85rem; margin-bottom: 0.75rem;">Transfer DD</div>
+
+                            <div><code class="text-blue">redeemdigidollar</code></div>
+                            <div class="text-muted" style="font-size: 0.85rem;">Burn DD, unlock DGB</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glow-box mt-4 animate-fade-in-up" style="transition-delay: 0.5s; max-width: 800px; text-align: center;">
+                    <strong>Full API Reference:</strong> All commands documented in <code style="background: rgba(0,0,0,0.3); padding: 0.25rem 0.5rem; border-radius: 4px;">doc/DIGIDOLLAR_RPC.md</code>
+                </div>
+            </div>
+        </section>
+
+        </section>
+
+        <!-- SLIDE 14: Oracle System -->
+        <section class="slide slide--gold">
+            <div class="slide-content" style="padding-top: 100px; padding-bottom: 100px;">
+                <h2 class="slide-title animate-fade-in-up">Key Code References</h2>
+                <p class="slide-subtitle animate-fade-in-up">Where to find the implementation</p>
+
+                <div class="code-container mt-4 animate-fade-in-up" style="transition-delay: 0.2s;">
+                    <div class="code-header">Implementation Files</div>
+                    <div class="code-body" style="line-height: 2;">
+<span class="comment">// Core Transaction Handling</span>
+<span class="variable">DD_TX_VERSION</span>          <span class="string">primitives/transaction.h:46</span>
+<span class="variable">CCollateralPosition</span>    <span class="string">digidollar/digidollar.h:65</span>
+
+<span class="comment">// Script Creation</span>
+<span class="function">CreateCollateralScript</span> <span class="string">digidollar/txbuilder.cpp:185</span>
+<span class="function">CreateDDOutputScript</span>   <span class="string">digidollar/txbuilder.cpp:200</span>
+
+<span class="comment">// Protection Systems</span>
+<span class="function">GetDCAMultiplier</span>       <span class="string">consensus/dca.cpp:50</span>
+<span class="function">GetAdjustedRedemption</span>  <span class="string">consensus/err.cpp:74</span>
+
+<span class="comment">// Oracle Validation</span>
+<span class="function">ValidateBlockOracleData</span> <span class="string">validation.cpp:4065</span>
+<span class="variable">OP_ORACLE</span>              <span class="string">script/script.h:214</span>
+
+<span class="comment">// Network Health</span>
+<span class="function">ScanUTXOSet</span>            <span class="string">digidollar/health.cpp:274</span>
+                    </div>
+                </div>
+
+                <div class="grid-2 mt-4" style="max-width: 700px;">
+                    <div class="card text-center animate-fade-in-up" style="transition-delay: 0.3s;">
+                        <div class="text-gold" style="font-size: 2rem;">&#128214;</div>
+                        <div class="mt-1">DIGIDOLLAR_ARCHITECTURE.md</div>
+                        <div class="text-muted">Full specification</div>
+                    </div>
+                    <div class="card text-center animate-fade-in-up" style="transition-delay: 0.4s;">
+                        <div class="text-blue" style="font-size: 2rem;">&#128268;</div>
+                        <div class="mt-1">DIGIDOLLAR_ORACLE_ARCHITECTURE.md</div>
+                        <div class="text-muted">Oracle system details</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- SLIDE 15: Qt Wallet Walkthrough -->
+        <section class="slide slide--blue">
+            <div class="slide-content" style="padding-top: 100px; padding-bottom: 100px;">
+                <h2 class="slide-title--blue animate-fade-in-up" style="background: var(--gradient-blue); -webkit-background-clip: text;">Qt Wallet Implementation</h2>
+                <p class="slide-subtitle animate-fade-in-up">7 complete tabs - fully functional UI</p>
+
+                <!-- Tab Bar Visual -->
+                <div class="mt-4 animate-fade-in-up" style="transition-delay: 0.1s; max-width: 1000px; margin: 0 auto;">
+                    <div style="display: flex; justify-content: space-between; gap: 0.5rem; padding: 0.75rem; background: rgba(0, 0, 0, 0.4); border-radius: 12px 12px 0 0; border-bottom: 2px solid var(--dgb-blue);">
+                        <div style="flex: 1; text-align: center; padding: 0.75rem; background: rgba(0, 111, 187, 0.2); border-radius: 8px; font-size: 0.85rem; border: 1px solid rgba(0, 111, 187, 0.3);">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">📊</div>
+                            <div style="font-weight: 600;">Overview</div>
+                        </div>
+                        <div style="flex: 1; text-align: center; padding: 0.75rem; background: rgba(0, 111, 187, 0.2); border-radius: 8px; font-size: 0.85rem; border: 1px solid rgba(0, 111, 187, 0.3);">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">📨</div>
+                            <div style="font-weight: 600;">Receive</div>
+                        </div>
+                        <div style="flex: 1; text-align: center; padding: 0.75rem; background: rgba(0, 111, 187, 0.2); border-radius: 8px; font-size: 0.85rem; border: 1px solid rgba(0, 111, 187, 0.3);">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">💸</div>
+                            <div style="font-weight: 600;">Send</div>
+                        </div>
+                        <div style="flex: 1; text-align: center; padding: 0.75rem; background: rgba(212, 175, 55, 0.2); border-radius: 8px; font-size: 0.85rem; border: 1px solid rgba(212, 175, 55, 0.4);">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">🏦</div>
+                            <div style="font-weight: 600;">Mint</div>
+                        </div>
+                        <div style="flex: 1; text-align: center; padding: 0.75rem; background: rgba(212, 175, 55, 0.2); border-radius: 8px; font-size: 0.85rem; border: 1px solid rgba(212, 175, 55, 0.4);">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">🔓</div>
+                            <div style="font-weight: 600;">Redeem</div>
+                        </div>
+                        <div style="flex: 1; text-align: center; padding: 0.75rem; background: rgba(0, 111, 187, 0.2); border-radius: 8px; font-size: 0.85rem; border: 1px solid rgba(0, 111, 187, 0.3);">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">📋</div>
+                            <div style="font-weight: 600;">Positions</div>
+                        </div>
+                        <div style="flex: 1; text-align: center; padding: 0.75rem; background: rgba(0, 111, 187, 0.2); border-radius: 8px; font-size: 0.85rem; border: 1px solid rgba(0, 111, 187, 0.3);">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">📜</div>
+                            <div style="font-weight: 600;">Transactions</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Screenshot Placeholders -->
+                <div class="grid-3 mt-4" style="max-width: 1000px; gap: 1.5rem;">
+                    <div class="card animate-fade-in-up" style="transition-delay: 0.2s; border: 2px solid var(--dgb-blue);">
+                        <h4 class="text-blue mb-2" style="text-align: center;">Overview Tab</h4>
+                        <div style="border: 2px dashed rgba(0, 111, 187, 0.4); border-radius: 8px; padding: 4rem 1rem; text-align: center; background: rgba(0, 111, 187, 0.05); font-family: var(--font-mono); color: var(--text-muted); font-size: 0.85rem;">
+                            [Wallet Screenshot]<br><br>
+                            DD Balance Display<br>
+                            System Health Indicator<br>
+                            Recent Activity
+                        </div>
+                    </div>
+
+                    <div class="card animate-fade-in-up" style="transition-delay: 0.3s; border: 2px solid var(--dd-gold);">
+                        <h4 class="text-gold mb-2" style="text-align: center;">Mint Form</h4>
+                        <div style="border: 2px dashed rgba(212, 175, 55, 0.4); border-radius: 8px; padding: 4rem 1rem; text-align: center; background: rgba(212, 175, 55, 0.05); font-family: var(--font-mono); color: var(--text-muted); font-size: 0.85rem;">
+                            [Wallet Screenshot]<br><br>
+                            Tier Selection (1h-10yr)<br>
+                            Collateral Calculator<br>
+                            Real-time Validation
+                        </div>
+                    </div>
+
+                    <div class="card animate-fade-in-up" style="transition-delay: 0.4s; border: 2px solid var(--success);">
+                        <h4 class="text-success mb-2" style="text-align: center;">Positions/Vault Manager</h4>
+                        <div style="border: 2px dashed rgba(0, 200, 81, 0.4); border-radius: 8px; padding: 4rem 1rem; text-align: center; background: rgba(0, 200, 81, 0.05); font-family: var(--font-mono); color: var(--text-muted); font-size: 0.85rem;">
+                            [Wallet Screenshot]<br><br>
+                            Position Table<br>
+                            Lock Expiry Tracking<br>
+                            One-click Redemption
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab Descriptions -->
+                <div class="mt-4 animate-fade-in-up" style="transition-delay: 0.5s; max-width: 1000px; margin: 0 auto;">
+                    <div class="grid-2" style="gap: 1rem;">
+                        <div class="card" style="padding: 1rem;">
+                            <ul style="font-size: 0.9rem; line-height: 1.8; margin: 0; padding-left: 1.25rem;">
+                                <li><strong>Overview:</strong> Balance display, system health</li>
+                                <li><strong>Receive:</strong> DD address generation, QR codes</li>
+                                <li><strong>Send:</strong> DD transfers with validation</li>
+                                <li><strong>Mint:</strong> Lock period selection, collateral calculator</li>
+                            </ul>
+                        </div>
+                        <div class="card" style="padding: 1rem;">
+                            <ul style="font-size: 0.9rem; line-height: 1.8; margin: 0; padding-left: 1.25rem;">
+                                <li><strong>Redeem:</strong> Position selection, unlock DGB</li>
+                                <li><strong>Positions:</strong> Vault management table</li>
+                                <li><strong>Transactions:</strong> DD transaction history</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Implementation Notes -->
+                <div class="glow-box mt-4 animate-fade-in-up" style="transition-delay: 0.6s; max-width: 800px; text-align: center;">
+                    <div style="display: flex; justify-content: space-around; align-items: center; flex-wrap: wrap; gap: 1.5rem;">
+                        <div>
+                            <div class="text-success" style="font-size: 1.2rem; font-weight: 600;">✓ 100% Working</div>
+                            <div class="text-muted" style="font-size: 0.85rem;">Qt Implementation</div>
+                        </div>
+                        <div>
+                            <div class="text-blue" style="font-size: 1.2rem; font-weight: 600;">✓ Theme-Aware</div>
+                            <div class="text-muted" style="font-size: 0.85rem;">Styling</div>
+                        </div>
+                        <div>
+                            <div class="text-gold" style="font-size: 1.2rem; font-weight: 600;">✓ Real-time</div>
+                            <div class="text-muted" style="font-size: 0.85rem;">Validation</div>
+                        </div>
+                    </div>
+                    <div class="mt-3" style="font-family: var(--font-mono); font-size: 0.9rem; color: var(--text-muted);">
+                        Files: <span class="text-blue">/src/qt/digidollar*.cpp</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 16: Closing -->
+        <section class="slide slide--hero">
+            <div class="slide-content">
+                <div class="animate-fade-in-up" style="margin-bottom: 1rem;">
+                    <img src="images/DigiDollar.jpg" alt="DigiDollar" style="width: 120px; height: 120px; border-radius: 50%; box-shadow: 0 0 40px rgba(212, 175, 55, 0.5); animation: float 3s ease-in-out infinite;">
+                </div>
+
+                <span class="badge badge--gold animate-fade-in-up" style="transition-delay: 0.1s;">Technical Summary</span>
+
+                <h2 class="slide-title animate-fade-in-up" style="transition-delay: 0.2s;">
+                    DigiDollar: A New Paradigm
+                </h2>
+
+                <div class="grid-3 mt-4" style="max-width: 900px;">
+                    <div class="card text-center animate-fade-in-up" style="transition-delay: 0.2s;">
+                        <div style="font-size: 2.5rem;">&#128274;</div>
+                        <h3 class="mt-1">UTXO Native</h3>
+                        <p class="text-muted">No smart contracts, no custody risk</p>
+                    </div>
+                    <div class="card text-center animate-fade-in-up" style="transition-delay: 0.3s;">
+                        <div style="font-size: 2.5rem;">&#128737;</div>
+                        <h3 class="mt-1">4-Layer Protection</h3>
+                        <p class="text-muted">No death spirals possible</p>
+                    </div>
+                    <div class="card text-center animate-fade-in-up" style="transition-delay: 0.4s;">
+                        <div style="font-size: 2.5rem;">&#128272;</div>
+                        <h3 class="mt-1">Key Sovereignty</h3>
+                        <p class="text-muted">User controls keys always</p>
+                    </div>
+                </div>
+
+                <div class="divider animate-fade-in-up" style="transition-delay: 0.5s;"></div>
+
+                <div class="quote-box animate-fade-in-up" style="transition-delay: 0.6s; max-width: 700px;">
+                    The first stablecoin where cryptographic time-locks replace custodial trust,
+                    and UTXO transparency replaces smart contract complexity.
+                </div>
+
+                <div class="mt-4 animate-fade-in-up" style="transition-delay: 0.7s;">
+                    <p class="text-muted">Questions? Dive into the code.</p>
+                    <code style="background: rgba(0,0,0,0.3); padding: 0.5rem 1rem; border-radius: 8px; display: inline-block; margin-top: 0.5rem;">
+                        github.com/digibyte-core/digibyte
+                    </code>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <script src="js/presentation.js"></script>
+</body>
+</html>

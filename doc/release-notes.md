@@ -20,6 +20,34 @@ How to Upgrade
 ==============
 
 
+DigiDollar Oracle Phase 3: MuSig2 Aggregate Signatures
+-------------------------------------------------------
+
+Phase 3 of the DigiDollar oracle system introduces MuSig2 (BIP-327) aggregate
+signatures, replacing the individual per-oracle Schnorr signatures used in
+Phase 2. This reduces on-chain oracle data from ~277 bytes (Phase 2, 4 oracles)
+to ~84 bytes (Phase 3, 17 oracles) by combining all participant signatures into
+a single 64-byte aggregate signature with a compact participation bitmap.
+
+### Activation Heights
+
+- **Mainnet**: TBD (will be set after final testnet validation)
+- **Testnet**: Block 1,000
+- **Regtest**: Block 10
+
+### Bundle Format (v0x03)
+
+The new v0x03 on-chain format is:
+`OP_RETURN OP_ORACLE <0x03> <bitmap_len> <bitmap> <price_8B> <timestamp_8B> <aggregate_sig_64B>`
+
+### Version Gating
+
+v0x03 bundles are rejected before the Phase 3 activation height on each network.
+The `nDigiDollarPhase3Height` consensus parameter controls activation. Nodes
+running this version will correctly parse and validate v0x03 bundles once Phase 3
+activates, while continuing to accept v0x01 and v0x02 bundles from earlier phases.
+
+
 Performance Improvements
 --------------
 

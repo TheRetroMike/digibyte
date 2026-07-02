@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <test/util/setup_common.h>
@@ -8,6 +8,7 @@
 #include <addrman.h>
 #include <banman.h>
 #include <chainparams.h>
+#include <key.h>
 #include <common/system.h>
 #include <common/url.h>
 #include <consensus/consensus.h>
@@ -30,6 +31,7 @@
 #include <node/peerman_args.h>
 #include <node/validation_cache_args.h>
 #include <noui.h>
+#include <oracle/bundle_manager.h>
 #include <policy/fees.h>
 #include <policy/fees_args.h>
 #include <pow.h>
@@ -125,6 +127,10 @@ BasicTestingSetup::BasicTestingSetup(const ChainType chainType, const std::vecto
     SeedInsecureRand();
     if (G_TEST_LOG_FUN) LogInstance().PushBackCallback(G_TEST_LOG_FUN);
     InitLogging(*m_node.args);
+    // Apply -debug and -loglevel args (these are not processed by InitLogging,
+    // which only sets log options like timestamps/file paths).
+    (void)init::SetLoggingCategories(*m_node.args);
+    (void)init::SetLoggingLevel(*m_node.args);
     AppInitParameterInteraction(*m_node.args);
     LogInstance().StartLogging();
     m_node.kernel = std::make_unique<kernel::Context>();
@@ -142,6 +148,9 @@ BasicTestingSetup::BasicTestingSetup(const ChainType chainType, const std::vecto
         noui_connect();
         noui_connected = true;
     }
+
+    // Note: ECC_Start() is already called by kernel::Context constructor above (line 132)
+    // Do NOT call it again here or it will cause an assertion failure!
 }
 
 BasicTestingSetup::~BasicTestingSetup()
@@ -289,6 +298,15 @@ TestChain100Setup::TestChain100Setup(
     constexpr std::array<unsigned char, 32> vchKey = {
         {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}};
     coinbaseKey.Set(vchKey.begin(), vchKey.end(), true);
+
+    // Initialize OracleBundleManager before creating blocks
+    // This is needed because DigiDollar activates at height 100 in regtest
+    OracleBundleManager::Initialize();
+    // Clear any stale state and disable oracle bundling during chain setup
+    // to avoid Phase 2 vs Phase 3 version conflicts in block validation.
+    // Individual tests re-enable and configure the manager as needed.
+    OracleBundleManager::GetInstance().Clear();
+    OracleBundleManager::GetInstance().SetEnabled(false);
 
     // Generate a 100-block chain:
     this->mineBlocks(100);

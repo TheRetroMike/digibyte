@@ -1,13 +1,14 @@
 AC_PREREQ([2.69])
-define(_CLIENT_VERSION_MAJOR, 8)
+define(_CLIENT_VERSION_MAJOR, 9)
 define(_CLIENT_VERSION_MINOR, 26)
-define(_CLIENT_VERSION_BUILD, 1)
+define(_CLIENT_VERSION_BUILD, 4)
 define(_CLIENT_VERSION_RC, 0)
+define(_CLIENT_VERSION_SUFFIX, [])
 define(_CLIENT_VERSION_IS_RELEASE, true)
-define(_COPYRIGHT_YEAR, 2025)
+define(_COPYRIGHT_YEAR, 2026)
 define(_COPYRIGHT_HOLDERS,[The %s developers])
 define(_COPYRIGHT_HOLDERS_SUBSTITUTION,[[DigiByte Core]])
-AC_INIT([DigiByte Core],m4_join([.], _CLIENT_VERSION_MAJOR, _CLIENT_VERSION_MINOR, _CLIENT_VERSION_BUILD)m4_if(_CLIENT_VERSION_RC, [0], [], [rc]_CLIENT_VERSION_RC),[https://github.com/digibyte/digibyte/issues],[digibyte],[https://digibyte.org/])
+AC_INIT([DigiByte],m4_join([.], _CLIENT_VERSION_MAJOR, _CLIENT_VERSION_MINOR, _CLIENT_VERSION_BUILD)m4_if(_CLIENT_VERSION_RC, [0], _CLIENT_VERSION_SUFFIX, [rc]_CLIENT_VERSION_RC),[https://github.com/digibyte/digibyte/issues],[digibyte],[https://digibyte.org/])
 AC_CONFIG_SRCDIR([src/validation.cpp])
 AC_CONFIG_HEADERS([src/config/digibyte-config.h])
 AC_CONFIG_AUX_DIR([build-aux])
@@ -1615,6 +1616,19 @@ if test "$use_zmq" = "yes"; then
 fi
 
 AM_CONDITIONAL([ENABLE_ZMQ], [test "$use_zmq" = "yes"])
+
+dnl libcurl check for oracle exchange API support
+
+use_libcurl=no
+PKG_CHECK_MODULES([LIBCURL], [libcurl >= 7.50.0],
+  [AC_DEFINE([HAVE_LIBCURL], [1], [Define this symbol if libcurl is available])
+   use_libcurl=yes
+   if test "$TARGET_OS" = "darwin"; then
+     LIBCURL_LIBS="$LIBCURL_LIBS -framework CoreFoundation -framework SystemConfiguration"
+   fi],
+  [AC_MSG_WARN([libcurl not found, oracle will use mock exchange data])])
+
+AM_CONDITIONAL([HAVE_LIBCURL], [test "$use_libcurl" = "yes"])
 
 dnl libmultiprocess library check
 

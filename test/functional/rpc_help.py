@@ -105,6 +105,10 @@ class HelpRpcTest(DigiByteTestFramework):
 
         components = ['Blockchain', 'Control', 'Mining', 'Network', 'Rawtransactions', 'Util']
 
+        # DigiDollar RPC categories
+        components.append('Digidollar')
+        components.append('Oracle')
+
         if self.is_wallet_compiled():
             components.append('Wallet')
 

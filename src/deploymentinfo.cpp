@@ -1,5 +1,5 @@
 // Copyright (c) 2016-2021 The Bitcoin Core developers
-// Copyright (c) 2014-2025 The DigiByte Core developers
+// Copyright (c) 2014-2026 The DigiByte Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include <deploymentinfo.h>
@@ -18,6 +18,14 @@ const struct VBDeploymentInfo VersionBitsDeploymentInfo[Consensus::MAX_VERSION_B
     },
     {
         /*.name =*/ "taproot",
+        /*.gbt_force =*/ true,
+    },
+    {
+        /*.name =*/ "digidollar",
+        /*.gbt_force =*/ true,
+    },
+    {
+        /*.name =*/ "algolock",
         /*.gbt_force =*/ true,
     },
 };
