@@ -11,7 +11,7 @@
 #RUN gcc blocknotify.c -o /usr/bin/blocknotify
 #CMD /usr/bin/digibyted -printtoconsole
 
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 RUN apt-get update -y
 RUN apt-get install build-essential libtool autotools-dev automake pkg-config bsdmainutils python3 make automake cmake curl libtool binutils-gold bsdmainutils pkg-config python3 patch bison -y
 WORKDIR /app
